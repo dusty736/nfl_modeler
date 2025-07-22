@@ -74,7 +74,7 @@ This checklist outlines the key components and tools needed to build a complete,
 
 ---
 
-### 6. ☁Deployment (Google Cloud)
+### 6. Deployment (Google Cloud)
 - [ ] Write `Dockerfile` for:
   - ETL container
   - Dashboard container
