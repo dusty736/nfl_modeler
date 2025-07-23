@@ -1,5 +1,26 @@
 # NFL Modeler
 
+A portfolio project for NFL game prediction using real-time and historical data.
+
+## Features
+- End-to-end ETL pipeline (nflfastR, nflreadr)
+- Pre-game and in-game outcome models
+- Cloud-hosted SQL database
+- Public-facing dashboard
+
+## Structure
+- `etl/`: Data collection and cleaning
+- `models/`: Feature engineering and model training
+- `dashboard/`: Web app for predictions and visualizations
+- `sql/`: Database schema and queries
+- `docker/`: Deployment configuration
+
+## Setup
+TBD — will include Docker and Cloud Run deployment instructions.
+
+## License
+MIT
+
 ## NFL Analytics Portfolio Project – Master Checklist
 
 This checklist outlines the key components and tools needed to build a complete, professional-grade NFL analytics project.
