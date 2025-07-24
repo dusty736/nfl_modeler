@@ -86,3 +86,42 @@ clean_pbp_data <- function(df) {
     )
 }
 
+#' Add cumulative offensive stats by posteam
+add_team_cumulative_stats <- function(df) {
+  df %>%
+    group_by(game_id, posteam) %>%
+    arrange(play_id, .by_group = TRUE) %>%
+    mutate(
+      cum_play_offense = row_number(),
+      cum_yards_offense = cumsum(replace_na(yards_gained, 0)),
+      cum_epa_offense = cumsum(replace_na(epa, 0)),
+      cum_wpa_offense = cumsum(replace_na(wpa, 0)),
+      cum_success_offense = cumsum(replace_na(success, 0)),
+      cum_td_offense = cumsum(touchdown == TRUE),
+      cum_int_offense = cumsum(interception == TRUE),
+      cum_penalty_offense = cumsum(penalty == TRUE),
+      cum_pass_attempts = cumsum(pass_attempt == TRUE),
+      cum_rush_attempts = cumsum(rush_attempt == TRUE),
+      run_pass_ratio = cum_rush_attempts / (cum_pass_attempts + 1e-5)
+    ) %>%
+    ungroup()
+}
+
+#' Add cumulative defensive stats by defteam
+add_defense_cumulative_stats <- function(df) {
+  df %>%
+    group_by(game_id, defteam) %>%
+    arrange(play_id, .by_group = TRUE) %>%
+    mutate(
+      cum_play_defense = row_number(),
+      cum_yards_defense = cumsum(replace_na(yards_gained, 0)),
+      cum_epa_defense = cumsum(replace_na(epa, 0)),
+      cum_success_defense = cumsum(replace_na(success, 0)),
+      cum_td_allowed = cumsum(touchdown == TRUE),
+      cum_int_defense = cumsum(interception == TRUE),
+      cum_penalty_defense = cumsum(penalty == TRUE)
+    ) %>%
+    ungroup()
+}
+
+
