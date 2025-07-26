@@ -27,7 +27,8 @@ write_parquet(rosters, "data/raw/rosters.parquet")
 ################################################################################
 # Depth charts (nflreadr)
 ################################################################################
-depth_charts <- with_progress(nflreadr::load_depth_charts(seasons))
+depth_charts <- with_progress(nflreadr::load_depth_charts(seasons)) %>% 
+  filter(game_type != 'SBBYE')
 write_parquet(depth_charts, "data/raw/depth_charts.parquet")
 
 ################################################################################

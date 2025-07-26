@@ -48,7 +48,7 @@ cumdistinct <- function(x) {
 #' @return DataFrame with number of starts by player/position/season/team
 get_player_start_totals <- function(df) {
   df %>% 
-    group_by(season, team, position, player) %>% 
+    group_by(season, team, position, gsis_id) %>% 
     summarise(
       total_starts = n(),
       .groups = "drop"
@@ -61,9 +61,11 @@ get_player_start_totals <- function(df) {
 get_starter_switches <- function(df) {
   df %>% 
     arrange(season, week) %>% 
-    group_by(season, team, position) %>% 
+    distinct() %>% 
+    group_by(season, team, position, gsis_id) %>% 
+    mutate(player_starts = row_number()) %>% 
     mutate(
-      is_new_starter = player != lag(player)
+      is_new_starter = player_starts == 1 & week != 1
     ) %>% 
     ungroup()
 }
@@ -143,46 +145,35 @@ clean_position <- function(pos) {
 
 
 #' Compute weekly depth chart stability by position/team
-#' @param df Starter-only depth chart data (with position_clean)
+#' @param starters_df Starter-only depth chart data (with position)
 #' @return Table with weekly top starter share by team/position
 get_lineup_stability_by_week <- function(starters_df) {
-  starters_df %>%
-    group_by(season, week, team, player, position_clean, position_group) %>%
-    summarise(
-      has_started = 1L,
-      .groups = "drop"
-    ) %>%
-    # Cumulative number of weeks each player has started up to each week
-    group_by(season, team, player, position_clean, position_group) %>%
-    arrange(week) %>%
-    mutate(weeks_started_to_date = cumsum(has_started)) %>%
-    ungroup() %>%
-    
-    # Focus on lineup for that week
-    group_by(season, week, team, position_group) %>%
-    summarise(
-      total_starts_to_date = sum(weeks_started_to_date),
-      num_starters_this_week = n(),
-      max_possible_starts = n() * week,
-      lineup_stability_score = total_starts_to_date / max_possible_starts,
-      .groups = "drop"
-    )
-}
-
-#' Join all derived depth chart statistics
-#' @param raw_df Raw depth chart data
-#' @return A list of relevant depth chart features
-process_depth_chart_features <- function(raw_df) {
-  starters <- get_all_starters(raw_df)
+  # 1. Summarize number of position entries per team-week
+  position_games <- starters_df %>% 
+    distinct() %>% 
+    group_by(season, week, team, position) %>% 
+    summarize(position_count = n()) %>% 
+    arrange(team, position, season, week) %>% 
+    group_by(season, team, position) %>% 
+    mutate(running_position_count = cumsum(position_count))
   
-  list(
-    all_starters = starters,
-    qb_stats = get_qb_start_stats(starters),
-    player_start_totals = get_player_start_totals(starters),
-    starter_switches = get_starter_switches(starters),
-    promotions = get_inseason_promotions(raw_df),
-    lineup_stability = get_lineup_stability(starters)
-  )
+  position_players <- starters_df %>% 
+    arrange(season, week, team, position, player) %>% 
+    distinct() %>% 
+    group_by(season, team, position, player) %>% 
+    mutate(start_count = row_number()) %>% 
+    arrange(team, position, player, season, week)
+  
+  stability_by_week <- position_games %>% 
+    left_join(., position_players, by=c('team', 'position', 'season', 'week')) %>% 
+    filter(!position %in% c('K', 'ST')) %>% 
+    group_by(season, week, team, position, running_position_count) %>% 
+    summarize(starts = sum(start_count)) %>% 
+    ungroup(.) %>% 
+    mutate(position_group_score = round(starts / running_position_count, 3)) %>% 
+    dplyr::select(season, week, team, position, position_group_score)
+  
+  return(stability_by_week)
 }
 
 #' Example usage to derive and assign outputs from depth chart functions
