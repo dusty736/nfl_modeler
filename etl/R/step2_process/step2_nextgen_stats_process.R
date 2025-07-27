@@ -6,7 +6,7 @@ library(arrow)
 library(here)
 library(dplyr)
 
-source(here("etl", "R", "step2_nextgen_stats_process_functions.R"))
+source(here("etl", "R", "step2_process", "step2_nextgen_stats_process_functions.R"))
 
 ################################################################################
 # Load raw data

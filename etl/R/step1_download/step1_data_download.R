@@ -59,8 +59,10 @@ write_parquet(contracts, "data/raw/contracts.parquet")
 # Player Stats: offense + kicking (nflreadr)
 ################################################################################
 offense_stats <- with_progress(nflreadr::load_player_stats(seasons, stat_type = "offense"))
+defense_stats <- with_progress(nflreadr::load_player_stats(seasons, stat_type = "defense"))
 kicking_stats <- with_progress(nflreadr::load_player_stats(seasons, stat_type = "kicking"))
 write_parquet(offense_stats, "data/raw/off_player_stats.parquet")
+write_parquet(defense_stats, "data/raw/def_player_stats.parquet")
 write_parquet(kicking_stats, "data/raw/st_player_stats.parquet")
 
 ################################################################################

@@ -1,28 +1,27 @@
 ################################################################################
-# step2_contracts_process.R
+# step2_st_player_process.R
 ################################################################################
 
 library(arrow)
 library(here)
 library(dplyr)
 
-source(here("etl", "R", "step2_contracts_process_functions.R"))
+source(here("etl", "R", "step2_process", "step2_st_player_stats_process_functions.R"))
 
 ################################################################################
 # Load raw data
 ################################################################################
-contracts_raw <- arrow::read_parquet(here("data", "raw", "contracts.parquet"))
+st_stats_raw <- arrow::read_parquet(here("data", "raw", "st_player_stats.parquet"))
 
 ################################################################################
 # Clean and normalize
 ################################################################################
-contracts_clean <- clean_contracts_data(contracts_raw)
-position_cap_pct <- summarise_position_cap_pct(contracts_clean)
-qb_contracts <- add_qb_contract_metadata(contracts_clean)
+st_stats_cleaned <- process_special_teams_stats(st_stats_raw)
+st_stats_games <- add_cumulative_special_teams_stats(st_stats_cleaned)
+st_stats_season <- summarize_special_teams_by_season(st_stats_cleaned)
 
 ################################################################################
 # Save processed output
 ################################################################################
-arrow::write_parquet(position_cap_pct, "data/processed/contracts_position_cap_pct.parquet")
-arrow::write_parquet(qb_contracts, "data/processed/contracts_qb.parquet")
-
+arrow::write_parquet(st_stats_games, "data/processed/st_player_stats_weekly.parquet")
+arrow::write_parquet(st_stats_season, "data/processed/st_player_stats_season.parquet")

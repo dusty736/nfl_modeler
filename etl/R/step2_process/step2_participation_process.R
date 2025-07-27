@@ -6,7 +6,7 @@ library(arrow)
 library(here)
 library(dplyr)
 
-source(here("etl", "R", "step2_participation_process_functions.R"))
+source(here("etl", "R", "step2_process", "step2_participation_process_functions.R"))
 
 ################################################################################
 # Load raw data
