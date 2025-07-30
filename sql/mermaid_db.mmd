@@ -1,0 +1,250 @@
+erDiagram
+    %% CORE ENTITIES
+    PLAYERS ||--o{ ROSTERS : on_roster
+    PLAYERS ||--o{ QB_STATS_WEEKLY : has_weekly_stats
+    PLAYERS ||--o{ RB_STATS_WEEKLY : has_weekly_stats
+    PLAYERS ||--o{ WRTE_STATS_WEEKLY : has_weekly_stats
+    PLAYERS ||--o{ DEF_STATS_WEEKLY : has_weekly_stats
+    PLAYERS ||--o{ STATS_SPECIAL_WEEKLY : has_special_stats
+    PLAYERS ||--o{ NEXTGEN_STATS_WEEKLY : tracked_by
+    PLAYERS ||--o{ QB_STATS_SEASON : has_season_stats
+    PLAYERS ||--o{ QB_STATS_CAREER : has_career_stats
+    PLAYERS ||--o{ RB_STATS_SEASON : has_season_stats
+    PLAYERS ||--o{ RB_STATS_CAREER : has_career_stats
+    PLAYERS ||--o{ WRTE_STATS_SEASON : has_season_stats
+    PLAYERS ||--o{ WRTE_STATS_CAREER : has_career_stats
+    PLAYERS ||--o{ DEF_STATS_SEASON : has_season_stats
+    PLAYERS ||--o{ DEF_STATS_CAREER : has_career_stats
+    PLAYERS ||--o{ STATS_SPECIAL_SEASON : has_special_stats
+    PLAYERS ||--o{ NEXTGEN_STATS_SEASON : tracked_by
+    PLAYERS ||--o{ NEXTGEN_STATS_POST : tracked_by
+    PLAYERS ||--o{ NEXTGEN_STATS_CAREER : tracked_by
+    PLAYERS ||--o{ CONTRACTS_QB : signed_contract
+    PLAYERS ||--o{ DEPTH_CHARTS : assigned_to
+    PLAYERS ||--o{ INJURIES_WEEKLY : injured_in
+    TEAMS ||--o{ ROSTERS : has_player
+    TEAMS ||--o{ GAMES : played_at
+    TEAMS ||--o{ QB_STATS_WEEKLY : team_stats
+    TEAMS ||--o{ INJURIES_WEEKLY : reports_injury
+    TEAMS ||--o{ PARTICIPATION_OFFENSE_GAME : participated_in
+    TEAMS ||--o{ PARTICIPATION_DEFENSE_GAME : participated_in
+    TEAMS ||--o{ DEPTH_CHARTS : manages
+    TEAMS ||--o{ CONTRACTS_POSITION_CAP : spends
+    TEAMS ||--o{ PBP : offense_pbp
+    TEAMS ||--o{ PBP : defense_pbp
+    TEAMS ||--o{ INJURIES_TEAM_WEEKLY : weekly_injuries
+    TEAMS ||--o{ INJURIES_TEAM_SEASON : season_injuries
+    TEAMS ||--o{ INJURIES_POSITION_WEEKLY : position_injuries
+    GAMES ||--o{ PBP : has_play
+    GAMES ||--o{ PARTICIPATION_OFFENSE_PBP : tracks_offense
+    GAMES ||--o{ PARTICIPATION_DEFENSE_PBP : tracks_defense
+    GAMES ||--o{ QB_STATS_WEEKLY : summarized_in
+    GAMES ||--o{ DEF_STATS_WEEKLY : summarized_in
+    GAMES ||--o{ PARTICIPATION_OFFENSE_GAME : rolled_up_to
+    GAMES ||--o{ PARTICIPATION_DEFENSE_GAME : rolled_up_to
+    ROSTERS ||--|| ROSTER_SUMMARY : summarized_to
+    ROSTERS ||--|| ROSTER_POSITION_SUMMARY : position_summary
+
+    %% ENTITIES
+    PLAYERS {
+      string player_id PK
+      string full_name
+    }
+    TEAMS {
+      string team_id PK
+      string team_name
+    }
+    GAMES {
+      string game_id PK
+      int season
+      int week
+    }
+    ROSTERS {
+      string player_id FK
+      string team_id FK
+      int season
+      int week
+    }
+    QB_STATS_WEEKLY {
+      int season
+      int week
+      string player_id FK
+      string position
+      string recent_team
+    }
+    RB_STATS_WEEKLY {
+      int season
+      int week
+      string player_id FK
+      string recent_team
+    }
+    WRTE_STATS_WEEKLY {
+      int season
+      int week
+      string player_id FK
+      string position
+    }
+    DEF_STATS_WEEKLY {
+      int season
+      int week
+      string player_id FK
+    }
+    STATS_SPECIAL_WEEKLY {
+      int season
+      int week
+      string player_id FK
+    }
+    NEXTGEN_STATS_WEEKLY {
+      int season
+      string season_type
+      int week
+      string player_gsis_id FK
+    }
+    QB_STATS_SEASON {
+      int season
+      string player_id FK
+      string position
+      string recent_team
+    }
+    RB_STATS_SEASON {
+      int season
+      string player_id FK
+      string recent_team
+    }
+    WRTE_STATS_SEASON {
+      int season
+      string player_id FK
+      string position
+    }
+    DEF_STATS_SEASON {
+      int season
+      string player_id FK
+    }
+    STATS_SPECIAL_SEASON {
+      int season
+      string player_id FK
+    }
+    QB_STATS_CAREER {
+      string player_id PK
+      string position
+      string recent_team
+    }
+    RB_STATS_CAREER {
+      string player_id PK
+      string recent_team
+    }
+    WRTE_STATS_CAREER {
+      string player_id PK
+      string position
+    }
+    DEF_STATS_CAREER {
+      string player_id PK
+    }
+    NEXTGEN_STATS_SEASON {
+      int season
+      string player_gsis_id FK
+    }
+    NEXTGEN_STATS_POST {
+      string player_gsis_id FK
+    }
+    NEXTGEN_STATS_CAREER {
+      string player_gsis_id PK
+    }
+
+    PARTICIPATION_OFFENSE_PBP {
+      string game_id FK
+      int play_id
+      string team
+    }
+    PARTICIPATION_DEFENSE_PBP {
+      string game_id FK
+      int play_id
+      string defense_team
+    }
+    PARTICIPATION_OFFENSE_GAME {
+      string game_id FK
+      string team
+    }
+    PARTICIPATION_DEFENSE_GAME {
+      string game_id FK
+      string defense_team
+    }
+    PARTICIPATION_OFFENSE_SEASON {
+      int season
+      string team
+    }
+    PARTICIPATION_DEFENSE_SEASON {
+      int season
+      string defense_team
+    }
+    DEPTH_CHARTS {
+      int season
+      int week
+      string team
+      string player_id
+      string position
+    }
+    INJURIES_WEEKLY {
+      int season
+      int week
+      string team
+      string gsis_id
+      string report_status
+    }
+    INJURIES_TEAM_WEEKLY {
+      int season
+      int week
+      string team
+      int weekly_injuries
+      int cumulative_injuries
+    }
+    INJURIES_TEAM_SEASON {
+      int season
+      string team
+      int season_injuries
+    }
+    INJURIES_POSITION_WEEKLY {
+      int season
+      int week
+      string team
+      string position
+      int position_injuries
+      int cumulative_position_injuries
+    }
+    CONTRACTS_QB {
+      int contract_id PK
+      string gsis_id
+      string player
+      string team
+      int year_signed
+      int contract_start
+      int contract_end
+      float apy_cap_pct
+    }
+    CONTRACTS_POSITION_CAP {
+      string position
+      int year_signed
+      string team
+      float avg_apy_cap_pct
+      float total_apy
+      int count
+    }
+    PBP {
+      string game_id FK
+      int play_id
+      int qtr
+      int down
+      int ydstogo
+      int yardline_100
+      string posteam
+      string defteam
+      string play_type
+      float epa
+      int success
+      int touchdown
+      int interception
+      int penalty
+      int pass
+      int rush
+      int special
+    }
