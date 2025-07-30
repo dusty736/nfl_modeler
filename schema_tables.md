@@ -75,34 +75,36 @@
 # Season Summary
 | Column             | Type      | Description                                                        | Key               | Source File(s)                 |
 | ------------------ | --------- | ------------------------------------------------------------------ | ----------------- | ------------------------------ |
-| `season`           | `INTEGER` | NFL season year                                                    | Primary Key (1/2) | Derived or external            |
-| `team_id`          | `TEXT`    | Team abbreviation (e.g., `KC`, `PHI`)                              | Primary Key (2/2) | Derived or external            |
-| `wins`             | `INTEGER` | Regular season wins                                                |                   | External or computed           |
+| `season`           | `INTEGER` | NFL season year                                                    | Primary Key (1/2) | `season_results.parquet`            |
+| `team_id`          | `TEXT`    | Team abbreviation (e.g., `KC`, `PHI`)                              | Primary Key (2/2) |            |
+| `wins`             | `INTEGER` | Regular season wins                                                |                   |            |
 | `losses`           | `INTEGER` | Regular season losses                                              |                   |                                |
 | `ties`             | `INTEGER` | Regular season ties                                                |                   |                                |
-| `points_for`       | `INTEGER` | Total points scored during regular season                          |                   |                                |
-| `points_against`   | `INTEGER` | Total points allowed during regular season                         |                   |                                |
+| `points_for`       | `INTEGER` | Total points scored                        |                   |                                |
+| `points_against`   | `INTEGER` | Total points allowed                        |                   |                                |
+| `point_diff`     | `INTEGER` | Point differential          |                   |  |
 | `playoff_seed`     | `INTEGER` | Postseason seed (if qualified, lower = higher seed)                |                   |                                |
 | `made_playoffs`    | `BOOLEAN` | TRUE if team reached the postseason                                |                   |                                |
-| `postseason_round` | `TEXT`    | Deepest round reached: `None`, `WC`, `DIV`, `CONF`, `SB`, `SB_WIN` |                   | Derived manually or externally |
+| `postseason_round` | `TEXT`    | Deepest round reached: `None`, `WC`, `DIV`, `CONF`, `SB`, `SB_WIN` |                   |  |
 
 # Weeks
 
 | Column               | Type      | Description                                         | Key               | Source File(s)      |
 | -------------------- | --------- | --------------------------------------------------- | ----------------- | ------------------- |
-| `season`             | `INTEGER` | NFL season                                          | Primary Key (1/3) | `games.parquet`     |
-| `team_id`            | `TEXT`    | Team abbreviation                                   | Primary Key (2/3) | `games.parquet`     |
-| `week`               | `INTEGER` | Week number                                         | Primary Key (3/3) | `games.parquet`     |
-| `season_type`        | `TEXT`    | Season type: `REG`, `POST`, `PRE`, `SB`             |                   | `games.parquet`     |
-| `week_label`         | `TEXT`    | Friendly label (e.g., "Week 4", "Wild Card")        |                   | Derived             |
-| `game_id`            | `TEXT`    | Game ID for the week, if team played                |                   | `games.parquet`     |
-| `date`               | `DATE`    | Game date (kickoff), or week start date             |                   | `games.parquet`     |
-| `bye_week`           | `BOOLEAN` | TRUE if team did not play that week                 |                   | Derived             |
-| `wins_entering`      | `INTEGER` | Number of wins entering the week                    |                   | Computed            |
-| `losses_entering`    | `INTEGER` | Number of losses entering the week                  |                   | Computed            |
-| `ties_entering`      | `INTEGER` | Number of ties entering the week                    |                   | Computed            |
-| `points_scored_ytd`  | `INTEGER` | Total points scored by team through previous weeks  |                   | Computed from games |
-| `points_allowed_ytd` | `INTEGER` | Total points allowed by team through previous weeks |                   | Computed from games |
+| `season`             | `INTEGER` | NFL season                                          | Primary Key (1/3) |  `weekly_results.parquet`    |
+| `team_id`            | `TEXT`    | Team abbreviation                                   | Primary Key (2/3) |      |
+| `week`               | `INTEGER` | Week number                                         | Primary Key (3/3) |      |
+| `season_type`        | `TEXT`    | Season type: `REG`, `POST`, `PRE`, `SB`             |                   |      |
+| `week_label`         | `TEXT`    | Friendly label (e.g., "Week 4", "Wild Card")        |                   |              |
+| `game_id`            | `TEXT`    | Game ID for the week, if team played                |                   |      |
+| `date`               | `DATE`    | Game date (kickoff), or week start date             |                   |      |
+| `bye_week`           | `BOOLEAN` | TRUE if team did not play that week                 |                   |              |
+| `wins_entering`      | `INTEGER` | Number of wins entering the week                    |                   |             |
+| `losses_entering`    | `INTEGER` | Number of losses entering the week                  |                   |             |
+| `ties_entering`      | `INTEGER` | Number of ties entering the week                    |                   |             |
+| `points_scored_ytd`  | `INTEGER` | Total points scored by team through previous weeks  |                   |  |
+| `points_allowed_ytd` | `INTEGER` | Total points allowed by team through previous weeks |                   | |
+| `point_diff_ytd`     | `INTEGER` | Point differential through previous weeks           |                   |  |
 
 # Roster
 
