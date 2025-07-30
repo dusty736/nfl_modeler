@@ -27,4 +27,4 @@ def_player_stats_career <- summarize_defensive_stats_by_player(def_player_stats_
 arrow::write_parquet(def_player_stats_cleaned, "data/processed/def_player_stats_weekly.parquet")
 arrow::write_parquet(def_player_stats_season, "data/processed/def_player_stats_season.parquet")
 arrow::write_parquet(def_player_stats_career, "data/processed/def_player_stats_career.parquet")
-arrow::write_parquet(def_player_stats_career, "data/processed/def_team_stats_season.parquet")
+arrow::write_parquet(def_team_stats_season, "data/processed/def_team_stats_season.parquet")

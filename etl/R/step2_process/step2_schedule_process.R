@@ -17,6 +17,8 @@ schedule_raw <- arrow::read_parquet(here("data", "raw", "schedule.parquet"))
 # Clean and normalize
 ################################################################################
 schedule_clean <- clean_schedule_data(schedule_raw)
+weekly_results <- get_weekly_season_table(schedule_raw)
+season_results <- summarize_season_team_results(schedule_raw)
 
 ################################################################################
 # Write to processed/
@@ -24,4 +26,12 @@ schedule_clean <- clean_schedule_data(schedule_raw)
 arrow::write_parquet(
   schedule_clean,
   here("data", "processed", "games.parquet")
+)
+arrow::write_parquet(
+  weekly_results,
+  here("data", "processed", "weekly_results.parquet")
+)
+arrow::write_parquet(
+  season_results,
+  here("data", "processed", "season_results.parquet")
 )
