@@ -427,6 +427,11 @@ process_receiver_stats <- function(off_stats, position_group = c("WR", "TE")) {
       player_id, full_name = player_display_name,
       position, recent_team, opponent_team,
       
+      # Rushing
+      carries, rushing_yards, rushing_tds,
+      rushing_fumbles, rushing_fumbles_lost,
+      rushing_first_downs, rushing_epa, rushing_2pt_conversions,
+      
       # Receiving
       targets, receptions, receiving_yards, receiving_tds,
       receiving_fumbles, receiving_fumbles_lost,
@@ -439,15 +444,26 @@ process_receiver_stats <- function(off_stats, position_group = c("WR", "TE")) {
       # Fantasy
       fantasy_points, fantasy_points_ppr
     ) %>%
-    dplyr::filter(!is.na(targets)) %>%
+    dplyr::filter(
+      !is.na(carries) | !is.na(targets)
+    ) %>%
     dplyr::group_by(season, player_id) %>%
     dplyr::arrange(week, .by_group = TRUE) %>%
     dplyr::mutate(
+      # Cumulative rushing
+      cumulative_carries = cumsum(coalesce(carries, 0)),
+      cumulative_rushing_yards = cumsum(coalesce(rushing_yards, 0)),
+      cumulative_rushing_tds = cumsum(coalesce(rushing_tds, 0)),
+      cumulative_rushing_epa = cumsum(coalesce(rushing_epa, 0)),
+      
+      # Cumulative receiving
       cumulative_targets = cumsum(coalesce(targets, 0)),
       cumulative_receptions = cumsum(coalesce(receptions, 0)),
       cumulative_receiving_yards = cumsum(coalesce(receiving_yards, 0)),
       cumulative_receiving_tds = cumsum(coalesce(receiving_tds, 0)),
       cumulative_receiving_epa = cumsum(coalesce(receiving_epa, 0)),
+      
+      # Cumulative fantasy
       cumulative_fantasy_points = cumsum(coalesce(fantasy_points, 0)),
       cumulative_fantasy_points_ppr = cumsum(coalesce(fantasy_points_ppr, 0))
     ) %>%
@@ -475,32 +491,43 @@ process_receiver_stats <- function(off_stats, position_group = c("WR", "TE")) {
 aggregate_receiver_season_stats <- function(receiver_stats) {
   receiver_stats %>%
     dplyr::select(-dplyr::starts_with("cumulative_")) %>%
-    dplyr::group_by(season, player_id) %>%
+    dplyr::group_by(player_id, season) %>%
     dplyr::summarize(
       full_name = dplyr::first(full_name),
       position = dplyr::first(position),
       recent_team = dplyr::last(recent_team),
       
-      games_played = dplyr::n_distinct(week),
+      seasons_played = dplyr::n_distinct(season),
+      games_played = dplyr::n_distinct(paste(season, week)),
+      
+      # Rushing totals
+      carries = sum(carries, na.rm = TRUE),
+      rushing_yards = sum(rushing_yards, na.rm = TRUE),
+      rushing_tds = sum(rushing_tds, na.rm = TRUE),
+      rushing_epa = sum(rushing_epa, na.rm = TRUE),
+      rushing_fumbles = sum(rushing_fumbles, na.rm = TRUE),
+      rushing_fumbles_lost = sum(rushing_fumbles_lost, na.rm = TRUE),
+      rushing_first_downs = sum(rushing_first_downs, na.rm = TRUE),
+      rushing_2pt_conversions = sum(rushing_2pt_conversions, na.rm = TRUE),
       
       # Receiving totals
       targets = sum(targets, na.rm = TRUE),
       receptions = sum(receptions, na.rm = TRUE),
       receiving_yards = sum(receiving_yards, na.rm = TRUE),
       receiving_tds = sum(receiving_tds, na.rm = TRUE),
+      receiving_epa = sum(receiving_epa, na.rm = TRUE),
       receiving_fumbles = sum(receiving_fumbles, na.rm = TRUE),
       receiving_fumbles_lost = sum(receiving_fumbles_lost, na.rm = TRUE),
       receiving_air_yards = sum(receiving_air_yards, na.rm = TRUE),
       receiving_yards_after_catch = sum(receiving_yards_after_catch, na.rm = TRUE),
       receiving_first_downs = sum(receiving_first_downs, na.rm = TRUE),
-      receiving_epa = sum(receiving_epa, na.rm = TRUE),
       receiving_2pt_conversions = sum(receiving_2pt_conversions, na.rm = TRUE),
       
-      # Fantasy totals
+      # Fantasy
       fantasy_points = sum(fantasy_points, na.rm = TRUE),
       fantasy_points_ppr = sum(fantasy_points_ppr, na.rm = TRUE),
       
-      # Rate stats (averaged)
+      # Efficiency / rate stats (averaged)
       racr = mean(racr, na.rm = TRUE),
       target_share = mean(target_share, na.rm = TRUE),
       air_yards_share = mean(air_yards_share, na.rm = TRUE),
@@ -539,24 +566,34 @@ aggregate_receiver_career_stats <- function(receiver_stats) {
       seasons_played = dplyr::n_distinct(season),
       games_played = dplyr::n_distinct(paste(season, week)),
       
+      # Rushing totals
+      carries = sum(carries, na.rm = TRUE),
+      rushing_yards = sum(rushing_yards, na.rm = TRUE),
+      rushing_tds = sum(rushing_tds, na.rm = TRUE),
+      rushing_epa = sum(rushing_epa, na.rm = TRUE),
+      rushing_fumbles = sum(rushing_fumbles, na.rm = TRUE),
+      rushing_fumbles_lost = sum(rushing_fumbles_lost, na.rm = TRUE),
+      rushing_first_downs = sum(rushing_first_downs, na.rm = TRUE),
+      rushing_2pt_conversions = sum(rushing_2pt_conversions, na.rm = TRUE),
+      
       # Receiving totals
       targets = sum(targets, na.rm = TRUE),
       receptions = sum(receptions, na.rm = TRUE),
       receiving_yards = sum(receiving_yards, na.rm = TRUE),
       receiving_tds = sum(receiving_tds, na.rm = TRUE),
+      receiving_epa = sum(receiving_epa, na.rm = TRUE),
       receiving_fumbles = sum(receiving_fumbles, na.rm = TRUE),
       receiving_fumbles_lost = sum(receiving_fumbles_lost, na.rm = TRUE),
       receiving_air_yards = sum(receiving_air_yards, na.rm = TRUE),
       receiving_yards_after_catch = sum(receiving_yards_after_catch, na.rm = TRUE),
       receiving_first_downs = sum(receiving_first_downs, na.rm = TRUE),
-      receiving_epa = sum(receiving_epa, na.rm = TRUE),
       receiving_2pt_conversions = sum(receiving_2pt_conversions, na.rm = TRUE),
       
-      # Fantasy totals
+      # Fantasy
       fantasy_points = sum(fantasy_points, na.rm = TRUE),
       fantasy_points_ppr = sum(fantasy_points_ppr, na.rm = TRUE),
       
-      # Rate stats (averaged)
+      # Efficiency / rate stats (averaged)
       racr = mean(racr, na.rm = TRUE),
       target_share = mean(target_share, na.rm = TRUE),
       air_yards_share = mean(air_yards_share, na.rm = TRUE),
