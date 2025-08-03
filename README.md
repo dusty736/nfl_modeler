@@ -28,25 +28,25 @@ This checklist outlines the key components and tools needed to build a complete,
 ---
 
 ### 1. Project Setup
-- [ ] **Create GitHub repo** with `README.md`, `.gitignore`, and license
-- [ ] Set up local environment:
-  - [ ] R: Use `{renv}` or `{packrat}` for reproducible dependencies
-  - [ ] Python: Use `venv` or `conda`
-- [ ] Define folder structure:
+- [x] **Create GitHub repo** with `README.md`, `.gitignore`, and license
+- [x] Set up local environment:
+  - [x] R: Use `{renv}` or `{packrat}` for reproducible dependencies
+  - [x] Python: Use `venv` or `conda`
+- [x] Define folder structure:
   - `etl/`, `models/`, `dashboard/`, `data/`, `sql/`, `docker/`, `docs/`
 
 ---
 
 ### 2. ETL Pipeline (Extract → Transform → Load)
-- [ ] **Extract**: Pull data using `nflreadr` (or `nfl_data_py`)
-  - [ ] Download play-by-play, schedules, rosters
-  - [ ] Automate refresh with `cron` (local) or `Cloud Scheduler` (GCP)
-- [ ] **Transform**: Clean, join, and create features
-  - [ ] Game-level summaries
-  - [ ] Team stats & rolling averages
-  - [ ] In-game state features (score diff, time left, etc.)
+- [x] **Extract**: Pull data using `nflreadr` (or `nfl_data_py`)
+  - [x] Download play-by-play, schedules, rosters
+  - [x] Automate refresh with `cron` (local) or `Cloud Scheduler` (GCP)
+- [x] **Transform**: Clean, join, and create features
+  - [x] Game-level summaries
+  - [x] Team stats & rolling averages
+  - [x] In-game state features (score diff, time left, etc.)
 - [ ] **Load**:
-  - [ ] Write `.parquet` files with `{arrow}` or `pyarrow`
+  - [x] Write `.parquet` files with `{arrow}` or `pyarrow`
   - [ ] Set up SQL tables in **PostgreSQL** (Cloud SQL)
   - [ ] Upload to database using `DBI::dbWriteTable()` or `SQLAlchemy`
 
