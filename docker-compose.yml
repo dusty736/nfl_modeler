@@ -12,7 +12,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - ./db/docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d
+      - ./docker/db/docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d
       - pgdata:/var/lib/postgresql/data
 
   pgadmin:
@@ -25,6 +25,28 @@ services:
       - "8080:80"
     depends_on:
       - db
+
+  api:
+    build: ./services/api
+    container_name: nfl_api_py
+    environment:
+      DATABASE_URL: postgresql+asyncpg://nfl_user:nfl_pass@db:5432/nfl
+      SEASON: 2025
+    depends_on:
+      - db
+    ports:
+      - "8000:8000"
+
+  # dashboard:
+  #   build: ./services/dashboard
+  #   container_name: nfl_dash
+  #   environment:
+  #     API_BASE: http://api:8000
+  #     SEASON: 2025
+  #   depends_on:
+  #     - api
+  #   ports:
+  #     - "8050:8050"
 
 volumes:
   pgdata:

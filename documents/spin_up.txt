@@ -1,0 +1,129 @@
+NFL Analytics — Local DB & API Runbook
+======================================
+
+This file explains how to spin up the **PostgreSQL database** and the **FastAPI service** using the existing Makefile targets.
+
+Prerequisites
+-------------
+- Docker + Docker Compose installed and running.
+- R installed (for ETL) and your project packages restored via `renv`.
+- You are in the project root directory: `nfl_modeler/` (where `docker-compose.yml` and the Makefile live).
+
+Service Ports
+-------------
+- Postgres: **localhost:5432**  (user: `nfl_user`, password: `nfl_pass`, db: `nfl`)
+- pgAdmin:  **http://localhost:8080**
+- API:      **http://localhost:8000**
+
+1) Start the database (and pgAdmin)
+-----------------------------------
+Start the Docker services defined in `docker-compose.yml`:
+
+    make up
+
+This brings up Postgres and pgAdmin (and the API too if it’s defined in your compose). Wait a few seconds and confirm the DB is ready:
+
+    make logs   # Ctrl+C to stop tailing
+
+You should see: `database system is ready to accept connections`.
+
+(Optional) If you only want DB+API without pgAdmin, you can start them with:
+
+    make api-up
+
+2) Restore R dependencies (one-time or after lockfile changes)
+--------------------------------------------------------------
+    make install-deps
+
+This runs `renv::restore()` to ensure your R ETL script dependencies are installed.
+
+3) Load data into Postgres
+--------------------------
+Run your ETL loader to push Parquet files into the DB:
+
+    make load-db
+
+If you see a connection error to `localhost:5432`, ensure the DB is up (`make up`) and that nothing else is using port 5432. If you changed the port mapping (e.g., to 5433), update your R script’s connection or export `PGPORT=5433` before running `make load-db`.
+
+4) Start (or rebuild) the API
+-----------------------------
+Build and start only the API (and DB if needed):
+
+    make api-build     # build API image
+    make api-up        # start DB + API in background
+
+If you changed Python files or dependencies and want a clean rebuild:
+
+    make api-rebuild
+
+5) Verify the API
+-----------------
+Open one of the following in your browser or use curl:
+
+- Health check:         http://localhost:8000/health
+- Router sanity check:  http://localhost:8000/api/ping
+- Interactive docs:     http://localhost:8000/docs
+
+API logs (follow):
+    
+    make api-logs
+
+6) Stop services
+----------------
+Stop only the API:
+
+    make api-down
+
+Stop everything (DB, pgAdmin, API, etc.) and remove containers:
+
+    make down
+
+(This **does not** remove the database volume. Data persists across restarts.)
+
+7) Full reset (optional, destructive)
+-------------------------------------
+If you need to re-run DB init scripts from scratch, remove the volume:
+
+    docker-compose down -v
+    make up
+    make load-db
+
+This deletes all DB data in the named volume and recreates it fresh.
+
+8) DBeaver connection (optional)
+--------------------------------
+- Host: `localhost`
+- Port: `5432` (or your custom host port)
+- Database: `nfl`
+- User: `nfl_user`
+- Password: `nfl_pass`
+
+Ensure the **`nfl`** schema is selected in DBeaver (Edit Connection → PostgreSQL → Schemas).
+
+Troubleshooting
+---------------
+- **404 at /**: Normal. The API root doesn’t have a route; use `/docs` or `/health`.
+- **Connection refused** when loading DB: Make sure the DB is running (`make up`) and that the host port (5432) isn’t taken by a local Postgres service.
+- **Init scripts didn’t run**: They only run on a fresh volume. Use the **Full reset** steps above if needed.
+- **API changes not showing**: Rebuild the image with `make api-rebuild`.
+
+Command Reference (Makefile)
+----------------------------
+Core:
+- `make up`          – start compose services (DB, pgAdmin, and API if present)
+- `make load-db`     – run ETL to load data into Postgres
+- `make reset-db`    – stop, start, then reload data (`down` → `up` → `load-db`)
+- `make down`        – stop and remove containers (keeps volumes)
+- `make logs`        – follow logs for all services
+- `make ps`          – list running services
+
+API helpers:
+- `make api-build`   – build only the API image
+- `make api-up`      – start DB + API
+- `make api-rebuild` – rebuild API (no cache) and start it
+- `make api-down`    – stop only the API
+- `make api-logs`    – follow API logs
+- `make api-shell`   – open a shell in the API container
+- `make api-health`  – GET /health
+- `make api-ping`    – GET /api/ping
+- `make api-dbcheck` – GET /api/dbcheck (if implemented)
