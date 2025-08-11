@@ -56,6 +56,33 @@ contracts <- with_progress(nflreadr::load_contracts())
 write_parquet(contracts, "data/raw/contracts.parquet")
 
 ################################################################################
+# Team Metadata
+################################################################################
+team_metadata <- with_progress(nflreadr::load_teams(current=FALSE)) %>% 
+  filter(team_abbr != 'LAR')
+write_parquet(team_metadata, "data/raw/team_metadata.parquet")
+
+################################################################################
+# Snapcount
+################################################################################
+snapcount <- with_progress(nflreadr::load_snap_counts(seasons=TRUE))
+write_parquet(snapcount, "data/raw/player_snapcount.parquet")
+
+################################################################################
+# ESPN QBR
+################################################################################
+espn_qbr <- with_progress(nflreadr::load_espn_qbr(seasons=TRUE))
+write_parquet(espn_qbr, "data/raw/espn_qbr.parquet")
+
+################################################################################
+# ID Map
+################################################################################
+id_map <- with_progress(nflreadr::load_rosters(seasons)) %>% 
+  dplyr::select(full_name, first_name, last_name, contains("id")) %>% 
+  distinct()
+write_parquet(id_map, "data/raw/id_map.parquet")
+
+################################################################################
 # Player Stats: offense + kicking (nflreadr)
 ################################################################################
 offense_stats <- with_progress(nflreadr::load_player_stats(seasons=TRUE, stat_type = "offense"))
