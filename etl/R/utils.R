@@ -38,6 +38,6 @@ summarize_parquet_structure <- function(dir = "data/processed", n_examples = 3) 
   })
 }
 
-file_summary <- summarize_parquet_structure()
-data.table::fwrite(file_summary, "data/file_summary.csv")
+#file_summary <- summarize_parquet_structure()
+#data.table::fwrite(file_summary, "data/file_summary.csv")
 

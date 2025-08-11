@@ -4,6 +4,7 @@
 
 library(arrow)
 library(here)
+library(tidyverse)
 library(dplyr)
 
 source(here("etl", "R", "step2_process", "step2_def_player_stats_process_functions.R"))

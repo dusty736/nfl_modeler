@@ -5,7 +5,7 @@ library(tidyverse)
 library(arrow)
 library(progressr)
 
-seasons <- 2016:2024  # start with a good historical window
+seasons <- 1999:lubridate::year(Sys.Date())
 
 ################################################################################
 # Create root folder
@@ -15,7 +15,7 @@ dir.create("data/raw", recursive = TRUE, showWarnings = FALSE)
 ################################################################################
 # Play-by-play data (nflfastR)
 ################################################################################
-pbp <- with_progress(nflreadr::load_pbp(seasons))
+pbp <- with_progress(nflreadr::load_pbp(seasons=TRUE))
 write_parquet(pbp, "data/raw/pbp.parquet")
 
 ################################################################################
@@ -27,26 +27,26 @@ write_parquet(rosters, "data/raw/rosters.parquet")
 ################################################################################
 # Depth charts (nflreadr)
 ################################################################################
-depth_charts <- with_progress(nflreadr::load_depth_charts(seasons)) %>% 
+depth_charts <- with_progress(nflreadr::load_depth_charts(seasons=TRUE)) %>% 
   filter(game_type != 'SBBYE')
 write_parquet(depth_charts, "data/raw/depth_charts.parquet")
 
 ################################################################################
 # Injuries (nflreadr)
 ################################################################################
-injuries <- with_progress(nflreadr::load_injuries(seasons))
+injuries <- with_progress(nflreadr::load_injuries(seasons=TRUE))
 write_parquet(injuries, "data/raw/injuries.parquet")
 
 ################################################################################
 # Participation (nflreadr)
 ################################################################################
-participation <- with_progress(nflreadr::load_participation(seasons))
+participation <- with_progress(nflreadr::load_participation(seasons=TRUE))
 write_parquet(participation, "data/raw/participation.parquet")
 
 ################################################################################
 # Next Gen Stats (nflreadr)
 ################################################################################
-ngs <- with_progress(nflreadr::load_nextgen_stats(seasons))
+ngs <- with_progress(nflreadr::load_nextgen_stats(seasons=TRUE))
 write_parquet(ngs, "data/raw/nextgen_stats.parquet")
 
 ################################################################################
@@ -58,9 +58,9 @@ write_parquet(contracts, "data/raw/contracts.parquet")
 ################################################################################
 # Player Stats: offense + kicking (nflreadr)
 ################################################################################
-offense_stats <- with_progress(nflreadr::load_player_stats(seasons, stat_type = "offense"))
-defense_stats <- with_progress(nflreadr::load_player_stats(seasons, stat_type = "defense"))
-kicking_stats <- with_progress(nflreadr::load_player_stats(seasons, stat_type = "kicking"))
+offense_stats <- with_progress(nflreadr::load_player_stats(seasons=TRUE, stat_type = "offense"))
+defense_stats <- with_progress(nflreadr::load_player_stats(seasons=TRUE, stat_type = "defense"))
+kicking_stats <- with_progress(nflreadr::load_player_stats(seasons=TRUE, stat_type = "kicking"))
 write_parquet(offense_stats, "data/raw/off_player_stats.parquet")
 write_parquet(defense_stats, "data/raw/def_player_stats.parquet")
 write_parquet(kicking_stats, "data/raw/st_player_stats.parquet")
@@ -68,7 +68,7 @@ write_parquet(kicking_stats, "data/raw/st_player_stats.parquet")
 ################################################################################
 # Schedule / Game metadata (nflfastR)
 ################################################################################
-schedule <- with_progress(nflreadr::load_schedules(seasons))
+schedule <- with_progress(nflreadr::load_schedules(seasons=TRUE))
 write_parquet(schedule, "data/raw/schedule.parquet")
 
 message("All raw data saved to /data/raw")
