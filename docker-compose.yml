@@ -37,16 +37,15 @@ services:
     ports:
       - "8000:8000"
 
-  # dashboard:
-  #   build: ./services/dashboard
-  #   container_name: nfl_dash
-  #   environment:
-  #     API_BASE: http://api:8000
-  #     SEASON: 2025
-  #   depends_on:
-  #     - api
-  #   ports:
-  #     - "8050:8050"
+  dashboard:
+    build: ./services/dashboard
+    container_name: nfl_dash
+    environment:
+      API_BASE: http://api:8000
+    depends_on:
+      - api
+    ports:
+      - "8050:8050"
 
 volumes:
   pgdata:
