@@ -13,7 +13,10 @@ def create_app() -> FastAPI:
     def index():
         return RedirectResponse(url="/docs")
 
-    season = importlib.import_module("app.routers.season")
-    app.include_router(season.router)
+    # Explicit, educational mounting
+    for mod in ["standings"]:
+        m = importlib.import_module(f"app.routers.{mod}")
+        app.include_router(m.router)
+
     return app
 
