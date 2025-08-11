@@ -1769,4 +1769,250 @@ format_participation_defense_season_for_sql <- function(input_path, output_path 
   invisible(defense_season_sql)
 }
 
+#' Format Team Metadata for SQL Import (Including Logos)
+#'
+#' Prepares `team_metadata.parquet` for SQL ingestion. Includes team identity,
+#' conference/division, colors, and all logo-related URLs.
+#'
+#' @param input_path Path to the input Parquet file.
+#' @param output_path Path to SQL-ready file (default: "team_metadata_tbl.parquet").
+#' @return Cleaned team metadata table (invisibly).
+#' @export
+format_team_metadata_for_sql <- function(input_path, output_path = "team_metadata_tbl.parquet") {
+  team_metadata_sql <- arrow::read_parquet(input_path) %>%
+    dplyr::transmute(
+      team_id = as.character(team_id),
+      team_abbr = as.character(team_abbr),
+      team_name = as.character(team_name),
+      team_nick = as.character(team_nick),
+      team_conf = as.character(team_conf),
+      team_division = as.character(team_division),
+      team_color = as.character(team_color),
+      team_color2 = as.character(team_color2),
+      team_color3 = as.character(team_color3),
+      team_color4 = as.character(team_color4),
+      team_logo_wikipedia = as.character(team_logo_wikipedia),
+      team_logo_espn = as.character(team_logo_espn),
+      team_wordmark = as.character(team_wordmark),
+      team_conference_logo = as.character(team_conference_logo),
+      team_league_logo = as.character(team_league_logo),
+      team_logo_squared = as.character(team_logo_squared)
+    )
+  
+  arrow::write_parquet(team_metadata_sql, output_path)
+  invisible(team_metadata_sql)
+}
+
+#' Format ID Map for SQL Import
+#'
+#' Prepares `id_map.parquet` for SQL ingestion. Retains all player name and ID fields
+#' across multiple platforms (GSIS, ESPN, Sportradar, etc.).
+#'
+#' @param input_path Path to the input Parquet file.
+#' @param output_path Path to SQL-ready file (default: "id_map_tbl.parquet").
+#' @return Cleaned ID map table (invisibly).
+#' @export
+format_id_map_for_sql <- function(input_path, output_path = "id_map_tbl.parquet") {
+  id_map_sql <- arrow::read_parquet(input_path) %>%
+    dplyr::transmute(
+      full_name = as.character(full_name),
+      first_name = as.character(first_name),
+      last_name = as.character(last_name),
+      gsis_id = as.character(gsis_id),
+      espn_id = as.character(espn_id),
+      sportradar_id = as.character(sportradar_id),
+      yahoo_id = as.character(yahoo_id),
+      rotowire_id = as.character(rotowire_id),
+      pff_id = as.character(pff_id),
+      pfr_id = as.character(pfr_id),
+      fantasy_data_id = as.character(fantasy_data_id),
+      sleeper_id = as.character(sleeper_id),
+      esb_id = as.character(esb_id),
+      gsis_it_id = as.character(gsis_it_id),
+      smart_id = as.character(smart_id)
+    )
+  
+  arrow::write_parquet(id_map_sql, output_path)
+  invisible(id_map_sql)
+}
+
+#' Format Weekly Snap Counts for SQL Import
+#'
+#' Prepares `snapcount_weekly.parquet` for SQL ingestion. Retains all weekly player snap data
+#' across offense, defense, and special teams.
+#'
+#' @param input_path Path to the input Parquet file.
+#' @param output_path Path to SQL-ready file (default: "snapcount_weekly_tbl.parquet").
+#' @return Cleaned weekly snap count table (invisibly).
+#' @export
+format_snapcount_weekly_for_sql <- function(input_path, output_path = "snapcount_weekly_tbl.parquet") {
+  snapcount_weekly_sql <- arrow::read_parquet(input_path) %>%
+    dplyr::transmute(
+      game_id = as.character(game_id),
+      pfr_game_id = as.character(pfr_game_id),
+      season = as.integer(season),
+      game_type = as.character(game_type),
+      week = as.integer(week),
+      player = as.character(player),
+      pfr_player_id = as.character(pfr_player_id),
+      position = as.character(position),
+      team = as.character(team),
+      opponent = as.character(opponent),
+      offense_snaps = as.numeric(offense_snaps),
+      offense_pct = as.numeric(offense_pct),
+      defense_snaps = as.numeric(defense_snaps),
+      defense_pct = as.numeric(defense_pct),
+      st_snaps = as.numeric(st_snaps),
+      st_pct = as.numeric(st_pct)
+    )
+  
+  arrow::write_parquet(snapcount_weekly_sql, output_path)
+  invisible(snapcount_weekly_sql)
+}
+
+#' Format Season Snap Counts for SQL Import
+#'
+#' Prepares `snapcount_season.parquet` for SQL ingestion. Retains all season-level
+#' snap count summaries across offense, defense, and special teams.
+#'
+#' @param input_path Path to the input Parquet file.
+#' @param output_path Path to SQL-ready file (default: "snapcount_season_tbl.parquet").
+#' @return Cleaned season snap count table (invisibly).
+#' @export
+format_snapcount_season_for_sql <- function(input_path, output_path = "snapcount_season_tbl.parquet") {
+  snapcount_season_sql <- arrow::read_parquet(input_path) %>%
+    dplyr::transmute(
+      season = as.integer(season),
+      team = as.character(team),
+      player = as.character(player),
+      pfr_player_id = as.character(pfr_player_id),
+      position = as.character(position),
+      games_played = as.integer(games_played),
+      offense_games = as.integer(offense_games),
+      defense_games = as.integer(defense_games),
+      st_games = as.integer(st_games),
+      offense_snaps = as.numeric(offense_snaps),
+      defense_snaps = as.numeric(defense_snaps),
+      st_snaps = as.numeric(st_snaps),
+      offense_pct_mean = as.numeric(offense_pct_mean),
+      defense_pct_mean = as.numeric(defense_pct_mean),
+      st_pct_mean = as.numeric(st_pct_mean)
+    )
+  
+  arrow::write_parquet(snapcount_season_sql, output_path)
+  invisible(snapcount_season_sql)
+}
+
+#' Format Career Snap Counts for SQL Import
+#'
+#' Prepares `snapcount_career.parquet` for SQL ingestion. Retains all career-level
+#' player snap statistics across offense, defense, and special teams.
+#'
+#' @param input_path Path to the input Parquet file.
+#' @param output_path Path to SQL-ready file (default: "snapcount_career_tbl.parquet").
+#' @return Cleaned career snap count table (invisibly).
+#' @export
+format_snapcount_career_for_sql <- function(input_path, output_path = "snapcount_career_tbl.parquet") {
+  snapcount_career_sql <- arrow::read_parquet(input_path) %>%
+    dplyr::transmute(
+      player = as.character(player),
+      pfr_player_id = as.character(pfr_player_id),
+      first_season = as.integer(first_season),
+      last_season = as.integer(last_season),
+      seasons_played = as.integer(seasons_played),
+      teams_played_for = as.integer(teams_played_for),
+      games_played = as.integer(games_played),
+      offense_games = as.integer(offense_games),
+      defense_games = as.integer(defense_games),
+      st_games = as.integer(st_games),
+      offense_snaps = as.numeric(offense_snaps),
+      defense_snaps = as.numeric(defense_snaps),
+      st_snaps = as.numeric(st_snaps),
+      offense_pct_mean = as.numeric(offense_pct_mean),
+      defense_pct_mean = as.numeric(defense_pct_mean),
+      st_pct_mean = as.numeric(st_pct_mean)
+    )
+  
+  arrow::write_parquet(snapcount_career_sql, output_path)
+  invisible(snapcount_career_sql)
+}
+
+#' Format ESPN QBR Season Data for SQL Import
+#'
+#' Prepares `espn_qbr_season.parquet` for SQL ingestion. Retains all ESPN QBR season-level
+#' quarterback metrics, including player identity, team, QBR components, and headshots.
+#'
+#' @param input_path Path to the input Parquet file.
+#' @param output_path Path to SQL-ready file (default: "espn_qbr_season_tbl.parquet").
+#' @return Cleaned QBR season summary table (invisibly).
+#' @export
+format_espn_qbr_season_for_sql <- function(input_path, output_path = "espn_qbr_season_tbl.parquet") {
+  espn_qbr_season_sql <- arrow::read_parquet(input_path) %>%
+    dplyr::transmute(
+      season = as.integer(season),
+      season_type = as.character(season_type),
+      game_week = as.character(game_week),
+      team_abb = as.character(team_abb),
+      player_id = as.character(player_id),
+      name_short = as.character(name_short),
+      rank = as.numeric(rank),
+      qbr_total = as.numeric(qbr_total),
+      pts_added = as.numeric(pts_added),
+      qb_plays = as.numeric(qb_plays),
+      epa_total = as.numeric(epa_total),
+      pass = as.numeric(pass),
+      run = as.numeric(run),
+      exp_sack = as.numeric(exp_sack),
+      penalty = as.numeric(penalty),
+      qbr_raw = as.numeric(qbr_raw),
+      sack = as.numeric(sack),
+      name_first = as.character(name_first),
+      name_last = as.character(name_last),
+      name_display = as.character(name_display),
+      headshot_href = as.character(headshot_href),
+      team = as.character(team),
+      qualified = as.logical(qualified)
+    )
+  
+  arrow::write_parquet(espn_qbr_season_sql, output_path)
+  invisible(espn_qbr_season_sql)
+}
+
+#' Format ESPN QBR Career Data for SQL Import
+#'
+#' Prepares `espn_qbr_career.parquet` for SQL ingestion. Retains all ESPN QBR career-level
+#' quarterback statistics, including player identity, QBR components, and cumulative metrics.
+#'
+#' @param input_path Path to the input Parquet file.
+#' @param output_path Path to SQL-ready file (default: "espn_qbr_career_tbl.parquet").
+#' @return Cleaned QBR career summary table (invisibly).
+#' @export
+format_espn_qbr_career_for_sql <- function(input_path, output_path = "espn_qbr_career_tbl.parquet") {
+  espn_qbr_career_sql <- arrow::read_parquet(input_path) %>%
+    dplyr::transmute(
+      player_id = as.character(player_id),
+      name_display = as.character(name_display),
+      season_type = as.character(season_type),
+      first_season = as.integer(first_season),
+      last_season = as.integer(last_season),
+      seasons_played = as.integer(seasons_played),
+      teams_played_for = as.integer(teams_played_for),
+      qb_plays = as.numeric(qb_plays),
+      qbr_total_w = as.numeric(qbr_total_w),
+      qbr_raw_w = as.numeric(qbr_raw_w),
+      pts_added = as.numeric(pts_added),
+      epa = as.numeric(epa),
+      pass = as.numeric(pass),
+      run = as.numeric(run),
+      sack = as.numeric(sack),
+      exp_sack = as.numeric(exp_sack),
+      penalty = as.numeric(penalty),
+      qualified_seasons = as.integer(qualified_seasons)
+    )
+  
+  arrow::write_parquet(espn_qbr_career_sql, output_path)
+  invisible(espn_qbr_career_sql)
+}
+
+
 

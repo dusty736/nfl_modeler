@@ -230,6 +230,48 @@ format_participation_defense_season_for_sql(
   file.path("data", "for_database", "participation_defense_season_tbl.parquet")
 )
 
+# ID Map
+format_id_map_for_sql(
+  file.path("data", "processed", "id_map.parquet"),
+  file.path("data", "for_database", "id_map_tbl.parquet")
+)
+
+# Team metadata
+format_team_metadata_for_sql(
+  file.path("data", "processed", "team_metadata.parquet"),
+  file.path("data", "for_database", "team_metadata_tbl.parquet")
+)
+
+# Snapcount
+format_snapcount_weekly_for_sql(
+  file.path("data", "processed", "snapcount_weekly.parquet"),
+  file.path("data", "for_database", "snapcount_weekly_tbl.parquet")
+)
+
+# Snapcount Season
+format_snapcount_season_for_sql(
+  file.path("data", "processed", "snapcount_season.parquet"),
+  file.path("data", "for_database", "snapcount_season_tbl.parquet")
+)
+
+# Snapcount Career
+format_snapcount_career_for_sql(
+  file.path("data", "processed", "snapcount_career.parquet"),
+  file.path("data", "for_database", "snapcount_career_tbl.parquet")
+)
+
+# ESPN QBR
+format_espn_qbr_season_for_sql(
+  file.path("data", "processed", "espn_qbr_season.parquet"),
+  file.path("data", "for_database", "espn_qbr_season_tbl.parquet")
+)
+
+# ESPN QBR Career
+format_espn_qbr_career_for_sql(
+  file.path("data", "processed", "espn_qbr_career.parquet"),
+  file.path("data", "for_database", "espn_qbr_career_tbl.parquet")
+)
+
 ################################################################################
 # Summarize Data
 ################################################################################

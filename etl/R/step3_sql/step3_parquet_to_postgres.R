@@ -70,3 +70,11 @@ load_parquet_to_postgres(file.path(base_path, "weekly_stats_qb_tbl.parquet"), "w
 load_parquet_to_postgres(file.path(base_path, "weekly_stats_rb_tbl.parquet"), "weekly_stats_rb_tbl")
 load_parquet_to_postgres(file.path(base_path, "weekly_stats_te_tbl.parquet"), "weekly_stats_te_tbl")
 load_parquet_to_postgres(file.path(base_path, "weekly_stats_wr_tbl.parquet"), "weekly_stats_wr_tbl")
+load_parquet_to_postgres(file.path(base_path, "team_metadata_tbl.parquet"), "team_metadata_tbl")
+load_parquet_to_postgres(file.path(base_path, "id_map_tbl.parquet"), "id_map_tbl")
+load_parquet_to_postgres(file.path(base_path, "snapcount_weekly_tbl.parquet"), "snapcount_weekly_tbl")
+load_parquet_to_postgres(file.path(base_path, "snapcount_season_tbl.parquet"), "snapcount_season_tbl")
+load_parquet_to_postgres(file.path(base_path, "snapcount_career_tbl.parquet"), "snapcount_career_tbl")
+load_parquet_to_postgres(file.path(base_path, "espn_qbr_season_tbl.parquet"), "espn_qbr_season_tbl")
+load_parquet_to_postgres(file.path(base_path, "espn_qbr_career_tbl.parquet"), "espn_qbr_career_tbl")
+
