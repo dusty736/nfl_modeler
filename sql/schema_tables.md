@@ -1176,6 +1176,159 @@
 | `avg_weight`  | `NUMERIC` | Average weight of players at the position (pounds)    |                   |                                  |
 | `avg_exp`     | `NUMERIC` | Average years of experience at the position           |                   |                                  |
 
+# Team Metadata Table
+
+| Column                  | Type    | Description                          | Key         | Source File             |
+|-------------------------|---------|--------------------------------------|-------------|-------------------------|
+| `team_id`               | `TEXT`  | Unique team identifier               | Primary Key | `team_metadata.parquet` |
+| `team_abbr`             | `TEXT`  | Three-letter team abbreviation       |             | `team_metadata.parquet` |
+| `team_name`             | `TEXT`  | Full team name                       |             | `team_metadata.parquet` |
+| `team_nick`             | `TEXT`  | Team nickname                        |             | `team_metadata.parquet` |
+| `team_conf`             | `TEXT`  | Conference (AFC/NFC)                 |             | `team_metadata.parquet` |
+| `team_division`         | `TEXT`  | Division (e.g., NFC West)            |             | `team_metadata.parquet` |
+| `team_color`            | `TEXT`  | Primary team color (hex)             |             | `team_metadata.parquet` |
+| `team_color2`           | `TEXT`  | Secondary team color (hex)           |             | `team_metadata.parquet` |
+| `team_color3`           | `TEXT`  | Tertiary team color (hex)            |             | `team_metadata.parquet` |
+| `team_color4`           | `TEXT`  | Additional team color (hex)          |             | `team_metadata.parquet` |
+| `team_logo_wikipedia`   | `TEXT`  | Logo URL (Wikipedia)                 |             | `team_metadata.parquet` |
+| `team_logo_espn`        | `TEXT`  | Logo URL (ESPN)                      |             | `team_metadata.parquet` |
+| `team_wordmark`         | `TEXT`  | Wordmark image URL                   |             | `team_metadata.parquet` |
+| `team_conference_logo`  | `TEXT`  | Conference logo URL                  |             | `team_metadata.parquet` |
+| `team_league_logo`      | `TEXT`  | League logo URL                      |             | `team_metadata.parquet` |
+| `team_logo_squared`     | `TEXT`  | Square logo image URL                |             | `team_metadata.parquet` |
+
+# ID Map Table
+
+| Column              | Type    | Description                                | Key         | Source File     |
+|---------------------|---------|--------------------------------------------|-------------|-----------------|
+| `full_name`         | `TEXT`  | Full name                                  |             | `id_map.parquet` |
+| `first_name`        | `TEXT`  | First name                                 |             | `id_map.parquet` |
+| `last_name`         | `TEXT`  | Last name                                  |             | `id_map.parquet` |
+| `gsis_id`           | `TEXT`  | NFL GSIS player ID                         |             | `id_map.parquet` |
+| `espn_id`           | `TEXT`  | ESPN player ID                             |             | `id_map.parquet` |
+| `sportradar_id`     | `TEXT`  | Sportradar player ID                       |             | `id_map.parquet` |
+| `yahoo_id`          | `TEXT`  | Yahoo player ID                            |             | `id_map.parquet` |
+| `rotowire_id`       | `TEXT`  | Rotowire player ID                         |             | `id_map.parquet` |
+| `pff_id`            | `TEXT`  | PFF player ID                              |             | `id_map.parquet` |
+| `pfr_id`            | `TEXT`  | Pro-Football-Reference player ID           |             | `id_map.parquet` |
+| `fantasy_data_id`   | `TEXT`  | FantasyData player ID                      |             | `id_map.parquet` |
+| `sleeper_id`        | `TEXT`  | Sleeper player ID                          |             | `id_map.parquet` |
+| `esb_id`            | `TEXT`  | ESB player ID                              |             | `id_map.parquet` |
+| `gsis_it_id`        | `TEXT`  | GSIS IT internal ID                        |             | `id_map.parquet` |
+| `smart_id`          | `TEXT`  | Smart internal tracking ID (UUID)          |             | `id_map.parquet` |
+
+# Snap Count Weekly Table
+
+| Column         | Type     | Description                                | Key         | Source File             |
+|----------------|----------|--------------------------------------------|-------------|-------------------------|
+| `game_id`      | `TEXT`   | Unique game identifier                     | Foreign Key | `snapcount_weekly.parquet` |
+| `pfr_game_id`  | `TEXT`   | PFR-formatted game ID                      |             | `snapcount_weekly.parquet` |
+| `season`       | `INTEGER`| Season year                                |             | `snapcount_weekly.parquet` |
+| `game_type`    | `TEXT`   | Game type (e.g., REG, POST)                |             | `snapcount_weekly.parquet` |
+| `week`         | `INTEGER`| Week number                                |             | `snapcount_weekly.parquet` |
+| `player`       | `TEXT`   | Player name                                |             | `snapcount_weekly.parquet` |
+| `pfr_player_id`| `TEXT`   | PFR player ID                              |             | `snapcount_weekly.parquet` |
+| `position`     | `TEXT`   | Position played                            |             | `snapcount_weekly.parquet` |
+| `team`         | `TEXT`   | Team abbreviation                          | Foreign Key | `snapcount_weekly.parquet` |
+| `opponent`     | `TEXT`   | Opposing team abbreviation                 |             | `snapcount_weekly.parquet` |
+| `offense_snaps`| `NUMERIC`| Total offensive snaps                      |             | `snapcount_weekly.parquet` |
+| `offense_pct`  | `NUMERIC`| Offensive snap %                           |             | `snapcount_weekly.parquet` |
+| `defense_snaps`| `NUMERIC`| Total defensive snaps                      |             | `snapcount_weekly.parquet` |
+| `defense_pct`  | `NUMERIC`| Defensive snap %                           |             | `snapcount_weekly.parquet` |
+| `st_snaps`     | `NUMERIC`| Special teams snaps                        |             | `snapcount_weekly.parquet` |
+| `st_pct`       | `NUMERIC`| Special teams snap %                       |             | `snapcount_weekly.parquet` |
+
+# Snap Count Season Table
+
+| Column            | Type     | Description                                | Key         | Source File             |
+|-------------------|----------|--------------------------------------------|-------------|-------------------------|
+| `season`          | `INTEGER`| Season year                                |             | `snapcount_season.parquet` |
+| `team`            | `TEXT`   | Team abbreviation                          | Foreign Key | `snapcount_season.parquet` |
+| `player`          | `TEXT`   | Player name                                |             | `snapcount_season.parquet` |
+| `pfr_player_id`   | `TEXT`   | PFR player ID                              |             | `snapcount_season.parquet` |
+| `position`        | `TEXT`   | Position played                            |             | `snapcount_season.parquet` |
+| `games_played`    | `INTEGER`| Games played                               |             | `snapcount_season.parquet` |
+| `offense_games`   | `INTEGER`| Games with offensive snaps                 |             | `snapcount_season.parquet` |
+| `defense_games`   | `INTEGER`| Games with defensive snaps                 |             | `snapcount_season.parquet` |
+| `st_games`        | `INTEGER`| Games with special teams snaps             |             | `snapcount_season.parquet` |
+| `offense_snaps`   | `NUMERIC`| Total offensive snaps                      |             | `snapcount_season.parquet` |
+| `defense_snaps`   | `NUMERIC`| Total defensive snaps                      |             | `snapcount_season.parquet` |
+| `st_snaps`        | `NUMERIC`| Total special teams snaps                  |             | `snapcount_season.parquet` |
+| `offense_pct_mean`| `NUMERIC`| Avg % of offensive snaps                   |             | `snapcount_season.parquet` |
+| `defense_pct_mean`| `NUMERIC`| Avg % of defensive snaps                   |             | `snapcount_season.parquet` |
+| `st_pct_mean`     | `NUMERIC`| Avg % of special teams snaps               |             | `snapcount_season.parquet` |
+
+# Snap Count Career Table
+
+| Column            | Type     | Description                                | Key         | Source File             |
+|-------------------|----------|--------------------------------------------|-------------|-------------------------|
+| `player`          | `TEXT`   | Player name                                |             | `snapcount_career.parquet` |
+| `pfr_player_id`   | `TEXT`   | PFR player ID                              |             | `snapcount_career.parquet` |
+| `first_season`    | `INTEGER`| First active season                        |             | `snapcount_career.parquet` |
+| `last_season`     | `INTEGER`| Last active season                         |             | `snapcount_career.parquet` |
+| `seasons_played`  | `INTEGER`| Number of NFL seasons                      |             | `snapcount_career.parquet` |
+| `teams_played_for`| `INTEGER`| Number of NFL teams                        |             | `snapcount_career.parquet` |
+| `games_played`    | `INTEGER`| Total games played                         |             | `snapcount_career.parquet` |
+| `offense_games`   | `INTEGER`| Games with offensive snaps                 |             | `snapcount_career.parquet` |
+| `defense_games`   | `INTEGER`| Games with defensive snaps                 |             | `snapcount_career.parquet` |
+| `st_games`        | `INTEGER`| Games with special teams snaps             |             | `snapcount_career.parquet` |
+| `offense_snaps`   | `NUMERIC`| Career total offensive snaps               |             | `snapcount_career.parquet` |
+| `defense_snaps`   | `NUMERIC`| Career total defensive snaps               |             | `snapcount_career.parquet` |
+| `st_snaps`        | `NUMERIC`| Career total special teams snaps           |             | `snapcount_career.parquet` |
+| `offense_pct_mean`| `NUMERIC`| Avg % of offensive snaps over career       |             | `snapcount_career.parquet` |
+| `defense_pct_mean`| `NUMERIC`| Avg % of defensive snaps over career       |             | `snapcount_career.parquet` |
+| `st_pct_mean`     | `NUMERIC`| Avg % of special teams snaps over career   |             | `snapcount_career.parquet` |
+
+# ESPN QBR Season Table
+
+| Column         | Type     | Description                                | Key         | Source File             |
+|----------------|----------|--------------------------------------------|-------------|-------------------------|
+| `season`       | `INTEGER`| Season year                                |             | `espn_qbr_season.parquet` |
+| `season_type`  | `TEXT`   | Regular or Postseason                      |             | `espn_qbr_season.parquet` |
+| `game_week`    | `TEXT`   | Week description (e.g., "Season Total")    |             | `espn_qbr_season.parquet` |
+| `team_abb`     | `TEXT`   | Team abbreviation                          |             | `espn_qbr_season.parquet` |
+| `player_id`    | `TEXT`   | ESPN player ID                             |             | `espn_qbr_season.parquet` |
+| `name_short`   | `TEXT`   | Short display name (e.g., T. Brady)        |             | `espn_qbr_season.parquet` |
+| `rank`         | `NUMERIC`| QBR ranking                                |             | `espn_qbr_season.parquet` |
+| `qbr_total`    | `NUMERIC`| ESPN Total QBR                             |             | `espn_qbr_season.parquet` |
+| `pts_added`    | `NUMERIC`| Points added by player                     |             | `espn_qbr_season.parquet` |
+| `qb_plays`     | `NUMERIC`| Number of QB plays                         |             | `espn_qbr_season.parquet` |
+| `epa_total`    | `NUMERIC`| Total expected points added                |             | `espn_qbr_season.parquet` |
+| `pass`         | `NUMERIC`| EPA from passing                           |             | `espn_qbr_season.parquet` |
+| `run`          | `NUMERIC`| EPA from rushing                           |             | `espn_qbr_season.parquet` |
+| `exp_sack`     | `NUMERIC`| Expected EPA loss from sacks               |             | `espn_qbr_season.parquet` |
+| `penalty`      | `NUMERIC`| EPA from penalties                         |             | `espn_qbr_season.parquet` |
+| `qbr_raw`      | `NUMERIC`| Raw QBR (pre-adjustments)                  |             | `espn_qbr_season.parquet` |
+| `sack`         | `NUMERIC`| Actual EPA loss from sacks                 |             | `espn_qbr_season.parquet` |
+| `name_first`   | `TEXT`   | First name                                 |             | `espn_qbr_season.parquet` |
+| `name_last`    | `TEXT`   | Last name                                  |             | `espn_qbr_season.parquet` |
+| `name_display` | `TEXT`   | Full display name                          |             | `espn_qbr_season.parquet` |
+| `headshot_href`| `TEXT`   | URL to player headshot image               |             | `espn_qbr_season.parquet` |
+| `team`         | `TEXT`   | Team name (not abbrev)                     |             | `espn_qbr_season.parquet` |
+| `qualified`    | `BOOLEAN`| Whether player qualified for ranking       |             | `espn_qbr_season.parquet` |
+
+# ESPN QBR Career Table
+
+| Column             | Type     | Description                                | Key         | Source File             |
+|--------------------|----------|--------------------------------------------|-------------|-------------------------|
+| `player_id`        | `TEXT`   | ESPN player ID                             |             | `espn_qbr_career.parquet` |
+| `name_display`     | `TEXT`   | Full display name                          |             | `espn_qbr_career.parquet` |
+| `season_type`      | `TEXT`   | Regular or Postseason                      |             | `espn_qbr_career.parquet` |
+| `first_season`     | `INTEGER`| First season played                        |             | `espn_qbr_career.parquet` |
+| `last_season`      | `INTEGER`| Last season played                         |             | `espn_qbr_career.parquet` |
+| `seasons_played`   | `INTEGER`| Total number of seasons                    |             | `espn_qbr_career.parquet` |
+| `teams_played_for` | `INTEGER`| Number of NFL teams                        |             | `espn_qbr_career.parquet` |
+| `qb_plays`         | `NUMERIC`| Total QB plays                             |             | `espn_qbr_career.parquet` |
+| `qbr_total_w`      | `NUMERIC`| Weighted total QBR                         |             | `espn_qbr_career.parquet` |
+| `qbr_raw_w`        | `NUMERIC`| Weighted raw QBR                           |             | `espn_qbr_career.parquet` |
+| `pts_added`        | `NUMERIC`| Cumulative points added                    |             | `espn_qbr_career.parquet` |
+| `epa`              | `NUMERIC`| Cumulative expected points added           |             | `espn_qbr_career.parquet` |
+| `pass`             | `NUMERIC`| Cumulative EPA from passing                |             | `espn_qbr_career.parquet` |
+| `run`              | `NUMERIC`| Cumulative EPA from rushing                |             | `espn_qbr_career.parquet` |
+| `sack`             | `NUMERIC`| Cumulative EPA lost to sacks               |             | `espn_qbr_career.parquet` |
+| `exp_sack`         | `NUMERIC`| Cumulative expected sack impact            |             | `espn_qbr_career.parquet` |
+| `penalty`          | `NUMERIC`| Cumulative EPA from penalties              |             | `espn_qbr_career.parquet` |
+| `qualified_seasons`| `INTEGER`| Number of seasons qualified for ranking    |             | `espn_qbr_career.parquet` |
 
 
 

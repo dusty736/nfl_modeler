@@ -44,6 +44,16 @@ erDiagram
     GAMES ||--o{ PARTICIPATION_DEFENSE_GAME : rolled_up_to
     ROSTERS ||--|| ROSTER_SUMMARY : summarized_to
     ROSTERS ||--|| ROSTER_POSITION_SUMMARY : position_summary
+    PLAYERS ||--o{ SNAPCOUNT_WEEKLY : records_snaps
+    PLAYERS ||--o{ SNAPCOUNT_SEASON : records_snaps
+    PLAYERS ||--o{ SNAPCOUNT_CAREER : records_snaps
+    PLAYERS ||--o{ ESPN_QBR_SEASON : has_qbr
+    PLAYERS ||--o{ ESPN_QBR_CAREER : has_qbr
+    TEAMS ||--o{ SNAPCOUNT_WEEKLY : team_snaps
+    TEAMS ||--o{ SNAPCOUNT_SEASON : team_snaps
+    TEAMS ||--o{ SNAPCOUNT_CAREER : team_snaps
+    TEAMS ||--o{ TEAM_METADATA : has_metadata
+    PLAYERS ||--|| ID_MAP : identified_by
 
     %% ENTITIES
     PLAYERS {
@@ -247,4 +257,139 @@ erDiagram
       int pass
       int rush
       int special
+    }
+    TEAM_METADATA {
+      string team_id PK
+      string team_abbr
+      string team_name
+      string team_nick
+      string team_conf
+      string team_division
+      string team_color
+      string team_color2
+      string team_color3
+      string team_color4
+      string team_logo_wikipedia
+      string team_logo_espn
+      string team_wordmark
+      string team_conference_logo
+      string team_league_logo
+      string team_logo_squared
+    }
+
+    ID_MAP {
+      string full_name
+      string first_name
+      string last_name
+      string gsis_id
+      string espn_id
+      string sportradar_id
+      string yahoo_id
+      string rotowire_id
+      string pff_id
+      string pfr_id
+      string fantasy_data_id
+      string sleeper_id
+      string esb_id
+      string gsis_it_id
+      string smart_id
+    }
+
+    SNAPCOUNT_WEEKLY {
+      string game_id FK
+      string team FK
+      string player FK
+      string position
+      int season
+      int week
+      string opponent
+      double offense_snaps
+      double offense_pct
+      double defense_snaps
+      double defense_pct
+      double st_snaps
+      double st_pct
+    }
+
+    SNAPCOUNT_SEASON {
+      string team FK
+      string player FK
+      string position
+      int season
+      int games_played
+      int offense_games
+      int defense_games
+      int st_games
+      double offense_snaps
+      double defense_snaps
+      double st_snaps
+      double offense_pct_mean
+      double defense_pct_mean
+      double st_pct_mean
+    }
+
+    SNAPCOUNT_CAREER {
+      string player FK
+      string position
+      int first_season
+      int last_season
+      int seasons_played
+      int teams_played_for
+      int games_played
+      int offense_games
+      int defense_games
+      int st_games
+      double offense_snaps
+      double defense_snaps
+      double st_snaps
+      double offense_pct_mean
+      double defense_pct_mean
+      double st_pct_mean
+    }
+
+    ESPN_QBR_SEASON {
+      int season
+      string season_type
+      string game_week
+      string team_abb
+      string player_id FK
+      string name_short
+      int rank
+      double qbr_total
+      double pts_added
+      double qb_plays
+      double epa_total
+      double pass
+      double run
+      double exp_sack
+      double penalty
+      double qbr_raw
+      double sack
+      string name_first
+      string name_last
+      string name_display
+      string headshot_href
+      string team
+      boolean qualified
+    }
+
+    ESPN_QBR_CAREER {
+      string player_id FK
+      string name_display
+      string season_type
+      int first_season
+      int last_season
+      int seasons_played
+      int teams_played_for
+      double qb_plays
+      double qbr_total_w
+      double qbr_raw_w
+      double pts_added
+      double epa
+      double pass
+      double run
+      double sack
+      double exp_sack
+      double penalty
+      int qualified_seasons
     }
