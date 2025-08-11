@@ -175,7 +175,8 @@ summarize_season_team_results <- function(schedule_raw) {
         result = dplyr::case_when(
           home_score > away_score ~ "W",
           home_score < away_score ~ "L",
-          TRUE ~ "T"
+          home_score == away_score ~ "T",
+          TRUE ~ NA
         )
       ),
     schedule_raw %>%
@@ -264,7 +265,10 @@ summarize_season_team_results <- function(schedule_raw) {
       point_diff = points_for - points_against
     ) %>% 
     dplyr::select(season, team_id, wins, losses, ties, points_scored = points_for,
-                  points_allowed = points_against, point_diff, made_playoffs, postseason_round)
+                  points_allowed = points_against, point_diff, made_playoffs, postseason_round) %>% 
+    mutate(wins = ifelse(is.na(wins), 0, wins),
+           losses = ifelse(is.na(losses), 0, losses),
+           ties = ifelse(is.na(ties), 0, ties))
   
   return(season_summary)
 }

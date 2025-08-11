@@ -7,6 +7,7 @@ library(here)
 library(dplyr)
 
 source(here("etl", "R", "step3_sql", "step3_database_file_prep_functions.R"))
+source(here("etl", "R", "utils.R"))
 
 ################################################################################
 # Process Data
