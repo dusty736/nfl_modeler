@@ -106,14 +106,15 @@ layout = html.Div(
                         html.Div(
                             className="topbar-center",
                             children=[
-                                html.H1("NFL Analytics Dashboard (2025)", className="topbar-title"),
+                                html.H1("NFL Analytics Dashboard ", className="topbar-title"),
                                 html.Nav(
                                     className="topbar-actions",
                                     children=[
                                         dcc.Link(html.Button("Home", className="btn primary"), href="/"),
-                                        dcc.Link(html.Button("Season", className="btn"), href="/overview"),
-                                        dcc.Link(html.Button("Matchup Central", className="btn"), href="/weekly"),
-                                        dcc.Link(html.Button("Players", className="btn"), href="/players"),
+                                        dcc.Link(html.Button("Standings", className="btn"), href="/overview"),
+                                        dcc.Link(html.Button("Teams", className="btn"), href="/teams"),
+                                        dcc.Link(html.Button("Matchup Central", className="btn"), href="/matchup_central"),
+                                        dcc.Link(html.Button("Player Hub", className="btn"), href="/player_hub"),
                                         dcc.Link(html.Button("Time Capsule", className="btn"), href="/time-capsule")
                                     ],
                                 ),
@@ -136,7 +137,7 @@ layout = html.Div(
             html.Div(
                 className="section-block",
                 children=[
-                    html.H2("Welcome to the NFL Analytics Dashboard (2025)"),
+                    html.H2("Welcome to the NFL Analytics Dashboard "),
                     html.P("This dashboard is built for fans, researchers, and data scientists to explore the 2025 NFL season through advanced metrics, interactive visualizations, and predictive modeling."),
                     html.H3("Project Goals"),
                     html.Ul(

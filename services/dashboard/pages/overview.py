@@ -231,15 +231,16 @@ def layout():
                     html.Div(
                         className="topbar-center",
                         children=[
-                            html.H1("NFL Analytics Dashboard (2025)", className="topbar-title"),
+                            html.H1("NFL Analytics Dashboard", className="topbar-title"),
                             html.Nav(
                                 className="topbar-actions",
                                 children=[
                                     dcc.Link(html.Button("Home", className="btn"), href="/"),
-                                    dcc.Link(html.Button("Season", className="btn primary"), href="/overview"),
-                                    dcc.Link(html.Button("Matchup Central", className="btn"), href="/weekly"),
-                                    dcc.Link(html.Button("Players", className="btn"), href="/players"),
-                                    dcc.Link(html.Button("Time Capsule", className="btn"), href="/time-capsule"),
+                                    dcc.Link(html.Button("Standings", className="btn primary"), href="/overview"),
+                                    dcc.Link(html.Button("Teams", className="btn"), href="/teams"),
+                                    dcc.Link(html.Button("Matchup Central", className="btn"), href="/matchup_central"),
+                                    dcc.Link(html.Button("Player Hub", className="btn"), href="/player_hub"),
+                                    dcc.Link(html.Button("Time Capsule", className="btn"), href="/time-capsule")
                                 ],
                             ),
                         ],
