@@ -58,11 +58,11 @@ def _division_view(df: pd.DataFrame) -> html.Div:
         style={"width": "100%", "maxWidth": "none", "padding": "0 8px"}
     )
 
+from dash import dash_table
 
+from dash import dash_table
 
 def _render_conf_table(title: str, frame: pd.DataFrame) -> html.Div:
-    """Render a simple, non-paginated HTML table for a conference."""
-    # Column order + labels
     cols = [
         ("team_id", "Team"),
         ("wins", "W"),
@@ -72,30 +72,43 @@ def _render_conf_table(title: str, frame: pd.DataFrame) -> html.Div:
         ("points_against", "PA"),
         ("point_diff", "PD"),
     ]
-    # keep only available columns
     cols = [(c, lab) for c, lab in cols if c in frame.columns]
 
-    # Build header
-    thead = html.Thead(
-        html.Tr([html.Th(lab) for _, lab in cols])
-    )
-    # Build body
-    tbody = html.Tbody([
-        html.Tr([html.Td(row[c]) for c, _ in cols]) for _, row in frame.iterrows()
-    ])
+    # Data for DataTable
+    data_records = frame.to_dict("records")
+
+    # Build conditional styling for every row so all cells get team colors
+    style_data_conditional = []
+    for i, row in frame.reset_index(drop=True).iterrows():
+        style_data_conditional.append({
+            "if": {"row_index": i},
+            "backgroundColor": str(row.get("team_color", "#333")),
+            "color": str(row.get("team_color2", "#fff")),
+        })
 
     return html.Div(
         children=[
             html.H4(title),
-            html.Table(
-                [thead, tbody],
-                className="standings-table",  # inherits .standings-scope th { color:#000 } and font rules
-                style={
-                    "width": "100%",
-                    "borderCollapse": "collapse",
+            dash_table.DataTable(
+                columns=[{"name": lab, "id": col} for col, lab in cols],
+                data=data_records,
+                sort_action="native",
+                style_table={"width": "100%"},
+                style_cell={
+                    "padding": "8px",
+                    "textAlign": "center",
+                    "fontWeight": "bold",
+                    "border": "1px solid #FFFFFF",  # white outline for each cell
                 },
+                style_header={
+                    "backgroundColor": "var(--platinum)",
+                    "color": "var(--ink)",
+                    "fontWeight": "bold"
+                },
+                style_data_conditional=style_data_conditional
             ),
         ],
+        className="standings-card",
         style={"flex": "1", "minWidth": "360px"},
     )
 
@@ -118,13 +131,14 @@ def _conference_view(df: pd.DataFrame) -> html.Div:
     nfc_conf = sort_for_standings(df[df["division"].astype(str).str.startswith("NFC")])
 
     return html.Div(
-        [
-            _render_conf_table("AFC (Conference)", afc_conf),
-            _render_conf_table("NFC (Conference)", nfc_conf),
-        ],
-        className="standings-scope",
-        style={"display": "flex", "gap": "12px", "flexWrap": "wrap", "width": "90%", "margin": "0 auto"},
-    )
+      [
+          _render_conf_table("AFC (Conference)", afc_conf),
+          _render_conf_table("NFC (Conference)", nfc_conf),
+      ],
+      className="standings-scope conference-standings",
+      style={"display": "flex", "gap": "12px", "flexWrap": "wrap", "width": "90%", "margin": "0 auto"},
+  )
+
 
 
 def layout():

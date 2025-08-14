@@ -1,0 +1,360 @@
+/* =========================================================
+   Global tokens
+   ========================================================= */
+:root {
+  --bg: #0F1F2B;               /* site background (dark) */
+  --ink: #0B1620;              /* dark ink for light bars */
+  --platinum: #E8E7E5;         /* platinum bar base */
+  --platinum-light: #F4F3F1;   /* platinum highlight */
+  --accent: #1F6F87;           /* from your emblem */
+  --cream: #F3E4D1;            /* warm accent text */
+  --text-on-dark: #E8EDF2;     /* body text on dark bg */
+}
+
+/* =========================================================
+   Base / reset-ish
+   ========================================================= */
+* { box-sizing: border-box; }
+html, body, #root, #_dash-app-content { height: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text-on-dark);
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, "Helvetica Neue",
+               Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Page wrapper ensures footer sticks to bottom on short pages */
+.home-page {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.home-content {
+  flex: 1;
+  max-width: 1400px;  /* was 1200px */
+  margin: 1.25rem auto;
+  padding: 0 1rem;
+}
+/* Full-width content variant for pages that need edge-to-edge */
+.home-content.fullwidth {
+  max-width: none;  /* remove the 1200px cap */
+  width: 100%;
+  margin: 1.25rem 0;
+  padding: 0 8px;   /* light gutter so content isn't flush against window */
+}
+
+/* =========================================================
+   Top Bar (Header)
+   - Emblem top-left
+   - Title centered
+   - Buttons row under title (inside the same bar)
+   ========================================================= */
+.topbar,
+.bottombar {
+  background: linear-gradient(180deg, var(--platinum-light) 0%, var(--platinum) 100%);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+}
+
+/* Let content define height; keep a minimum so the logo has room */
+.topbar {
+  min-height: 72px;            /* emblem height baseline */
+  padding: 0.5rem 1rem 0.75rem;/* bottom padding for buttons row */
+  color: var(--ink);
+}
+
+/* Grid: left logo | center (title+buttons) | right spacer */
+.topbar-inner {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  max-width: none;
+  margin: 0 auto;
+}
+
+/* Left chunk: logo pinned top-left, sized to bar baseline */
+.topbar-left {
+  display: flex;
+  align-items: center;
+  height: 72px;                /* keeps logo consistently sized */
+}
+.topbar-logo {
+  height: 72px;                /* match the visual bar height */
+  width: auto;
+  display: block;
+}
+
+/* Center chunk: title + actions stacked and centered */
+.topbar-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+}
+.topbar-title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  color: var(--ink);
+  text-align: center;
+}
+
+/* Buttons under the title, evenly spaced */
+.topbar-actions {
+  display: flex;
+  justify-content: center;
+  gap: 0.75rem;                /* equal spacing */
+  flex-wrap: wrap;             /* wrap nicely on smaller widths */
+  width: 100%;
+}
+
+/* Right spacer keeps the center block truly centered */
+.topbar-right {
+  min-width: 72px;             /* roughly logo width so center stays centered */
+  height: 72px;
+}
+
+/* Buttons */
+.btn {
+  appearance: none;
+  border: 1px solid var(--accent);
+  background: rgba(31,111,135,0.15);
+  color: var(--ink);
+  padding: 0.45rem 0.9rem;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 120ms ease, background 120ms ease, border-color 120ms ease;
+  min-width: 10rem;            /* consistent width so spacing looks even */
+  text-align: center;
+}
+.btn:hover {
+  transform: translateY(-1px);
+  background: rgba(31,111,135,0.25);
+  border-color: var(--accent);
+}
+.btn.primary {
+  background: linear-gradient(180deg, rgba(31,111,135,0.35), rgba(31,111,135,0.2));
+  color: var(--ink);
+}
+
+/* Remove underlines around button links */
+.logo-link,
+.topbar-actions a,
+.nav-link {
+  text-decoration: none;
+}
+
+/* =========================================================
+   Bottom Bar (Footer)
+   - Same platinum look as top bar
+   - Your details, logos, disclaimer/credits
+   ========================================================= */
+.bottombar {
+  color: var(--ink);
+  padding: 1rem 1.25rem;
+  border-top: 1px solid rgba(31,111,135,0.35);
+}
+.bottombar-inner {
+  max-width: none;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;   /* left | middle | right */
+  gap: 1.25rem;
+  align-items: center;
+}
+
+/* Left: your details */
+.footer-col.footer-me { align-self: start; }
+.footer-col h4 {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--ink);
+}
+.footer-list {
+  list-style: none;
+  margin: 0.35rem 0 0;
+  padding: 0;
+}
+.footer-list li { margin: 0.2rem 0; }
+.footer-link {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* Middle: tech logos */
+.footer-logos { text-align: center; }
+.footer-kicker {
+  font-size: 0.85rem;
+  opacity: 0.85;
+  margin-bottom: 0.35rem;
+  color: var(--ink);
+}
+.logo-row {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: center;
+}
+.footer-tech-logo {
+  height: 28px;
+  width: auto;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.15));
+}
+
+/* Right: credits & disclaimer */
+.footer-credits { text-align: right; }
+.footer-small {
+  font-size: 0.9rem;
+  opacity: 0.95;
+  display: grid;
+  gap: 0.25rem;
+  color: var(--ink);
+}
+.footer-mention {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* =========================================================
+   Standings
+   ========================================================= */
+.standings-scope th { color: #000 !important; }
+.standings-scope table { font-family: 'Inter', sans-serif; font-size: 0.95rem; }
+/* Conference & Division standings table background colors */
+
+/* =========================
+   Standings — Division Layout
+   ========================= */
+.conference-columns {
+  display: flex;
+  gap: 8px;                  /* was 12px, slightly tighter */
+  align-items: flex-start;
+  width: 100%;                /* was 90%, now full width */
+  margin: 0;                  /* remove auto side margins */
+  padding: 0 8px;             /* small inner padding instead */
+  box-sizing: border-box;
+}
+
+.conference-column {
+  flex: 1;
+  min-width: 380px;           /* was 420px, so it wraps less often */
+}
+
+.conference-column h4 {
+  margin: 0 0 8px 0;
+  color: var(--platinum) !important; /* keeps headings readable on dark */
+}
+
+/* 2x2 division grid per conference */
+.division-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(240px, 1fr)); /* narrower min size */
+  gap: 8px;                   /* was 12px, gives more breathing room */
+}
+
+/* Ensure each division table stays within its card */
+.division-card {
+  width: 100%;
+  max-width: none;            /* let it fill available grid space */
+}
+
+/* If division_table returns a Dash DataTable, help it respect parent width */
+.division-card .dash-table-container,
+.division-card .dash-spreadsheet-container {
+  width: 100% !important;
+  max-width: 100%;
+}
+
+/* Narrow screens: stack conferences but keep 2-wide division grid where possible */
+@media (max-width: 1100px) {
+  .conference-columns { flex-wrap: wrap; }
+  .conference-column { min-width: 100%; }
+}
+
+/* Very narrow: fall back to 1 column per division to avoid overflow */
+@media (max-width: 640px) {
+  .division-grid { grid-template-columns: 1fr; }
+}
+
+/* ===== Conference standings ONLY ===== */
+.conference-standings table.conference-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  background: #fff; /* white background for the box */
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+  overflow: hidden;
+}
+
+/* Header */
+.conference-standings table.conference-table thead th {
+  background: var(--platinum);
+  color: var(--ink) !important;
+  font-weight: 700;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(0,0,0,0.08);
+}
+
+/* Cells: neutral base so the inline team color shows */
+.conference-standings table.conference-table tbody td {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+/* Team cell keeps its inline colors; divider for structure */
+.conference-standings table.conference-table tbody td.team-cell {
+  font-weight: 700;
+  border-right: 1px solid rgba(0,0,0,0.06);
+}
+
+/* Box around each conference table — only bottom corners rounded */
+.conference-standings .standings-card {
+  background: rgba(255,255,255,0.03);
+  border: 2px solid #FFFFFF;
+  border-radius: 16px 16px 16px 16px; /* square top, rounded bottom */
+  padding: 12px 14px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+}
+
+/* Tight heading inside the box */
+.conference-standings .standings-card > h4 {
+  margin: 0 0 8px 0;
+}
+
+/* Column borders inside conference tables */
+.conference-standings table.conference-table th,
+.conference-standings table.conference-table td {
+  border-right: 1px solid rgba(255,255,255,0.15);
+}
+
+.conference-standings table.conference-table th:last-child,
+.conference-standings table.conference-table td:last-child {
+  border-right: none; /* no border on last column */
+}
+
+/* =========================================================
+   Responsive tweaks
+   ========================================================= */
+@media (max-width: 800px) {
+  .topbar-title { font-size: 1.12rem; }
+  .btn { min-width: 8.75rem; padding: 0.4rem 0.75rem; }
+  .bottombar-inner {
+    grid-template-columns: 1fr;   /* stack footer columns */
+    text-align: left;
+  }
+  .footer-credits { text-align: left; }
+  .logo-row { justify-content: flex-start; }
+}
+
+@media (max-width: 480px) {
+  .topbar-left { height: 60px; }
+  .topbar-logo { height: 60px; } /* slightly smaller emblem on very small screens */
+}
+
