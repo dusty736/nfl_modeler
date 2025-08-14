@@ -14,9 +14,9 @@ def create_app() -> FastAPI:
         return RedirectResponse(url="/docs")
 
     # Explicit, educational mounting
-    for mod in ["standings"]:
-        m = importlib.import_module(f"app.routers.{mod}")
-        app.include_router(m.router)
+    for mod in ["standings", "current_week", "primetime"]:
+      m = importlib.import_module(f"app.routers.{mod}")
+      app.include_router(m.router)
 
     return app
 
