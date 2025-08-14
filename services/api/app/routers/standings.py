@@ -47,4 +47,41 @@ async def get_standings():
         rows = (await session.execute(sql, {"season": SEASON})).mappings().all()
     return {"season": SEASON, "items": rows}
 
+@router.get("/standings/conference")
+async def get_standings_conference():
+    """
+    Return AFC and NFC standings sorted by best record.
+    """
+    sql = text("""
+        SELECT
+            COALESCE(srt.team_id, tmt.team_abbr) AS team_id,
+            tmt.team_name                         AS team_name,
+            tmt.team_division                     AS division,
+            tmt.team_color                        AS team_color,
+            tmt.team_color2                       AS team_color2,
+            COALESCE(srt.wins, 0)                 AS wins,
+            COALESCE(srt.losses, 0)               AS losses,
+            COALESCE(srt.ties, 0)                 AS ties,
+            COALESCE(srt.points_for, 0)           AS points_for,
+            COALESCE(srt.points_against, 0)       AS points_against,
+            COALESCE(srt.point_diff, 0)           AS point_diff
+        FROM public.team_metadata_tbl tmt
+        INNER JOIN public.season_results_tbl srt
+               ON tmt.team_abbr = srt.team_id
+              AND srt.season = :season
+        ORDER BY 
+            CASE WHEN tmt.team_division LIKE 'AFC%' THEN 0 ELSE 1 END,
+            wins DESC,
+            losses ASC,
+            ties DESC,
+            point_diff DESC,
+            team_id;
+    """)
+    async with AsyncSessionLocal() as session:
+        rows = (await session.execute(sql, {"season": SEASON})).mappings().all()
+
+    afc = [dict(row) for row in rows if str(row["division"]).strip().upper().startswith("AFC")]
+    nfc = [dict(row) for row in rows if str(row["division"]).strip().upper().startswith("NFC")]
+
+    return {"season": SEASON, "afc": afc, "nfc": nfc}
 

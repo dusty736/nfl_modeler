@@ -45,3 +45,10 @@ api-health:
 
 api-ping:
 	curl -sS http://localhost:8000/api/ping
+	
+start-dashboard:
+	docker-compose up -d dashboard
+
+update-dashboard:
+	docker-compose build dashboard
+	docker-compose up -d dashboard
