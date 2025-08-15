@@ -46,14 +46,17 @@ def render_matchup_row(game):
         className="primetime-row",
         children=[
             html.Div(
-                className="team-col home-team",
+                className="primetime-team-col home-team",
                 children=[
-                    html.Img(
-                        src=dash.get_asset_url(f"logos/{game['home_team']}.png"),
-                        alt=f"{game['home_team']} logo",
-                        className="team-logo"
+                    dcc.Link(
+                        href=f"/teams/{game['home_team']}",
+                        children=html.Img(
+                            src=dash.get_asset_url(f"logos/{game['home_team']}.png"),
+                            alt=f"{game['home_team']} logo",
+                            className="primetime-team-logo"
+                        )
                     ),
-                    html.Span(game["home_team"], className="team-abbr")
+                    html.Span(game["home_team"], className="primetime-team-abbr")
                 ]
             ),
             html.Div(
@@ -64,16 +67,19 @@ def render_matchup_row(game):
                 ]
             ),
             html.Div(
-                className="team-col away-team",
-                children=[
-                    html.Span(game["away_team"], className="team-abbr"),
-                    html.Img(
-                        src=dash.get_asset_url(f"logos/{game['away_team']}.png"),
-                        alt=f"{game['away_team']} logo",
-                        className="team-logo"
-                    )
-                ]
-            )
+              className="primetime-team-col away-team",
+              children=[
+                  html.Span(game["away_team"], className="primetime-team-abbr"),
+                  dcc.Link(
+                      href=f"/teams/{game['away_team']}",
+                      children=html.Img(
+                          src=dash.get_asset_url(f"logos/{game['away_team']}.png"),
+                          alt=f"{game['away_team']} logo",
+                          className="primetime-team-logo"
+                      )
+                  )
+              ]
+          )
         ]
     )
 

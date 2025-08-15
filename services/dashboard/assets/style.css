@@ -368,22 +368,28 @@ body {
   margin: 0;                  /* remove extra vertical space */
 }
 
-.team-col {
+.primetime-team-col {
   display: flex;
   align-items: center;
-  gap: 10px;
-  height: 100%;              /* ensure logo fills the row */
+  gap: 20px;
+  height: 100%;
+  padding: 0;        /* ← Make sure no vertical padding */
+  margin: 0;         /* ← Remove any inherited vertical margin */
 }
 
-.team-logo {
-  width: 128px;
-  height: 128px;
+.primetime-team-logo {
+  width: 120px;
+  height: 120px;
   object-fit: contain;
+  margin: 0 8px;
 }
 
-.team-abbr {
+.primetime-team-abbr {
   font-weight: 600;
   font-size: 1rem;
+  line-height: 1;
+  margin: 0;         /* ← Ensure no bottom margin */
+  padding: 0;        /* ← Ensure no extra spacing */
 }
 
 .ou-col {
@@ -513,6 +519,12 @@ body {
 .team-detail-meta {
   font-size: 1rem;
   color: #444;
+}
+
+a.logo-link,
+a.logo-link:visited {
+  text-decoration: none;
+  color: inherit;
 }
 
 /* =========================================================
