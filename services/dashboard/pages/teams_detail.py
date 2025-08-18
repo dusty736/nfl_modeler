@@ -2,7 +2,16 @@
 
 import dash
 from dash import html, dcc
-from helpers.api_client import get_team_by_abbr
+from helpers.api_client import (
+    get_team_by_abbr,
+    get_team_record,
+    get_team_offense,
+    get_team_defense,
+    get_team_special,
+    fetch_current_season_week
+)
+
+season, week = fetch_current_season_week()
 
 # Replace these with your real values
 YOUR_NAME = "Dustin Burnham"
@@ -15,6 +24,20 @@ dash.register_page(
     name="Team Detail"
 )
 
+def dict_to_table(d: dict):
+    """Render a dictionary as a two-column HTML table."""
+    if not d:
+        return html.Div("No data available")
+    return html.Table(
+        [
+            html.Tbody([
+                html.Tr([html.Td(str(k)), html.Td(str(v))])
+                for k, v in d.items()
+            ])
+        ],
+        className="stats-table"
+    )
+
 def layout(team_abbr=None):
     data = get_team_by_abbr(team_abbr.upper()) if team_abbr else None
 
@@ -24,6 +47,39 @@ def layout(team_abbr=None):
             html.Pre(f"No data found for {team_abbr}")
         ]
     else:
+        # --- Fetch stats from API
+        record = get_team_record(team_abbr, season, week)
+        offense = get_team_offense(team_abbr, season, week)
+        defense = get_team_defense(team_abbr, season, week)
+        special = get_team_special(team_abbr, season, week)
+
+        stats_section = html.Div(
+            className="team-stats-wrapper",
+            children=[
+                html.H3(f"{season} Season Stats (through Week {week})"),
+
+                html.Div([
+                    html.H4("Record"),
+                    dict_to_table(record)
+                ], className="team-stats-card"),
+
+                html.Div([
+                    html.H4("Offense"),
+                    dict_to_table(offense)
+                ], className="team-stats-card"),
+
+                html.Div([
+                    html.H4("Defense"),
+                    dict_to_table(defense)
+                ], className="team-stats-card"),
+
+                html.Div([
+                    html.H4("Special Teams"),
+                    dict_to_table(special)
+                ], className="team-stats-card"),
+            ]
+        )
+
         main_children = [
             html.Div([
                 html.Div([
@@ -33,7 +89,8 @@ def layout(team_abbr=None):
                     ),
                     html.H2(data["team_name"], className="team-detail-title"),
                     html.Div(f"Division: {data['team_division']}", className="team-detail-meta"),
-                ], className="team-detail-card")
+                ], className="team-detail-card"),
+                stats_section
             ], className="team-detail-wrapper")
         ]
 

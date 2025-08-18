@@ -40,3 +40,51 @@ def get_team_by_abbr(team_abbr: str):
     except Exception as e:
         print(f"[api_client] Failed to fetch team abbr: {e}")
         return []
+      
+def get_team_record(team_abbr: str, season: int, week: int):
+    try:
+        r = requests.get(
+            f"http://api:8000/team_stats/{team_abbr}/record/{season}/{week}",
+            timeout=2
+        )
+        r.raise_for_status()
+        return r.json()
+    except Exception as e:
+        print(f"[api_client] Failed to fetch team record: {e}")
+        return {}
+
+def get_team_offense(team_abbr: str, season: int, week: int):
+    try:
+        r = requests.get(
+            f"http://api:8000/team_stats/{team_abbr}/offense/{season}/{week}",
+            timeout=2
+        )
+        r.raise_for_status()
+        return r.json()
+    except Exception as e:
+        print(f"[api_client] Failed to fetch team offense: {e}")
+        return {}
+
+def get_team_defense(team_abbr: str, season: int, week: int):
+    try:
+        r = requests.get(
+            f"http://api:8000/team_stats/{team_abbr}/defense/{season}/{week}",
+            timeout=2
+        )
+        r.raise_for_status()
+        return r.json()
+    except Exception as e:
+        print(f"[api_client] Failed to fetch team defense: {e}")
+        return {}
+
+def get_team_special(team_abbr: str, season: int, week: int):
+    try:
+        r = requests.get(
+            f"http://api:8000/team_stats/{team_abbr}/special/{season}/{week}",
+            timeout=2
+        )
+        r.raise_for_status()
+        return r.json()
+    except Exception as e:
+        print(f"[api_client] Failed to fetch team special: {e}")
+        return {}

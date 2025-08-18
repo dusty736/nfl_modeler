@@ -603,3 +603,148 @@ aggregate_receiver_career_stats <- function(receiver_stats) {
     )
 }
 
+#' Aggregate Offensive Stats to Team-Season Level
+#'
+#' Aggregates weekly offensive player stats to one row per team per season.
+#' Volume stats are summed; rate stats are averaged.
+#'
+#' @param off_stats A data frame like `nflreadr::load_offensive_stats()` with one row per player-week.
+#'
+#' @return A tibble with one row per team-season, including totals and average efficiency metrics.
+#'
+#' @examples
+#' \dontrun{
+#' raw <- nflreadr::load_offensive_stats()
+#' team_season <- aggregate_offense_team_season_stats(raw)
+#' }
+#'
+#' @import dplyr
+#' @export
+aggregate_offense_team_season_stats <- function(off_stats) {
+  off_stats %>%
+    dplyr::group_by(season, recent_team) %>%
+    dplyr::summarize(
+      games_played = dplyr::n_distinct(week),
+      
+      # ---- Passing (volume) ----
+      completions = sum(completions, na.rm = TRUE),
+      attempts = sum(attempts, na.rm = TRUE),
+      passing_yards = sum(passing_yards, na.rm = TRUE),
+      passing_tds = sum(passing_tds, na.rm = TRUE),
+      interceptions = sum(interceptions, na.rm = TRUE),
+      sacks = sum(sacks, na.rm = TRUE),
+      sack_yards = sum(sack_yards, na.rm = TRUE),
+      passing_air_yards = sum(passing_air_yards, na.rm = TRUE),
+      passing_yards_after_catch = sum(passing_yards_after_catch, na.rm = TRUE),
+      passing_first_downs = sum(passing_first_downs, na.rm = TRUE),
+      passing_epa = sum(passing_epa, na.rm = TRUE),
+      passing_2pt_conversions = sum(passing_2pt_conversions, na.rm = TRUE),
+      
+      # ---- Rushing (volume) ----
+      carries = sum(carries, na.rm = TRUE),
+      rushing_yards = sum(rushing_yards, na.rm = TRUE),
+      rushing_tds = sum(rushing_tds, na.rm = TRUE),
+      rushing_fumbles = sum(rushing_fumbles, na.rm = TRUE),
+      rushing_fumbles_lost = sum(rushing_fumbles_lost, na.rm = TRUE),
+      rushing_first_downs = sum(rushing_first_downs, na.rm = TRUE),
+      rushing_epa = sum(rushing_epa, na.rm = TRUE),
+      rushing_2pt_conversions = sum(rushing_2pt_conversions, na.rm = TRUE),
+      
+      # ---- Receiving (volume) ----
+      receptions = sum(receptions, na.rm = TRUE),
+      targets = sum(targets, na.rm = TRUE),
+      receiving_yards = sum(receiving_yards, na.rm = TRUE),
+      receiving_tds = sum(receiving_tds, na.rm = TRUE),
+      receiving_fumbles = sum(receiving_fumbles, na.rm = TRUE),
+      receiving_fumbles_lost = sum(receiving_fumbles_lost, na.rm = TRUE),
+      receiving_air_yards = sum(receiving_air_yards, na.rm = TRUE),
+      receiving_yards_after_catch = sum(receiving_yards_after_catch, na.rm = TRUE),
+      receiving_first_downs = sum(receiving_first_downs, na.rm = TRUE),
+      receiving_epa = sum(receiving_epa, na.rm = TRUE),
+      receiving_2pt_conversions = sum(receiving_2pt_conversions, na.rm = TRUE),
+      
+      # ---- Common rate stats (averaged) ----
+      pacr = mean(pacr, na.rm = TRUE),
+      dakota = mean(dakota, na.rm = TRUE),
+      racr = mean(racr, na.rm = TRUE),
+      wopr = mean(wopr, na.rm = TRUE),
+      target_share = mean(target_share, na.rm = TRUE),
+      air_yards_share = mean(air_yards_share, na.rm = TRUE),
+      
+      .groups = "drop"
+    )
+}
+
+#' Aggregate Offensive Stats to Team-Season-Week Level
+#'
+#' Aggregates weekly offensive player stats to one row per team per season-week.
+#' Volume stats are summed; rate stats are averaged.
+#'
+#' @param off_stats A data frame like `nflreadr::load_offensive_stats()` with one row per player-week.
+#'
+#' @return A tibble with one row per team-season-week, including totals and average efficiency metrics.
+#'
+#' @examples
+#' \dontrun{
+#' raw <- nflreadr::load_offensive_stats()
+#' team_week <- aggregate_offense_team_week_stats(raw)
+#' }
+#'
+#' @import dplyr
+#' @export
+aggregate_offense_team_week_stats <- function(off_stats) {
+  off_stats %>%
+    dplyr::group_by(season, week, recent_team) %>%
+    dplyr::summarize(
+      # One game per team-week; we keep the same field name for parity
+      games_played = dplyr::n_distinct(week),
+      
+      # ---- Passing (volume) ----
+      completions = sum(completions, na.rm = TRUE),
+      attempts = sum(attempts, na.rm = TRUE),
+      passing_yards = sum(passing_yards, na.rm = TRUE),
+      passing_tds = sum(passing_tds, na.rm = TRUE),
+      interceptions = sum(interceptions, na.rm = TRUE),
+      sacks = sum(sacks, na.rm = TRUE),
+      sack_yards = sum(sack_yards, na.rm = TRUE),
+      passing_air_yards = sum(passing_air_yards, na.rm = TRUE),
+      passing_yards_after_catch = sum(passing_yards_after_catch, na.rm = TRUE),
+      passing_first_downs = sum(passing_first_downs, na.rm = TRUE),
+      passing_epa = sum(passing_epa, na.rm = TRUE),
+      passing_2pt_conversions = sum(passing_2pt_conversions, na.rm = TRUE),
+      
+      # ---- Rushing (volume) ----
+      carries = sum(carries, na.rm = TRUE),
+      rushing_yards = sum(rushing_yards, na.rm = TRUE),
+      rushing_tds = sum(rushing_tds, na.rm = TRUE),
+      rushing_fumbles = sum(rushing_fumbles, na.rm = TRUE),
+      rushing_fumbles_lost = sum(rushing_fumbles_lost, na.rm = TRUE),
+      rushing_first_downs = sum(rushing_first_downs, na.rm = TRUE),
+      rushing_epa = sum(rushing_epa, na.rm = TRUE),
+      rushing_2pt_conversions = sum(rushing_2pt_conversions, na.rm = TRUE),
+      
+      # ---- Receiving (volume) ----
+      receptions = sum(receptions, na.rm = TRUE),
+      targets = sum(targets, na.rm = TRUE),
+      receiving_yards = sum(receiving_yards, na.rm = TRUE),
+      receiving_tds = sum(receiving_tds, na.rm = TRUE),
+      receiving_fumbles = sum(receiving_fumbles, na.rm = TRUE),
+      receiving_fumbles_lost = sum(receiving_fumbles_lost, na.rm = TRUE),
+      receiving_air_yards = sum(receiving_air_yards, na.rm = TRUE),
+      receiving_yards_after_catch = sum(receiving_yards_after_catch, na.rm = TRUE),
+      receiving_first_downs = sum(receiving_first_downs, na.rm = TRUE),
+      receiving_epa = sum(receiving_epa, na.rm = TRUE),
+      receiving_2pt_conversions = sum(receiving_2pt_conversions, na.rm = TRUE),
+      
+      # ---- Common rate stats (averaged) ----
+      pacr = mean(pacr, na.rm = TRUE),
+      dakota = mean(dakota, na.rm = TRUE),
+      racr = mean(racr, na.rm = TRUE),
+      wopr = mean(wopr, na.rm = TRUE),
+      target_share = mean(target_share, na.rm = TRUE),
+      air_yards_share = mean(air_yards_share, na.rm = TRUE),
+      
+      .groups = "drop"
+    )
+}
+

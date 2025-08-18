@@ -272,6 +272,24 @@ format_espn_qbr_career_for_sql(
   file.path("data", "for_database", "espn_qbr_career_tbl.parquet")
 )
 
+# Defense Team Weekly
+form_def_team_weekly_for_sql(
+  file.path("data", "processed", "def_team_stats_week.parquet"),
+  file.path("data", "for_database", "def_team_stats_week_tbl.parquet")
+)
+
+# Offense Team Weekly
+form_off_team_weekly_for_sql(
+  file.path("data", "processed", "off_team_stats_week.parquet"),
+  file.path("data", "for_database", "off_team_stats_week_tbl.parquet")
+)
+
+# Offense Team Seasonally
+form_off_team_season_for_sql(
+  file.path("data", "processed", "off_team_stats_season.parquet"),
+  file.path("data", "for_database", "off_team_stats_season_tbl.parquet")
+)
+
 ################################################################################
 # Summarize Data
 ################################################################################

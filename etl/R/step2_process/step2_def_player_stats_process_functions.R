@@ -167,6 +167,50 @@ summarize_defensive_stats_by_team_season <- function(def_stats_clean) {
     )
 }
 
+#' Summarize team defensive stats by week
+#'
+#' Aggregates all defensive player stats by team and week,
+#' summing numeric performance fields and counting distinct players.
+#'
+#' @param def_stats_clean A cleaned defensive stats table, typically player-week level.
+#'
+#' @return A tibble with one row per team per week, containing total defensive output.
+#' @export
+#'
+#' @examples
+#' team_def_summary <- summarize_defensive_stats_by_team_season(def_stats_clean)
+summarize_defensive_stats_by_team_weekly <- function(def_stats_clean) {
+  require(dplyr)
+  
+  def_stats_clean %>%
+    group_by(season, week, team) %>%
+    summarize(
+      n_players = n_distinct(player_id),
+      def_tackles = sum(def_tackles, na.rm = TRUE),
+      def_tackles_solo = sum(def_tackles_solo, na.rm = TRUE),
+      def_tackle_assists = sum(def_tackle_assists, na.rm = TRUE),
+      def_tackles_for_loss = sum(def_tackles_for_loss, na.rm = TRUE),
+      def_tackles_for_loss_yards = sum(def_tackles_for_loss_yards, na.rm = TRUE),
+      def_fumbles_forced = sum(def_fumbles_forced, na.rm = TRUE),
+      def_sacks = sum(def_sacks, na.rm = TRUE),
+      def_sack_yards = sum(def_sack_yards, na.rm = TRUE),
+      def_qb_hits = sum(def_qb_hits, na.rm = TRUE),
+      def_interceptions = sum(def_interceptions, na.rm = TRUE),
+      def_interception_yards = sum(def_interception_yards, na.rm = TRUE),
+      def_pass_defended = sum(def_pass_defended, na.rm = TRUE),
+      def_tds = sum(def_tds, na.rm = TRUE),
+      def_fumbles = sum(def_fumbles, na.rm = TRUE),
+      def_fumble_recovery_own = sum(def_fumble_recovery_own, na.rm = TRUE),
+      def_fumble_recovery_yards_own = sum(def_fumble_recovery_yards_own, na.rm = TRUE),
+      def_fumble_recovery_opp = sum(def_fumble_recovery_opp, na.rm = TRUE),
+      def_fumble_recovery_yards_opp = sum(def_fumble_recovery_yards_opp, na.rm = TRUE),
+      def_safety = sum(def_safety, na.rm = TRUE),
+      def_penalty = sum(def_penalty, na.rm = TRUE),
+      def_penalty_yards = sum(def_penalty_yards, na.rm = TRUE),
+      .groups = "drop"
+    )
+}
+
 #' Summarize career defensive stats per player
 #'
 #' Aggregates all available defensive stats across all seasons for each player.

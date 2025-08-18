@@ -2015,4 +2015,171 @@ format_espn_qbr_career_for_sql <- function(input_path, output_path = "espn_qbr_c
 }
 
 
+#' Format Defense Team Weekly Stats for SQL Import
+#'
+#' Prepares a weekly team-defense file for SQL ingestion. Keeps identifier columns and
+#' all defensive stat columns with consistent types.
+#'
+#' @param input_path Path to the input Parquet file (e.g., "data/processed/def_team_stats_week.parquet").
+#' @param output_path Path to the SQL-ready file (default: "def_team_stats_week_tbl.parquet").
+#' @return Cleaned defense team weekly table (invisibly).
+#' @export
+form_def_team_weekly_for_sql <- function(input_path,
+                                         output_path = "def_team_stats_week_tbl.parquet") {
+  def_week_sql <- arrow::read_parquet(input_path) %>%
+    dplyr::transmute(
+      season                         = as.integer(season),
+      week                           = as.integer(week),
+      team                           = as.character(team),
+      n_players                      = as.integer(n_players),
+      def_tackles                    = as.integer(def_tackles),
+      def_tackles_solo               = as.integer(def_tackles_solo),
+      def_tackle_assists             = as.integer(def_tackle_assists),
+      def_tackles_for_loss           = as.integer(def_tackles_for_loss),
+      def_tackles_for_loss_yards     = as.numeric(def_tackles_for_loss_yards),
+      def_fumbles_forced             = as.integer(def_fumbles_forced),
+      def_sacks                      = as.numeric(def_sacks),
+      def_sack_yards                 = as.numeric(def_sack_yards),
+      def_qb_hits                    = as.numeric(def_qb_hits),
+      def_interceptions              = as.numeric(def_interceptions),
+      def_interception_yards         = as.numeric(def_interception_yards),
+      def_pass_defended              = as.numeric(def_pass_defended),
+      def_tds                        = as.numeric(def_tds),
+      def_fumbles                    = as.numeric(def_fumbles),
+      def_fumble_recovery_own        = as.numeric(def_fumble_recovery_own),
+      def_fumble_recovery_yards_own  = as.numeric(def_fumble_recovery_yards_own),
+      def_fumble_recovery_opp        = as.numeric(def_fumble_recovery_opp),
+      def_fumble_recovery_yards_opp  = as.numeric(def_fumble_recovery_yards_opp),
+      def_safety                     = as.integer(def_safety),
+      def_penalty                    = as.numeric(def_penalty),
+      def_penalty_yards              = as.numeric(def_penalty_yards)
+    )
+  
+  arrow::write_parquet(def_week_sql, output_path)
+  invisible(def_week_sql)
+}
+
+#' Format Offense Team Weekly Stats for SQL Import
+#'
+#' Prepares a weekly team-offense file for SQL ingestion. Keeps identifier columns and
+#' all offensive stat columns with consistent types.
+#'
+#' @param input_path Path to the input Parquet file (e.g., "data/processed/off_team_stats_week.parquet").
+#' @param output_path Path to the SQL-ready file (default: "off_team_stats_week_tbl.parquet").
+#' @return Cleaned offense team weekly table (invisibly).
+#' @export
+form_off_team_weekly_for_sql <- function(input_path,
+                                         output_path = "off_team_stats_week_tbl.parquet") {
+  off_week_sql <- arrow::read_parquet(input_path) %>%
+    # If your source uses `recent_team`, rename before transmute:
+    dplyr::rename(dplyr::any_of(c(team = "recent_team"))) %>%
+    dplyr::transmute(
+      # Identifiers
+      season                        = as.integer(season),
+      week                          = as.integer(week),
+      team                          = as.character(team),
+      
+      # Passing
+      completions                   = as.integer(completions),
+      attempts                      = as.integer(attempts),
+      passing_yards                 = as.numeric(passing_yards),
+      passing_tds                   = as.integer(passing_tds),
+      interceptions                 = as.integer(interceptions),
+      sacks                         = as.numeric(sacks),
+      sack_yards                    = as.numeric(sack_yards),
+      passing_air_yards             = as.numeric(passing_air_yards),
+      passing_yards_after_catch     = as.numeric(passing_yards_after_catch),
+      passing_first_downs           = as.numeric(passing_first_downs),
+      passing_epa                   = as.numeric(passing_epa),
+      passing_2pt_conversions       = as.integer(passing_2pt_conversions),
+      
+      # Rushing
+      carries                       = as.integer(carries),
+      rushing_yards                 = as.numeric(rushing_yards),
+      rushing_tds                   = as.integer(rushing_tds),
+      rushing_fumbles               = as.numeric(rushing_fumbles),
+      rushing_fumbles_lost          = as.numeric(rushing_fumbles_lost),
+      rushing_first_downs           = as.numeric(rushing_first_downs),
+      rushing_epa                   = as.numeric(rushing_epa),
+      rushing_2pt_conversions       = as.integer(rushing_2pt_conversions),
+      
+      # Receiving
+      receptions                    = as.integer(receptions),
+      targets                       = as.integer(targets),
+      receiving_yards               = as.numeric(receiving_yards),
+      receiving_tds                 = as.integer(receiving_tds),
+      receiving_fumbles             = as.numeric(receiving_fumbles),
+      receiving_fumbles_lost        = as.numeric(receiving_fumbles_lost),
+      receiving_air_yards           = as.numeric(receiving_air_yards),
+      receiving_yards_after_catch   = as.numeric(receiving_yards_after_catch),
+      receiving_first_downs         = as.numeric(receiving_first_downs),
+      receiving_epa                 = as.numeric(receiving_epa),
+      receiving_2pt_conversions     = as.integer(receiving_2pt_conversions)
+    )
+  
+  arrow::write_parquet(off_week_sql, output_path)
+  invisible(off_week_sql)
+}
+
+#' Format Offense Team Seasonal Stats for SQL Import
+#'
+#' Prepares a team-season offense file for SQL ingestion. Keeps identifier columns and
+#' all offensive stat columns with consistent types.
+#'
+#' @param input_path Path to the input Parquet file (e.g., "data/processed/off_team_stats_season.parquet").
+#' @param output_path Path to the SQL-ready file (default: "off_team_stats_season_tbl.parquet").
+#' @return Cleaned offense team seasonal table (invisibly).
+#' @export
+form_off_team_season_for_sql <- function(input_path,
+                                         output_path = "off_team_stats_season_tbl.parquet") {
+  off_season_sql <- arrow::read_parquet(input_path) %>%
+    # If your source uses `recent_team`, rename before transmute:
+    dplyr::rename(dplyr::any_of(c(team = "recent_team"))) %>%
+    dplyr::transmute(
+      # Identifiers
+      season                        = as.integer(season),
+      team                          = as.character(team),
+      
+      # Passing
+      completions                   = as.integer(completions),
+      attempts                      = as.integer(attempts),
+      passing_yards                 = as.numeric(passing_yards),
+      passing_tds                   = as.integer(passing_tds),
+      interceptions                 = as.integer(interceptions),
+      sacks                         = as.numeric(sacks),
+      sack_yards                    = as.numeric(sack_yards),
+      passing_air_yards             = as.numeric(passing_air_yards),
+      passing_yards_after_catch     = as.numeric(passing_yards_after_catch),
+      passing_first_downs           = as.numeric(passing_first_downs),
+      passing_epa                   = as.numeric(passing_epa),
+      passing_2pt_conversions       = as.integer(passing_2pt_conversions),
+      
+      # Rushing
+      carries                       = as.integer(carries),
+      rushing_yards                 = as.numeric(rushing_yards),
+      rushing_tds                   = as.integer(rushing_tds),
+      rushing_fumbles               = as.numeric(rushing_fumbles),
+      rushing_fumbles_lost          = as.numeric(rushing_fumbles_lost),
+      rushing_first_downs           = as.numeric(rushing_first_downs),
+      rushing_epa                   = as.numeric(rushing_epa),
+      rushing_2pt_conversions       = as.integer(rushing_2pt_conversions),
+      
+      # Receiving
+      receptions                    = as.integer(receptions),
+      targets                       = as.integer(targets),
+      receiving_yards               = as.numeric(receiving_yards),
+      receiving_tds                 = as.integer(receiving_tds),
+      receiving_fumbles             = as.numeric(receiving_fumbles),
+      receiving_fumbles_lost        = as.numeric(receiving_fumbles_lost),
+      receiving_air_yards           = as.numeric(receiving_air_yards),
+      receiving_yards_after_catch   = as.numeric(receiving_yards_after_catch),
+      receiving_first_downs         = as.numeric(receiving_first_downs),
+      receiving_epa                 = as.numeric(receiving_epa),
+      receiving_2pt_conversions     = as.integer(receiving_2pt_conversions)
+    )
+  
+  arrow::write_parquet(off_season_sql, output_path)
+  invisible(off_season_sql)
+}
+
 

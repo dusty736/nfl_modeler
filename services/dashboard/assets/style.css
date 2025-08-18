@@ -1,5 +1,5 @@
 /* =========================================================
-   Global tokens
+   1) Global tokens
    ========================================================= */
 :root {
   --bg: #0F1F2B;               /* site background (dark) */
@@ -12,7 +12,7 @@
 }
 
 /* =========================================================
-   Base / reset-ish
+   2) Base / reset-ish
    ========================================================= */
 * { box-sizing: border-box; }
 html, body, #root, #_dash-app-content { height: 100%; }
@@ -47,7 +47,7 @@ body {
 }
 
 /* =========================================================
-   Top Bar (Header)
+   3) Top Bar (Header)
    - Emblem top-left
    - Title centered
    - Buttons row under title (inside the same bar)
@@ -151,7 +151,7 @@ body {
 }
 
 /* =========================================================
-   Bottom Bar (Footer)
+   4) Bottom Bar (Footer)
    - Same platinum look as top bar
    - Your details, logos, disclaimer/credits
    ========================================================= */
@@ -223,7 +223,7 @@ body {
 }
 
 /* =========================================================
-   Standings
+   5) Standings — general
    ========================================================= */
 .standings-scope th { color: #000 !important; }
 .standings-scope table { font-family: 'Inter', sans-serif; font-size: 0.95rem; }
@@ -241,12 +241,10 @@ body {
   padding: 0 8px;             /* small inner padding instead */
   box-sizing: border-box;
 }
-
 .conference-column {
   flex: 1;
   min-width: 380px;           /* was 420px, so it wraps less often */
 }
-
 .conference-column h4 {
   margin: 0 0 8px 0;
   color: var(--platinum) !important; /* keeps headings readable on dark */
@@ -333,12 +331,14 @@ body {
 .conference-standings table.conference-table td {
   border-right: 1px solid rgba(255,255,255,0.15);
 }
-
 .conference-standings table.conference-table th:last-child,
 .conference-standings table.conference-table td:last-child {
   border-right: none; /* no border on last column */
 }
 
+/* =========================================================
+   6) Generic section block
+   ========================================================= */
 .section-block {
   background-color: #e5e4e2; /* platinum */
   border-radius: 12px;
@@ -350,12 +350,14 @@ body {
   color: #111;
 }
 
+/* =========================================================
+   7) Primetime rows
+   ========================================================= */
 .primetime-grid {
   display: flex;
   flex-direction: column;
   margin-top: 24px;
 }
-
 .primetime-row {
   display: flex;
   justify-content: space-between;
@@ -367,7 +369,6 @@ body {
   padding: 0 16px;
   margin: 0;                  /* remove extra vertical space */
 }
-
 .primetime-team-col {
   display: flex;
   align-items: center;
@@ -376,14 +377,12 @@ body {
   padding: 0;        /* ← Make sure no vertical padding */
   margin: 0;         /* ← Remove any inherited vertical margin */
 }
-
 .primetime-team-logo {
   width: 120px;
   height: 120px;
   object-fit: contain;
   margin: 0 8px;
 }
-
 .primetime-team-abbr {
   font-weight: 600;
   font-size: 1rem;
@@ -391,7 +390,6 @@ body {
   margin: 0;         /* ← Ensure no bottom margin */
   padding: 0;        /* ← Ensure no extra spacing */
 }
-
 .ou-col {
   display: flex;
   flex-direction: column;
@@ -401,7 +399,9 @@ body {
   height: 100%;
 }
 
-/* Entire platinum box */
+/* =========================================================
+   8) Division gallery blocks
+   ========================================================= */
 .division-container {
   background-color: var(--platinum, #e5e4e2);
   padding: 16px;
@@ -421,7 +421,6 @@ body {
   border-bottom: 1px solid rgba(0, 0, 0, 0.1); /* ← row line */
   flex-wrap: wrap;
 }
-
 .division-block {
   width: 600px;
   height: 700px;
@@ -434,7 +433,6 @@ body {
   justify-content: flex-start;
 }
 
-
 /* Division title (same color as team names) */
 .division-title {
   font-size: 1.1rem;
@@ -444,6 +442,7 @@ body {
   color: #222;
 }
 
+/* NOTE: duplicate selector name 'division-grid' appears earlier too */
 .division-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -467,8 +466,6 @@ body {
   border-radius: 8px;
   padding: 6px;
 }
-
-
 .team-card:hover {
   transform: scale(1.05);
 }
@@ -480,7 +477,6 @@ body {
   object-fit: contain;
   margin-bottom: 6px;
 }
-
 .team-name {
   margin-top: 2px;   /* was 8–10px */
   font-size: 1rem;
@@ -488,13 +484,15 @@ body {
   color: #222;
 }
 
+/* =========================================================
+   9) Team detail view
+   ========================================================= */
 .team-detail-wrapper {
   display: flex;
   justify-content: center;
   align-items: center;
   padding: 2rem 0;
 }
-
 .team-detail-card {
   background: var(--platinum);
   border-radius: 16px;
@@ -503,24 +501,24 @@ body {
   box-shadow: 0 0 10px rgba(0,0,0,0.05);
   width: 320px;
 }
-
 .team-detail-logo {
   width: 200px;
   height: auto;
   margin-bottom: 1rem;
 }
-
 .team-detail-title {
   font-size: 1.8rem;
   margin-bottom: 0.5rem;
   color: var(--ink);
 }
-
 .team-detail-meta {
   font-size: 1rem;
   color: #444;
 }
 
+/* =========================================================
+   10) Link variants
+   ========================================================= */
 a.logo-link,
 a.logo-link:visited {
   text-decoration: none;
@@ -528,7 +526,7 @@ a.logo-link:visited {
 }
 
 /* =========================================================
-   Responsive tweaks
+   11) Responsive tweaks
    ========================================================= */
 @media (max-width: 800px) {
   .topbar-title { font-size: 1.12rem; }
@@ -540,9 +538,7 @@ a.logo-link:visited {
   .footer-credits { text-align: left; }
   .logo-row { justify-content: flex-start; }
 }
-
 @media (max-width: 480px) {
   .topbar-left { height: 60px; }
   .topbar-logo { height: 60px; } /* slightly smaller emblem on very small screens */
 }
-

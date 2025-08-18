@@ -36,6 +36,10 @@ weekly_te_stats <- process_receiver_stats(off_player_stats_raw, position_group =
 season_te_stats <- aggregate_receiver_season_stats(weekly_te_stats)
 career_te_stats <- aggregate_receiver_career_stats(weekly_te_stats)
 
+# Team
+weekly_team_stats <- aggregate_offense_team_week_stats(off_player_stats_raw)
+season_team_stats <- aggregate_offense_team_season_stats(off_player_stats_raw)
+
 ################################################################################
 # Save processed output
 ################################################################################
@@ -51,4 +55,5 @@ arrow::write_parquet(career_wr_stats, "data/processed/career_stats_wr.parquet")
 arrow::write_parquet(weekly_te_stats, "data/processed/weekly_stats_te.parquet")
 arrow::write_parquet(season_te_stats, "data/processed/season_stats_te.parquet")
 arrow::write_parquet(career_te_stats, "data/processed/career_stats_te.parquet")
-
+arrow::write_parquet(weekly_team_stats, "data/processed/off_team_stats_week.parquet")
+arrow::write_parquet(season_team_stats, "data/processed/off_team_stats_season.parquet")

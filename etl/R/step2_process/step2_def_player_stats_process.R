@@ -20,6 +20,7 @@ def_player_stats_raw <- arrow::read_parquet(here("data", "raw", "def_player_stat
 def_player_stats_cleaned <- process_defensive_player_stats(def_player_stats_raw)
 def_player_stats_season <- summarize_defensive_player_stats_by_season(def_player_stats_cleaned)
 def_team_stats_season <- summarize_defensive_stats_by_team_season(def_player_stats_cleaned)
+def_team_stats_weekly <- summarize_defensive_stats_by_team_weekly(def_player_stats_cleaned)
 def_player_stats_career <- summarize_defensive_stats_by_player(def_player_stats_cleaned)
 
 ################################################################################
@@ -29,3 +30,4 @@ arrow::write_parquet(def_player_stats_cleaned, "data/processed/def_player_stats_
 arrow::write_parquet(def_player_stats_season, "data/processed/def_player_stats_season.parquet")
 arrow::write_parquet(def_player_stats_career, "data/processed/def_player_stats_career.parquet")
 arrow::write_parquet(def_team_stats_season, "data/processed/def_team_stats_season.parquet")
+arrow::write_parquet(def_team_stats_weekly, "data/processed/def_team_stats_week.parquet")

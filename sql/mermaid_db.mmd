@@ -55,6 +55,11 @@ erDiagram
     TEAMS ||--o{ TEAM_METADATA : has_metadata
     PLAYERS ||--|| ID_MAP : identified_by
 
+    %% NEW TEAM OFF/DEF TABLE RELATIONSHIPS
+    TEAMS ||--o{ OFF_TEAM_STATS_WEEKLY : team_offense
+    TEAMS ||--o{ OFF_TEAM_STATS_SEASON : team_offense
+    TEAMS ||--o{ DEF_TEAM_STATS_WEEKLY : team_defense
+
     %% ENTITIES
     PLAYERS {
       string player_id PK
@@ -392,4 +397,107 @@ erDiagram
       double exp_sack
       double penalty
       int qualified_seasons
+    }
+
+    %% NEW ENTITIES: TEAM-LEVEL OFFENSE/DEFENSE
+
+    OFF_TEAM_STATS_WEEKLY {
+      int season
+      int week
+      string team
+      int completions
+      int attempts
+      double passing_yards
+      int passing_tds
+      int interceptions
+      double sacks
+      double sack_yards
+      double passing_air_yards
+      double passing_yards_after_catch
+      double passing_first_downs
+      double passing_epa
+      int passing_2pt_conversions
+      int carries
+      double rushing_yards
+      int rushing_tds
+      double rushing_fumbles
+      double rushing_fumbles_lost
+      double rushing_first_downs
+      double rushing_epa
+      int rushing_2pt_conversions
+      int receptions
+      int targets
+      double receiving_yards
+      int receiving_tds
+      double receiving_fumbles
+      double receiving_fumbles_lost
+      double receiving_air_yards
+      double receiving_yards_after_catch
+      double receiving_first_downs
+      double receiving_epa
+      int receiving_2pt_conversions
+    }
+
+    OFF_TEAM_STATS_SEASON {
+      int season
+      string team
+      int completions
+      int attempts
+      double passing_yards
+      int passing_tds
+      int interceptions
+      double sacks
+      double sack_yards
+      double passing_air_yards
+      double passing_yards_after_catch
+      double passing_first_downs
+      double passing_epa
+      int passing_2pt_conversions
+      int carries
+      double rushing_yards
+      int rushing_tds
+      double rushing_fumbles
+      double rushing_fumbles_lost
+      double rushing_first_downs
+      double rushing_epa
+      int rushing_2pt_conversions
+      int receptions
+      int targets
+      double receiving_yards
+      int receiving_tds
+      double receiving_fumbles
+      double receiving_fumbles_lost
+      double receiving_air_yards
+      double receiving_yards_after_catch
+      double receiving_first_downs
+      double receiving_epa
+      int receiving_2pt_conversions
+    }
+
+    DEF_TEAM_STATS_WEEKLY {
+      int season
+      int week
+      string team
+      int n_players
+      int def_tackles
+      int def_tackles_solo
+      int def_tackle_assists
+      int def_tackles_for_loss
+      double def_tackles_for_loss_yards
+      int def_fumbles_forced
+      double def_sacks
+      double def_sack_yards
+      double def_qb_hits
+      double def_interceptions
+      double def_interception_yards
+      double def_pass_defended
+      double def_tds
+      double def_fumbles
+      double def_fumble_recovery_own
+      double def_fumble_recovery_yards_own
+      double def_fumble_recovery_opp
+      double def_fumble_recovery_yards_opp
+      int def_safety
+      double def_penalty
+      double def_penalty_yards
     }
