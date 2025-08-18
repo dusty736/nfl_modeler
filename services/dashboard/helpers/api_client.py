@@ -88,3 +88,9 @@ def get_team_special(team_abbr: str, season: int, week: int):
     except Exception as e:
         print(f"[api_client] Failed to fetch team special: {e}")
         return {}
+
+def fetch_max_week(season: int) -> int:
+    r = requests.get(f"http://api:8000/api/max-week/{season}", timeout=2)
+    if r.ok:
+        return r.json().get("max_week", 18)
+    return 18
