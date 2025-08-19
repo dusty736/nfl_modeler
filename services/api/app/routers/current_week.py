@@ -23,6 +23,27 @@ async def get_current_season_week():
             "week": row["week"]
         }
 
+@router.get("/max-week-team/{season}/{team}")
+async def get_max_week_team(season: int, team: str):
+    """
+    Return the maximum completed week for a given season/team.
+    """
+    sql = text("""
+        SELECT MAX(week) AS max_week
+        FROM public.weekly_results_tbl
+        WHERE season = :season
+          AND team_id = :team
+    """)
+    async with AsyncSessionLocal() as session:
+        row = (
+            await session.execute(
+                sql,
+                {"season": season, "team": team.upper()}
+            )
+        ).mappings().first()
+        return {"max_week": row["max_week"] if row and row["max_week"] else 18}
+
+
 @router.get("/max-week/{season}")
 async def get_max_week(season: int):
     """
@@ -30,7 +51,7 @@ async def get_max_week(season: int):
     """
     sql = text("""
         SELECT MAX(week) AS max_week
-        FROM public.schedule_tbl
+        FROM public.weekly_results_tbl
         WHERE season = :season
     """)
     async with AsyncSessionLocal() as session:

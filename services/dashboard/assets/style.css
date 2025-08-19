@@ -578,8 +578,9 @@ body {
   border-top-right-radius: 12px;
 }
 
-/* Table itself */
-.team-detail-stats-table {
+/* Shared table styling */
+.team-detail-stats-table,
+.team-detail-roster-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.95rem;
@@ -590,32 +591,48 @@ body {
 }
 
 .team-detail-stats-table th,
-.team-detail-stats-table td {
+.team-detail-roster-table th,
+.team-detail-stats-table td,
+.team-detail-roster-table td {
   padding: 10px 14px;
   text-align: left;
 }
 
 /* Header row */
-.team-detail-stats-table th {
+.team-detail-stats-table th,
+.team-detail-roster-table th {
   font-weight: 600;
-  background: #d9d9d9; /* darker platinum shade */
+  background: #d9d9d9;
   color: var(--ink);
 }
 
 /* Zebra rows */
-.team-detail-stats-table tr:nth-child(even) {
+.team-detail-stats-table tr:nth-child(even),
+.team-detail-roster-table tr:nth-child(even) {
   background: #f6f6f6;
 }
 
 /* Hover */
-.team-detail-stats-table tr:hover {
+.team-detail-stats-table tr:hover,
+.team-detail-roster-table tr:hover {
   background: #e8f2ff;
 }
 
-/* TOTAL row (last row) */
-.team-detail-stats-table tr:last-child {
+/* Stats tables: bold last row */
+.team-detail-stats-table tr:last-child td {
   background: #d9d9d9; /* match header shade */
   font-weight: 600;
+}
+
+/* Roster tables: last row normal */
+.team-detail-roster-table tr:last-child td {
+  font-weight: normal;
+}
+.team-detail-roster-table tr:nth-child(even):last-child td {
+  background: #f6f6f6;
+}
+.team-detail-roster-table tr:nth-child(odd):last-child td {
+  background: var(--platinum);
 }
 
 /* ---------------------------

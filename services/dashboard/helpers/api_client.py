@@ -88,9 +88,62 @@ def get_team_special(team_abbr: str, season: int, week: int):
     except Exception as e:
         print(f"[api_client] Failed to fetch team special: {e}")
         return {}
+      
+      # --- Roster: full team roster ---
+def get_team_roster(team_abbr: str, season: int):
+    try:
+        r = requests.get(
+            f"http://api:8000/team_rosters/{team_abbr}/{season}",
+            timeout=2
+        )
+        r.raise_for_status()
+        return r.json()
+    except Exception as e:
+        print(f"[api_client] Failed to fetch team roster: {e}")
+        return {}
+
+# --- Roster: position summary ---
+def get_team_position_summary(team_abbr: str, season: int, position: str):
+    try:
+        r = requests.get(
+            f"http://api:8000/team_rosters/{team_abbr}/{season}/positions/{position}",
+            timeout=2
+        )
+        r.raise_for_status()
+        return r.json()
+    except Exception as e:
+        print(f"[api_client] Failed to fetch position summary: {e}")
+        return {}
+
+# --- Roster: weekly depth chart starters ---
+def get_team_depth_chart_starters(team_abbr: str, season: int, week: int):
+    try:
+        r = requests.get(
+            f"http://api:8000/team_rosters/{team_abbr}/{season}/weeks/{week}",
+            timeout=2
+        )
+        r.raise_for_status()
+        return r.json()
+    except Exception as e:
+        print(f"[api_client] Failed to fetch depth chart starters: {e}")
+        return {}
 
 def fetch_max_week(season: int) -> int:
     r = requests.get(f"http://api:8000/api/max-week/{season}", timeout=2)
     if r.ok:
         return r.json().get("max_week", 18)
     return 18
+  
+def get_max_week_team(season: int, team: str) -> int:
+    try:
+        r = requests.get(
+            f"http://api:8000/api/max-week-team/{season}/{team}",
+            timeout=2
+        )
+        r.raise_for_status()
+        return r.json().get("max_week", 18)
+    except Exception as e:
+        print(f"[api_client] Failed to fetch max week for {team} {season}: {e}")
+        return 18
+
+

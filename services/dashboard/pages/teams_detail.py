@@ -9,7 +9,11 @@ from helpers.api_client import (
     get_team_defense,
     get_team_special,
     fetch_current_season_week,
-    fetch_max_week
+    fetch_max_week,
+    get_team_roster,
+    get_team_position_summary,
+    get_team_depth_chart_starters,
+    get_max_week_team
 )
 
 season, week = fetch_current_season_week()
@@ -25,14 +29,16 @@ dash.register_page(
     name="Team Detail"
 )
 
-def dict_to_table(d):
-    """Render dict or list-of-dicts as an HTML table."""
+def dict_to_table(d, table_type="stats"):
+    """Render dict or list-of-dicts as an HTML table.
+       table_type = "stats" (default) or "roster"
+    """
     if not d:
         return html.Div("No data available")
 
-    # Case 1: list of dicts (rows)
+    class_name = "team-detail-stats-table" if table_type == "stats" else "team-detail-roster-table"
+
     if isinstance(d, list):
-        # use keys from the first row for headers
         headers = list(d[0].keys())
         return html.Table(
             [
@@ -43,10 +49,9 @@ def dict_to_table(d):
                     html.Tr([html.Td(str(row[h])) for h in headers]) for row in d
                 ])
             ],
-            className="team-detail-stats-table"
+            className=class_name
         )
 
-    # Case 2: single dict
     return html.Table(
         [
             html.Tbody([
@@ -54,8 +59,84 @@ def dict_to_table(d):
                 for k, v in d.items()
             ])
         ],
-        className="team-detail-stats-table"
+        className=class_name
     )
+
+    
+def normalize_api_result(result):
+  if isinstance(result, dict):
+      if "error" in result:   # skip error rows
+          return []
+      return [result]
+  if isinstance(result, list):
+      # filter out dicts with "error"
+      return [r for r in result if isinstance(r, dict) and "error" not in r]
+  return []
+    
+# ---------------------------------------------------
+# Roster Section
+# ---------------------------------------------------
+# --- Roster Section ---
+def roster_section(team_abbr: str):
+    current_season, current_week = fetch_current_season_week()
+    season_options = [{"label": str(y), "value": y} for y in range(current_season, 1998, -1)]
+    position_options = [
+        {"label": "All", "value": "ALL"},
+        {"label": "TEAM", "value": "TEAM"},
+        {"label": "QB", "value": "QB"},
+        {"label": "RB", "value": "RB"},
+        {"label": "WR", "value": "WR"},
+        {"label": "TE", "value": "TE"},
+        {"label": "Offensive Line", "value": "OL"},
+        {"label": "Defensive Line", "value": "DL"},
+        {"label": "Linebackers", "value": "LB"},
+        {"label": "Defensive Backs", "value": "DB"},
+        {"label": "Special Teams", "value": "ST"},
+    ]
+
+    return html.Div(
+        [
+            html.Div(
+                [
+                    dcc.Dropdown(
+                        id="team-detail-roster-year-dropdown",
+                        options=season_options,
+                        value=current_season,
+                        clearable=False,
+                        style={"width": "200px"},
+                    ),
+                    dcc.Dropdown(
+                        id="team-detail-roster-position-dropdown",
+                        options=position_options,
+                        value="ALL",
+                        clearable=False,
+                        style={"width": "200px"},
+                    ),
+                    dcc.Dropdown(
+                        id="team-detail-roster-week-dropdown",
+                        options=[],  # will be filled dynamically
+                        value=current_week,
+                        clearable=False,
+                        style={"width": "200px"},
+                    ),
+                ],
+                style={"display": "flex", "gap": "10px", "marginBottom": "20px"},
+            ),
+            html.Div(id="team-detail-roster-tables")
+        ]
+    )
+
+@callback(
+    Output("team-detail-roster-week-dropdown", "options"),
+    Output("team-detail-roster-week-dropdown", "value"),
+    Input("team-detail-roster-year-dropdown", "value"),
+    Input("_pages_location", "pathname"),
+)
+def update_week_dropdown(selected_year, pathname):
+    team_abbr = pathname.split("/")[-1].upper()
+    max_week = get_max_week_team(selected_year, team_abbr)
+    week_options = [{"label": str(w), "value": w} for w in range(1, max_week + 1)]
+    return week_options, max_week
 
 # ---------------------------------------------------
 # Layout
@@ -222,18 +303,21 @@ def switch_tab(stats_click, roster_click, injuries_click, nextgen_click, pathnam
 
     ctx = dash.callback_context
     if not ctx.triggered:
-        return "Select a section"
+        # Default tab = Season Statistics
+        return stats_section(team_abbr)
+
     button_id = ctx.triggered[0]["prop_id"].split(".")[0]
 
     if button_id == "team-detail-btn-stats":
         return stats_section(team_abbr)
     elif button_id == "team-detail-btn-roster":
-        return html.Div("Roster goes here")
+        return roster_section(team_abbr)
     elif button_id == "team-detail-btn-injuries":
         return html.Div("Injuries go here")
     elif button_id == "team-detail-btn-nextgen":
         return html.Div("NextGen goes here")
     return "Invalid selection"
+
 
 # ---------------------------------------------------
 # Season Stats Section
@@ -265,9 +349,9 @@ def update_season_stats(selected_year, pathname):
     current_season, current_week = fetch_current_season_week()
 
     if selected_year == current_season:
-      week = current_week
+        week = current_week
     else:
-      week = fetch_max_week(selected_year)
+        week = fetch_max_week(selected_year)
 
     record = get_team_record(team_abbr, selected_year, week)
     offense = get_team_offense(team_abbr, selected_year, week)
@@ -277,9 +361,58 @@ def update_season_stats(selected_year, pathname):
     return html.Div(
         [
             html.H4(f"{selected_year} Season (through Week {week})"),
-            html.Div([html.H5("Record"), dict_to_table(record)], className="team-detail-team-stats-card"),
-            html.Div([html.H5("Offense"), dict_to_table(offense)], className="team-detail-team-stats-card"),
-            html.Div([html.H5("Defense"), dict_to_table(defense)], className="team-detail-team-stats-card"),
-            html.Div([html.H5("Special Teams"), dict_to_table(special)], className="team-detail-team-stats-card"),
+            html.Div([html.H5("Record"), dict_to_table(record, table_type="stats")], className="team-detail-team-stats-card"),
+            html.Div([html.H5("Offense"), dict_to_table(offense, table_type="stats")], className="team-detail-team-stats-card"),
+            html.Div([html.H5("Defense"), dict_to_table(defense, table_type="stats")], className="team-detail-team-stats-card"),
+            html.Div([html.H5("Special Teams"), dict_to_table(special, table_type="stats")], className="team-detail-team-stats-card"),
         ]
     )
+
+    
+@callback(
+    Output("team-detail-roster-tables", "children"),
+    Input("team-detail-roster-year-dropdown", "value"),
+    Input("team-detail-roster-position-dropdown", "value"),
+    Input("team-detail-roster-week-dropdown", "value"),
+    Input("_pages_location", "pathname")
+)
+def update_roster(selected_year, position, week, pathname):
+    team_abbr = pathname.split("/")[-1].upper()
+
+    # Full roster
+    roster = get_team_roster(team_abbr, selected_year)
+
+    # Position summary
+    if position == "ALL":
+        pos_list = ["TEAM", "QB", "RB", "WR", "TE", "OL", "DL", "LB", "DB", "ST"]
+        position_summary = []
+        for p in pos_list:
+            data = get_team_position_summary(team_abbr, selected_year, p)
+            position_summary.extend(normalize_api_result(data))
+    else:
+        position_summary = normalize_api_result(
+            get_team_position_summary(team_abbr, selected_year, position)
+        )
+
+    # Depth chart (specific week, fallback to max if empty)
+    week = week or fetch_max_week(selected_year)
+    starters = get_team_depth_chart_starters(team_abbr, selected_year, week)
+
+    return html.Div(
+        [
+            html.H4(f"{selected_year} Roster"),
+            html.Div(
+                [html.H5(f"Depth Chart Starters (Week {week})"), dict_to_table(starters, table_type="roster")],
+                className="team-detail-team-stats-card",
+            ),
+            html.Div(
+                [html.H5(f"Position Summary ({position})"), dict_to_table(position_summary, table_type="roster")],
+                className="team-detail-team-stats-card",
+            ),
+            html.Div(
+                [html.H5("Full Roster"), dict_to_table(roster, table_type="roster")],
+                className="team-detail-team-stats-card",
+            ),
+        ]
+    )
+
