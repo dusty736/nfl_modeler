@@ -146,4 +146,29 @@ def get_max_week_team(season: int, team: str) -> int:
         print(f"[api_client] Failed to fetch max week for {team} {season}: {e}")
         return 18
 
+# --- Injuries: team-level summary ---
+def get_team_injury_summary(team_abbr: str, season: int, week: int, position: str):
+    try:
+        r = requests.get(
+            f"http://api:8000/team_injuries/{team_abbr}/injuries/team/{season}/{week}/{position}",
+            timeout=2
+        )
+        r.raise_for_status()
+        return r.json()
+    except Exception as e:
+        print(f"[api_client] Failed to fetch team injury summary: {e}")
+        return {}
+
+# --- Injuries: player-level raw data ---
+def get_player_injuries(team_abbr: str, season: int, week: int, position: str):
+    try:
+        r = requests.get(
+            f"http://api:8000/team_injuries/{team_abbr}/injuries/player/{season}/{week}/{position}",
+            timeout=2
+        )
+        r.raise_for_status()
+        return r.json()
+    except Exception as e:
+        print(f"[api_client] Failed to fetch player injuries: {e}")
+        return {}
 

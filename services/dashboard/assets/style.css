@@ -648,6 +648,34 @@ body {
   }
 }
 
+/* ---------------------------
+   Dropdown Styling Overrides
+   --------------------------- */
+
+/* Input text (selected value) */
+.Select-control,
+.Select-value,
+.Select-placeholder {
+  color: white !important;        /* dropdown text color */
+  background-color: var(--ink);   /* optional dark background */
+}
+
+/* Options in dropdown menu */
+.Select-menu-outer {
+  color: white !important;        /* option text */
+  background-color: var(--ink);   /* menu background */
+}
+
+/* Option hover/focus */
+.VirtualizedSelectOption {
+  color: white !important;
+}
+.VirtualizedSelectFocusedOption {
+  background-color: var(--accent) !important;
+  color: white !important;
+}
+
+
 
 /* =========================================================
    10) Link variants

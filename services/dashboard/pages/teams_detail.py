@@ -13,7 +13,9 @@ from helpers.api_client import (
     get_team_roster,
     get_team_position_summary,
     get_team_depth_chart_starters,
-    get_max_week_team
+    get_max_week_team,
+    get_team_injury_summary,
+    get_player_injuries
 )
 
 season, week = fetch_current_season_week()
@@ -137,6 +139,72 @@ def update_week_dropdown(selected_year, pathname):
     max_week = get_max_week_team(selected_year, team_abbr)
     week_options = [{"label": str(w), "value": w} for w in range(1, max_week + 1)]
     return week_options, max_week
+  
+# ---------------------------------------------------
+# Injuries Section
+# ---------------------------------------------------
+def injuries_section(team_abbr: str):
+    current_season, current_week = fetch_current_season_week()
+    season_options = [{"label": str(y), "value": y} for y in range(current_season, 1998, -1)]
+    position_options = [
+        {"label": "All", "value": "ALL"},
+        {"label": "Total", "value": "TOTAL"},
+        {"label": "Quarterbacks", "value": "QB"},
+        {"label": "Running Backs", "value": "RB"},
+        {"label": "Wide Receivers", "value": "WR"},
+        {"label": "Tight Ends", "value": "TE"},
+        {"label": "Offensive Line", "value": "OL"},
+        {"label": "Defensive Line", "value": "DL"},
+        {"label": "Linebackers", "value": "LB"},
+        {"label": "Defensive Backs", "value": "DB"},
+        {"label": "Special Teams", "value": "ST"},
+        {"label": "Other", "value": "OTHER"},
+    ]
+
+    return html.Div(
+        [
+            html.Div(
+                [
+                    dcc.Dropdown(
+                        id="team-detail-injuries-year-dropdown",
+                        options=season_options,
+                        value=current_season,
+                        clearable=False,
+                        style={"width": "200px"},
+                    ),
+                    dcc.Dropdown(
+                        id="team-detail-injuries-position-dropdown",
+                        options=position_options,
+                        value="ALL",
+                        clearable=False,
+                        style={"width": "200px"},
+                    ),
+                    dcc.Dropdown(
+                        id="team-detail-injuries-week-dropdown",
+                        options=[],  # filled dynamically
+                        value=current_week,
+                        clearable=False,
+                        style={"width": "200px"},
+                    ),
+                ],
+                style={"display": "flex", "gap": "10px", "marginBottom": "20px"},
+            ),
+            html.Div(id="team-detail-injuries-tables"),
+        ]
+    )
+
+@callback(
+    Output("team-detail-injuries-week-dropdown", "options"),
+    Output("team-detail-injuries-week-dropdown", "value"),
+    Input("team-detail-injuries-year-dropdown", "value"),
+    Input("_pages_location", "pathname"),
+)
+def update_injuries_week_dropdown(selected_year, pathname):
+    team_abbr = pathname.split("/")[-1].upper()
+    max_week = get_max_week_team(selected_year, team_abbr)
+    week_options = [{"label": str(w), "value": w} for w in range(1, max_week + 1)]
+    return week_options, max_week
+
 
 # ---------------------------------------------------
 # Layout
@@ -313,7 +381,7 @@ def switch_tab(stats_click, roster_click, injuries_click, nextgen_click, pathnam
     elif button_id == "team-detail-btn-roster":
         return roster_section(team_abbr)
     elif button_id == "team-detail-btn-injuries":
-        return html.Div("Injuries go here")
+        return injuries_section(team_abbr)
     elif button_id == "team-detail-btn-nextgen":
         return html.Div("NextGen goes here")
     return "Invalid selection"
@@ -416,3 +484,46 @@ def update_roster(selected_year, position, week, pathname):
         ]
     )
 
+@callback(
+    Output("team-detail-injuries-tables", "children"),
+    Input("team-detail-injuries-year-dropdown", "value"),
+    Input("team-detail-injuries-position-dropdown", "value"),
+    Input("team-detail-injuries-week-dropdown", "value"),
+    Input("_pages_location", "pathname")
+)
+def update_injuries(selected_year, position, week, pathname):
+    team_abbr = pathname.split("/")[-1].upper()
+    week = week or fetch_max_week(selected_year)
+
+    if position == "ALL":
+        pos_list = ["TOTAL", "QB", "RB", "WR", "TE", "OL", "DL", "LB", "DB", "ST", "OTHER"]
+        team_summary = []
+        players = []
+        for p in pos_list:
+            team_summary.extend(
+                normalize_api_result(get_team_injury_summary(team_abbr, selected_year, week, p))
+            )
+            players.extend(
+                normalize_api_result(get_player_injuries(team_abbr, selected_year, week, p))
+            )
+    else:
+        team_summary = normalize_api_result(
+            get_team_injury_summary(team_abbr, selected_year, week, position)
+        )
+        players = normalize_api_result(
+            get_player_injuries(team_abbr, selected_year, week, position)
+        )
+
+    return html.Div(
+        [
+            html.H4(f"{selected_year} Injuries (Week {week}, {position})"),
+            html.Div(
+                [html.H5("Team Injury Summary"), dict_to_table(team_summary, table_type="roster")],
+                className="team-detail-team-stats-card",
+            ),
+            html.Div(
+                [html.H5("Player Injuries"), dict_to_table(players, table_type="roster")],
+                className="team-detail-team-stats-card",
+            ),
+        ]
+    )
