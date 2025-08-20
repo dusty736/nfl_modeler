@@ -234,7 +234,6 @@ def layout(team_abbr=None):
                 html.Button("Season Statistics", id="team-detail-btn-stats", n_clicks=0, className="btn primary"),
                 html.Button("Roster", id="team-detail-btn-roster", n_clicks=0, className="btn"),
                 html.Button("Injuries", id="team-detail-btn-injuries", n_clicks=0, className="btn"),
-                html.Button("NextGen", id="team-detail-btn-nextgen", n_clicks=0, className="btn"),
             ],
             className="team-detail-nav-buttons",
             style={"display": "flex", "gap": "10px", "marginBottom": "20px"},
@@ -361,10 +360,9 @@ def layout(team_abbr=None):
     Input("team-detail-btn-stats", "n_clicks"),
     Input("team-detail-btn-roster", "n_clicks"),
     Input("team-detail-btn-injuries", "n_clicks"),
-    Input("team-detail-btn-nextgen", "n_clicks"),
     Input("_pages_location", "pathname")
 )
-def switch_tab(stats_click, roster_click, injuries_click, nextgen_click, pathname):
+def switch_tab(stats_click, roster_click, injuries_click, pathname):
     if not pathname or not pathname.startswith("/teams/"):
         return "No team selected"
     team_abbr = pathname.split("/")[-1].upper()
@@ -382,8 +380,6 @@ def switch_tab(stats_click, roster_click, injuries_click, nextgen_click, pathnam
         return roster_section(team_abbr)
     elif button_id == "team-detail-btn-injuries":
         return injuries_section(team_abbr)
-    elif button_id == "team-detail-btn-nextgen":
-        return html.Div("NextGen goes here")
     return "Invalid selection"
 
 

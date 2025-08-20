@@ -290,6 +290,42 @@ form_off_team_season_for_sql(
   file.path("data", "for_database", "off_team_stats_season_tbl.parquet")
 )
 
+# # Player Weekly
+# form_player_weekly_for_sql(
+#   file.path("data", "processed", "off_team_stats_season.parquet"),
+#   file.path("data", "for_database", "off_team_stats_season_tbl.parquet")
+# )
+# 
+# # Player Season
+# form_player_season_for_sql(
+#   file.path("data", "processed", "off_team_stats_season.parquet"),
+#   file.path("data", "for_database", "off_team_stats_season_tbl.parquet")
+# )
+# 
+# # Player Career
+# form_player_career_for_sql(
+#   file.path("data", "processed", "off_team_stats_season.parquet"),
+#   file.path("data", "for_database", "off_team_stats_season_tbl.parquet")
+# )
+# 
+# # Team Weekly
+# form_team_weekly_for_sql(
+#   file.path("data", "processed", "off_team_stats_season.parquet"),
+#   file.path("data", "for_database", "off_team_stats_season_tbl.parquet")
+# )
+# 
+# # Team Season
+# form_team_season_for_sql(
+#   file.path("data", "processed", "off_team_stats_season.parquet"),
+#   file.path("data", "for_database", "off_team_stats_season_tbl.parquet")
+# )
+# 
+# # Team All Time
+# form_team_alltime_for_sql(
+#   file.path("data", "processed", "off_team_stats_season.parquet"),
+#   file.path("data", "for_database", "off_team_stats_season_tbl.parquet")
+# )
+
 ################################################################################
 # Summarize Data
 ################################################################################

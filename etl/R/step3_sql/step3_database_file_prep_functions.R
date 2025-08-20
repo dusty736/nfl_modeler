@@ -2182,4 +2182,178 @@ form_off_team_season_for_sql <- function(input_path,
   invisible(off_season_sql)
 }
 
+#' Player Weekly
+#'
+#' Prepares a team-season offense file for SQL ingestion. Keeps identifier columns and
+#' all offensive stat columns with consistent types.
+#'
+#' @param input_path Path to the input Parquet file (e.g., "data/processed/off_team_stats_season.parquet").
+#' @param output_path Path to the SQL-ready file (default: "off_team_stats_season_tbl.parquet").
+#' @return Cleaned offense team seasonal table (invisibly).
+#' @export
+form_player_weekly_for_sql <- function(input_path,
+                                      output_path) {
+  player_weekly_sql <- arrow::read_parquet(input_path) %>%
+    # If your source uses `recent_team`, rename before transmute:
+    dplyr::transmute(
+      # Identifiers
+      player_id                        = as.character(player_id),
+      name                        = as.character(name),
+      position                        = as.character(position),
+      season                        = as.integer(season),
+      season_type                        = as.character(season_type),
+      week = as.integer(week),
+      team                          = as.character(team),
+      opponent                        = as.character(opponent),
+      stat_type                        = as.character(stat_type),
+      stat_name                        = as.character(stat_name),
+      value                        = as.numeric(value)
+    )
+  
+  arrow::write_parquet(player_weekly_sql, output_path)
+  invisible(player_weekly_sql)
+}
+
+#' Player Season
+#'
+#' Prepares a team-season offense file for SQL ingestion. Keeps identifier columns and
+#' all offensive stat columns with consistent types.
+#'
+#' @param input_path Path to the input Parquet file (e.g., "data/processed/off_team_stats_season.parquet").
+#' @param output_path Path to the SQL-ready file (default: "off_team_stats_season_tbl.parquet").
+#' @return Cleaned offense team seasonal table (invisibly).
+#' @export
+form_player_season_for_sql <- function(input_path,
+                                       output_path) {
+  player_season_sql <- arrow::read_parquet(input_path) %>%
+    # If your source uses `recent_team`, rename before transmute:
+    dplyr::transmute(
+      # Identifiers
+      player_id                        = as.character(player_id),
+      name                        = as.character(name),
+      position                        = as.character(position),
+      season                        = as.integer(season),
+      season_type                        = as.character(season_type),
+      stat_type                        = as.character(stat_type),
+      stat_name                        = as.character(stat_name),
+      value                        = as.numeric(value)
+    )
+  
+  arrow::write_parquet(player_season_sql, output_path)
+  invisible(player_season_sql)
+}
+
+#' Player Career
+#'
+#' Prepares a team-season offense file for SQL ingestion. Keeps identifier columns and
+#' all offensive stat columns with consistent types.
+#'
+#' @param input_path Path to the input Parquet file (e.g., "data/processed/off_team_stats_season.parquet").
+#' @param output_path Path to the SQL-ready file (default: "off_team_stats_season_tbl.parquet").
+#' @return Cleaned offense team seasonal table (invisibly).
+#' @export
+form_player_career_for_sql <- function(input_path,
+                                       output_path) {
+  player_career_sql <- arrow::read_parquet(input_path) %>%
+    # If your source uses `recent_team`, rename before transmute:
+    dplyr::transmute(
+      # Identifiers
+      player_id                        = as.character(player_id),
+      name                        = as.character(name),
+      position                        = as.character(position),
+      season_type                        = as.character(season_type),
+      agg_type                        = as.character(agg_type),
+      stat_name                        = as.character(stat_name),
+      value                        = as.numeric(value)
+    )
+  
+  arrow::write_parquet(player_career_sql, output_path)
+  invisible(player_career_sql)
+}
+
+#' Team Weekly
+#'
+#' Prepares a team-season offense file for SQL ingestion. Keeps identifier columns and
+#' all offensive stat columns with consistent types.
+#'
+#' @param input_path Path to the input Parquet file (e.g., "data/processed/off_team_stats_season.parquet").
+#' @param output_path Path to the SQL-ready file (default: "off_team_stats_season_tbl.parquet").
+#' @return Cleaned offense team seasonal table (invisibly).
+#' @export
+form_team_weekly_for_sql <- function(input_path,
+                                       output_path) {
+  team_weekly_sql <- arrow::read_parquet(input_path) %>%
+    # If your source uses `recent_team`, rename before transmute:
+    dplyr::transmute(
+      # Identifiers
+      game_id = as.character(game_id),
+      team                          = as.character(team),
+      season                        = as.integer(season),
+      season_type                        = as.character(season_type),
+      week = as.integer(week),
+      opponent                        = as.character(opponent),
+      stat_type                        = as.character(stat_type),
+      stat_name                        = as.character(stat_name),
+      value                        = as.numeric(value)
+    )
+  
+  arrow::write_parquet(team_weekly_sql, output_path)
+  invisible(team_weekly_sql)
+}
+
+
+#' Team Season
+#'
+#' Prepares a team-season offense file for SQL ingestion. Keeps identifier columns and
+#' all offensive stat columns with consistent types.
+#'
+#' @param input_path Path to the input Parquet file (e.g., "data/processed/off_team_stats_season.parquet").
+#' @param output_path Path to the SQL-ready file (default: "off_team_stats_season_tbl.parquet").
+#' @return Cleaned offense team seasonal table (invisibly).
+#' @export
+form_team_season_for_sql <- function(input_path,
+                                     output_path) {
+  team_season_sql <- arrow::read_parquet(input_path) %>%
+    # If your source uses `recent_team`, rename before transmute:
+    dplyr::transmute(
+      # Identifiers
+      team                          = as.character(team),
+      season                        = as.integer(season),
+      season_type                        = as.character(season_type),
+      stat_type                        = as.character(stat_type),
+      stat_name                        = as.character(stat_name),
+      value                        = as.numeric(value)
+    )
+  
+  arrow::write_parquet(team_season_sql, output_path)
+  invisible(team_season_sql)
+}
+
+#' Team All Time
+#'
+#' Prepares a team-season offense file for SQL ingestion. Keeps identifier columns and
+#' all offensive stat columns with consistent types.
+#'
+#' @param input_path Path to the input Parquet file (e.g., "data/processed/off_team_stats_season.parquet").
+#' @param output_path Path to the SQL-ready file (default: "off_team_stats_season_tbl.parquet").
+#' @return Cleaned offense team seasonal table (invisibly).
+#' @export
+form_team_alltime_for_sql <- function(input_path,
+                                     output_path) {
+  team_alltime_sql <- arrow::read_parquet(input_path) %>%
+    # If your source uses `recent_team`, rename before transmute:
+    dplyr::transmute(
+      # Identifiers
+      team                          = as.character(team),
+      season_type                        = as.character(season_type),
+      stat_type                        = as.character(stat_type),
+      stat_name                        = as.character(stat_name),
+      value                        = as.numeric(value)
+    )
+  
+  arrow::write_parquet(team_alltime_sql, output_path)
+  invisible(team_alltime_sql)
+}
+
+
 
