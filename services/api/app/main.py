@@ -14,7 +14,8 @@ def create_app() -> FastAPI:
         return RedirectResponse(url="/docs")
 
     # Explicit, educational mounting
-    for mod in ["standings", "current_week", "primetime", "teams", "team_stats", "team_rosters", "team_injuries"]:
+    for mod in ["standings", "current_week", "primetime", "teams", "team_stats", 
+                "team_rosters", "team_injuries", "analytics_nexus"]:
       m = importlib.import_module(f"app.routers.{mod}")
       app.include_router(m.router)
 

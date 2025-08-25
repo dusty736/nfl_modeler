@@ -343,3 +343,99 @@ create_season_stats <- function(weekly_df) {
   
   return(out)
 }
+
+#' Aggregate weekly player stats to career level (REG, POST, TOTAL)
+#'
+#' This function aggregates weekly long-format player stats into season-level
+#' summaries. It produces separate Regular (REG), Postseason (POST), and TOTAL
+#' season aggregates. Each stat is aggregated according to predefined rules:
+#' some are summed, some averaged, and some both.
+#'
+#' @param weekly_df A tibble or data.frame in long format, with at least the
+#'   following columns: \code{player_id}, \code{name}, \code{position},
+#'   \code{season_type}, \code{week}, \code{stat_type},
+#'   \code{stat_name}, \code{value}.
+#'
+#' @return A tibble with columns:
+#'   \itemize{
+#'     \item \code{player_id} Player unique ID
+#'     \item \code{name} Player name
+#'     \item \code{position} Player position
+#'     \item \code{season_type} REG, POST, or TOTAL
+#'     \item \code{agg_type} "sum" or "average"
+#'     \item \code{stat_name} Statistic name
+#'     \item \code{value} Aggregated value
+#'   }
+#'
+#' @examples
+#' \dontrun{
+#' season_stats <- create_career_stats(weekly_player_long)
+#' }
+#'
+#' @importFrom dplyr filter group_by summarise bind_rows mutate select
+#' @export
+create_career_stats <- function(weekly_df) {
+  # mapping table: stat_name → aggregation rule
+  sum_and_avg <- c(
+    "completions","attempts","passing_yards","passing_tds","interceptions",
+    "sacks","sack_yards","sack_fumbles","sack_fumbles_lost","passing_air_yards",
+    "passing_yards_after_catch","passing_first_downs","passing_2pt_conversions",
+    "carries","rushing_yards","rushing_tds","rushing_fumbles","rushing_fumbles_lost",
+    "rushing_first_downs","rushing_2pt_conversions","fantasy_points","fantasy_points_ppr",
+    "ng_attempts","ng_pass_yards","ng_pass_touchdowns","ng_interceptions",
+    "ng_completions","targets","receptions","receiving_yards","receiving_tds",
+    "receiving_fumbles","receiving_fumbles_lost","receiving_air_yards",
+    "receiving_yards_after_catch","receiving_first_downs","receiving_2pt_conversions",
+    "def_tackles","def_tackles_solo","def_tackle_assists","def_tackles_for_loss",
+    "def_tackles_for_loss_yards","def_fumbles_forced","def_sacks","def_sack_yards",
+    "def_qb_hits","def_interceptions","def_interception_yards","def_pass_defended",
+    "def_tds","def_fumbles","def_fumble_recovery_own","def_fumble_recovery_yards_own",
+    "def_fumble_recovery_opp","def_fumble_recovery_yards_opp","def_safety",
+    "def_penalty","def_penalty_yards"
+  )
+  
+  avg_only <- c(
+    "passing_epa","pacr","dakota","rushing_epa",
+    "ng_avg_time_to_throw","ng_avg_completed_air_yards","ng_avg_intended_air_yards",
+    "ng_avg_air_yards_differential","ng_aggressiveness","ng_max_completed_air_distance",
+    "ng_avg_air_yards_to_sticks","ng_passer_rating","ng_completion_percentage",
+    "ng_expected_completion_percentage","ng_completion_percentage_above_expectation",
+    "ng_avg_air_distance","ng_max_air_distance","receiving_epa","racr",
+    "target_share","air_yards_share","wopr"
+  )
+  
+  # filter base stats only
+  df <- dplyr::filter(weekly_df, stat_type == "base")
+  
+  # --- SUM + AVERAGE by REG/POST ---
+  df_sum <- df %>%
+    dplyr::filter(stat_name %in% sum_and_avg) %>%
+    dplyr::group_by(player_id, name, position, season_type, stat_name) %>%
+    dplyr::summarise(value = sum(value, na.rm = TRUE), .groups = "drop") %>%
+    dplyr::mutate(agg_type = "sum")
+  
+  df_avg <- df %>%
+    dplyr::filter(stat_name %in% c(sum_and_avg, avg_only)) %>%
+    dplyr::group_by(player_id, name, position, season_type, stat_name) %>%
+    dplyr::summarise(value = mean(value, na.rm = TRUE), .groups = "drop") %>%
+    dplyr::mutate(agg_type = "average")
+  
+  # --- TOTAL across REG + POST ---
+  df_total_sum <- df %>%
+    dplyr::filter(stat_name %in% sum_and_avg) %>%
+    dplyr::group_by(player_id, name, position, stat_name) %>%
+    dplyr::summarise(value = sum(value, na.rm = TRUE), .groups = "drop") %>%
+    dplyr::mutate(agg_type = "sum", season_type = "TOTAL")
+  
+  df_total_avg <- df %>%
+    dplyr::filter(stat_name %in% c(sum_and_avg, avg_only)) %>%
+    dplyr::group_by(player_id, name, position, stat_name) %>%
+    dplyr::summarise(value = mean(value, na.rm = TRUE), .groups = "drop") %>%
+    dplyr::mutate(agg_type = "average", season_type = "TOTAL")
+  
+  # combine all
+  out <- dplyr::bind_rows(df_sum, df_avg, df_total_sum, df_total_avg)
+  
+  return(out)
+}
+

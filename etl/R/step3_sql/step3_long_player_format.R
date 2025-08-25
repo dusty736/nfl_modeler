@@ -41,7 +41,8 @@ weekly_players <- rbind(weekly_qb,
                         weekly_rb,
                         weekly_wr,
                         weekly_te,
-                        weekly_def)
+                        weekly_def) %>% 
+  distinct()
 
 ################################################################################
 # PIVOT! - Seasonal
@@ -61,8 +62,11 @@ career_players <- create_career_stats(weekly_players) %>%
 # Save
 ################################################################################
 arrow::write_parquet(weekly_players %>% 
-                       mutate_if(is.numeric, round, 3), "data/for_database/player_weekly_tbl.parquet")
-arrow::write_parquet(seasonal_players, "data/for_database/player_season_tbl.parquet")
-arrow::write_parquet(career_players, "data/for_database/player_career_tbl.parquet")
+                       mutate_if(is.numeric, round, 3) %>% 
+                       distinct(), "data/for_database/player_weekly_tbl.parquet")
+arrow::write_parquet(seasonal_players %>% 
+                       distinct(), "data/for_database/player_season_tbl.parquet")
+arrow::write_parquet(career_players %>% 
+                       distinct(), "data/for_database/player_career_tbl.parquet")
 
 

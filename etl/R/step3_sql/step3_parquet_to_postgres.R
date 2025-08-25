@@ -87,4 +87,5 @@ load_parquet_to_postgres(file.path(base_path, "team_weekly_tbl.parquet"), "team_
 load_parquet_to_postgres(file.path(base_path, "team_season_tbl.parquet"), "team_sesaon_tbl")
 load_parquet_to_postgres(file.path(base_path, "team_career_tbl.parquet"), "team_career_tbl")
 
-
+source(file.path("etl", "R", "step3_sql", "step3_createIDx.R"))
+#source(file.path("etl", "R", "step3_sql", "step3_create_mv.R"))

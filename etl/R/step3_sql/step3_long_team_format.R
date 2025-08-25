@@ -21,8 +21,6 @@ game_id_map <- arrow::read_parquet(here("data", "processed", "weekly_results.par
 # PIVOT! - Weekly
 ################################################################################
 
-blah <- arrow::read_parquet(here("data", "processed", "weekly_results.parquet"))
-
 weekly_off <- pivot_team_stats_long(here("data", "processed", "off_team_stats_week.parquet"),
                                      team_schedule, "recent_team") %>% filter(stat_name != 'games_played')
 weekly_def <- pivot_team_stats_long(here("data", "processed", "def_team_stats_week.parquet"),
@@ -37,19 +35,22 @@ weekly_total <- rbind(weekly_off %>% left_join(., game_id_map, by=c('team', 'sea
                       weekly_def %>% left_join(., game_id_map, by=c('team', 'season', 'week')),
                       weekly_st_stats %>% left_join(., game_id_map, by=c('team', 'season', 'week')),
                       weekly_inj %>% left_join(., game_id_map, by=c('team', 'season', 'week')),
-                      weekly_game_stats %>% left_join(., team_schedule, by=c('team', 'season', 'week')))
+                      weekly_game_stats %>% left_join(., team_schedule, by=c('team', 'season', 'week'))) %>% 
+  distinct()
 
 ################################################################################
 # PIVOT! - Seasonal
 ################################################################################
 
-season_total <- aggregate_team_season_stats(weekly_total)
+season_total <- aggregate_team_season_stats(weekly_total) %>% 
+  distinct()
 
 ################################################################################
 # PIVOT! - All Time (Since 1999)
 ################################################################################
 
-alltime_total <- aggregate_team_alltime_stats(weekly_total)
+alltime_total <- aggregate_team_alltime_stats(weekly_total) %>% 
+  distinct()
 
 ################################################################################
 # Save
