@@ -96,9 +96,7 @@ def layout():
                                     dcc.Link(html.Button("Home", className="btn"), href="/"),
                                     dcc.Link(html.Button("Standings", className="btn"), href="/overview"),
                                     dcc.Link(html.Button("Teams", className="btn primary"), href="/teams"),
-                                    dcc.Link(html.Button("Matchup Central", className="btn"), href="/matchup_central"),
-                                    dcc.Link(html.Button("Player Hub", className="btn"), href="/player_hub"),
-                                    dcc.Link(html.Button("Time Capsule", className="btn"), href="/time-capsule")
+                                    dcc.Link(html.Button("Analytics Nexus", className="btn"), href="/analytics_nexus")
                                 ],
                             ),
                         ],
