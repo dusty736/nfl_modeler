@@ -561,7 +561,7 @@ body {
   border-radius: 12px;
   overflow: hidden;
   margin-bottom: 24px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+  box-shadow: 0 2px 8px #d9d9d9;
   background: var(--platinum);
 }
 
@@ -573,7 +573,7 @@ body {
   color: var(--ink);
   font-size: 1.1rem;
   font-weight: 600;
-  border-bottom: 1px solid rgba(0,0,0,0.08);
+  border-bottom: 1px solid #d9d9d9;
   border-top-left-radius: 12px;
   border-top-right-radius: 12px;
 }
@@ -648,33 +648,333 @@ body {
   }
 }
 
-/* ---------------------------
-   Dropdown Styling Overrides
-   --------------------------- */
+/* =========================================
+   Analytics Nexus — Player Weekly Trajectories (ax-pt-*)
+   ========================================= */
 
-/* Input text (selected value) */
-.Select-control,
+.ax-pt-section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 12px 14px;
+}
+
+.ax-pt-title {
+  margin: 0 0 4px 0;
+  font-size: 1.3rem;
+  letter-spacing: 0.2px;
+}
+
+.ax-pt-controls {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(6, minmax(140px, 1fr));
+  align-items: end;
+}
+
+.ax-pt-group label {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--text-on-dark);
+  margin-bottom: 6px;
+}
+
+.ax-pt-radio-label {
+  margin-right: 10px;
+  font-size: 0.9rem;
+}
+
+.ax-pt-radio-input {
+  margin-right: 6px;
+}
+
+.ax-pt-topn {
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.04);
+  color: var(--text-on-dark);
+}
+
+.ax-pt-span-2 {
+  grid-column: span 2;
+}
+
+.ax-pt-graph {
+  height: 520px; /* ensures consistent height even before render */
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px;
+  background: linear-gradient(to bottom right, rgba(255,255,255,0.02), rgba(0,0,0,0.12));
+  padding: 6px;
+}
+
+/* Responsive: collapse controls on narrow layouts */
+@media (max-width: 1100px) {
+  .ax-pt-controls {
+    grid-template-columns: repeat(3, minmax(140px, 1fr));
+  }
+  .ax-pt-span-2 {
+    grid-column: span 3;
+  }
+}
+
+@media (max-width: 720px) {
+  .ax-pt-controls {
+    grid-template-columns: 1fr;
+  }
+  .ax-pt-span-2 {
+    grid-column: span 1;
+  }
+}
+
+/* =========================
+   Analytics Nexus — Layout & Sidebar
+   ========================= */
+.analytics-layout {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);  /* fixed sidebar, flexible content */
+  gap: 14px;
+  min-height: calc(100vh - 180px); /* header+footer allowance, tweak if needed */
+  padding: 10px 12px;
+}
+
+.analytics-sidebar {
+  background: var(--platinum);
+  color: var(--ink);
+  border-right: 1px solid rgba(0,0,0,0.1);
+  border-radius: 12px;
+  padding: 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.analytics-sidebar h3 {
+  margin: 6px 6px 4px;
+  font-size: 1rem;
+  color: var(--ink);
+}
+
+.analytics-sidebar ul {
+  list-style: none;
+  margin: 0 0 8px 0;
+  padding: 0;
+}
+
+.analytics-sidebar .nav-btn {
+  width: 100%;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(0,0,0,0.15);
+  background: #fff;
+  color: #111;
+  cursor: pointer;
+  margin: 4px 0;
+  transition: background 0.15s, transform 0.1s;
+}
+.analytics-sidebar .nav-btn:hover { background: #f6f6f6; transform: translateY(-1px); }
+.analytics-sidebar .nav-btn.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(31,111,135,0.12) inset;
+}
+
+.analytics-content {
+  display: block;
+  min-width: 0; /* allow graphs to shrink properly */
+}
+
+/* =========================
+   Analytics Nexus — Player Weekly Trajectories Controls Card
+   ========================= */
+.ax-pt-controls {
+  background: var(--platinum);
+  color: var(--ink);
+  border: 1px solid rgba(0,0,0,0.1);
+  border-radius: 12px;
+  padding: 12px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(6, minmax(140px, 1fr));
+  align-items: end;
+}
+
+.ax-pt-group label {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+
+.ax-pt-span-2 { grid-column: span 2; }
+
+@media (max-width: 1100px) {
+  .ax-pt-controls { grid-template-columns: repeat(3, minmax(140px, 1fr)); }
+  .ax-pt-span-2 { grid-column: span 3; }
+}
+@media (max-width: 720px) {
+  .ax-pt-controls { grid-template-columns: 1fr; }
+  .ax-pt-span-2 { grid-column: span 1; }
+}
+
+/* =========================
+   Analytics Nexus — Player Weekly Trajectories Graph
+   ========================= */
+.ax-pt-graph {
+  min-height: 650px;                 /* was a fixed height; give breathing room */
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  background: #fff;                  /* light panel */
+  padding: 8px 6px 6px;              /* a hair more top padding */
+}
+
+/* Light dropdown theming inside Analytics Nexus Player Trajectories controls */
+.ax-pt-controls .Select-control {
+  background: var(--platinum) !important;
+  border: 1px solid rgba(0,0,0,0.25) !important;
+  color: var(--ink) !important;
+  border-radius: 10px !important;
+  min-height: 36px;
+}
+.ax-pt-controls .Select-placeholder,
+.ax-pt-controls .Select-value,
+.ax-pt-controls .Select-value-label {
+  color: var(--ink) !important;
+}
+.ax-pt-controls .Select-arrow { border-top-color: var(--ink) !important; }
+.ax-pt-controls .Select-menu-outer {
+  background: #fff !important;
+  color: #111 !important;
+  border: 1px solid rgba(0,0,0,0.15) !important;
+  border-radius: 10px !important;
+}
+.ax-pt-controls .VirtualizedSelectOption { color: #111 !important; }
+.ax-pt-controls .VirtualizedSelectFocusedOption {
+  background: #f0f0f0 !important;
+  color: #111 !important;
+}
+
+/* RangeSlider light look (within controls) */
+.ax-pt-controls .rc-slider-rail { background-color: #e1e1e1; }
+.ax-pt-controls .rc-slider-track { background-color: var(--accent); }
+.ax-pt-controls .rc-slider-handle {
+  border: 2px solid var(--accent);
+  background-color: #fff;
+}
+.ax-pt-controls .rc-slider-mark-text { color: var(--ink); }
+
+.ax-pt-topn {
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(0,0,0,0.25);
+  background: #fff;
+  color: #111;
+}
+
+/* =========================================================
+   Global Dropdown Style (dcc.Dropdown / react-select v1)
+   ========================================================= */
+.Select,
+.Select-control {
+  background-color: #fff !important;
+  border: 1px solid rgba(0,0,0,0.25) !important;
+  border-radius: 10px !important;   /* match Top N look */
+  min-height: 36px;
+  box-shadow: none !important;
+  color: #111 !important;
+}
+
+/* Text colors inside the closed box */
+.Select-placeholder,
 .Select-value,
-.Select-placeholder {
-  color: white !important;        /* dropdown text color */
-  background-color: var(--ink);   /* optional dark background */
+.Select-value-label {
+  color: #111 !important;
 }
 
-/* Options in dropdown menu */
+/* Typing caret/input */
+.Select-input > input {
+  color: #111 !important;
+}
+
+/* Dropdown arrow */
+.Select-arrow { border-top-color: #111 !important; }
+
+/* Open/focused states (keep the box white, add subtle inset glow) */
+.Select.is-focused > .Select-control,
+.Select.is-open > .Select-control {
+  background-color: #fff !important;
+  box-shadow: 0 0 0 2px rgba(31,111,135,0.12) inset !important;
+}
+
+/* The menu (options list) */
 .Select-menu-outer {
-  color: white !important;        /* option text */
-  background-color: var(--ink);   /* menu background */
+  background: #fff !important;
+  color: #111 !important;
+  border: 1px solid rgba(0,0,0,0.15) !important;
+  border-radius: 10px !important;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
 }
 
-/* Option hover/focus */
-.VirtualizedSelectOption {
-  color: white !important;
-}
+/* Options */
+.VirtualizedSelectOption { color: #111 !important; }
 .VirtualizedSelectFocusedOption {
-  background-color: var(--accent) !important;
-  color: white !important;
+  background: #f0f0f0 !important;
+  color: #111 !important;
 }
 
+input[type="text"],
+input[type="number"],
+input[type="search"] {
+  background: #fff;
+  color: #111;
+  border: 1px solid rgba(0,0,0,0.25);
+  border-radius: 10px;
+  padding: 6px 8px;
+}
+
+/* === Global: closed dropdown should look white, readable, rounded === */
+
+/* The outer control (the box) */
+.Select,
+.Select-control {
+  background-color: #fff !important;                 /* white box */
+  border: 1px solid rgba(0,0,0,0.25) !important;     /* subtle border */
+  border-radius: 10px !important;                    /* rounded corners */
+  min-height: 36px;
+  box-shadow: none !important;
+}
+
+/* The selected value text in the CLOSED state */
+.Select--single > .Select-control .Select-value {
+  background: transparent !important;                /* remove grey pill */
+  color: #111 !important;                            /* dark text on white */
+}
+
+/* Placeholder text (when nothing selected) */
+.Select-placeholder {
+  color: #666 !important;                            /* readable on white */
+  background: transparent !important;
+}
+
+/* The caret/arrow (it can appear "invisible" if it's white on white) */
+.Select-arrow { 
+  border-top-color: #111 !important;                 /* dark arrow */
+}
+
+/* If clearable=True, make the clear “×” visible on white */
+.Select-clear { 
+  color: #111 !important;
+}
+
+/* Focus/open states: keep white, add subtle inset glow */
+.Select.is-focused > .Select-control,
+.Select.is-open > .Select-control {
+  background-color: #fff !important;
+  box-shadow: 0 0 0 2px rgba(31,111,135,0.12) inset !important;
+}
 
 
 /* =========================================================
