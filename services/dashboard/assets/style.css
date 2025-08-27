@@ -976,6 +976,113 @@ input[type="search"] {
   box-shadow: 0 0 0 2px rgba(31,111,135,0.12) inset !important;
 }
 
+/* =========================================
+   Analytics Nexus — Player Consistency/Volatility (ax-pv-*)
+   ========================================= */
+
+.ax-pv-section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 12px 14px;
+}
+
+.ax-pv-title {
+  margin: 0 0 4px 0;
+  font-size: 1.3rem;
+  letter-spacing: 0.2px;
+}
+
+/* Controls card — mirror ax-pt-controls look/feel */
+.ax-pv-controls {
+  background: var(--platinum);
+  color: var(--ink);
+  border: 1px solid rgba(0,0,0,0.1);
+  border-radius: 12px;
+  padding: 12px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(6, minmax(140px, 1fr));  /* condensed grid */
+  align-items: end;
+}
+
+.ax-pv-group label {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+
+/* allow wider widgets (e.g., range slider) to span */
+.ax-pv-span-2 { grid-column: span 2; }
+
+/* Responsive collapse, same breakpoints as trajectories */
+@media (max-width: 1100px) {
+  .ax-pv-controls { grid-template-columns: repeat(3, minmax(140px, 1fr)); }
+  .ax-pv-span-2 { grid-column: span 3; }
+}
+@media (max-width: 720px) {
+  .ax-pv-controls { grid-template-columns: 1fr; }
+  .ax-pv-span-2 { grid-column: span 1; }
+}
+
+/* Graph panel — match sizing and avoid title clipping */
+.ax-pv-graph {
+  min-height: 650px;                 /* give the figure room for title/subtitle */
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  background: #fff;
+  padding: 8px 6px 6px;
+  overflow: visible;                  /* keep long titles from clipping */
+}
+
+/* Light dropdown + slider theming inside the violin controls card */
+.ax-pv-controls .Select-control {
+  background: var(--platinum) !important;
+  border: 1px solid rgba(0,0,0,0.25) !important;
+  color: var(--ink) !important;
+  border-radius: 10px !important;
+  min-height: 36px;
+}
+.ax-pv-controls .Select-placeholder,
+.ax-pv-controls .Select-value,
+.ax-pv-controls .Select-value-label { color: var(--ink) !important; }
+.ax-pv-controls .Select-arrow { border-top-color: var(--ink) !important; }
+.ax-pv-controls .Select-menu-outer {
+  background: #fff !important;
+  color: #111 !important;
+  border: 1px solid rgba(0,0,0,0.15) !important;
+  border-radius: 10px !important;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+}
+.ax-pv-controls .VirtualizedSelectOption { color: #111 !important; }
+.ax-pv-controls .VirtualizedSelectFocusedOption {
+  background: #f0f0f0 !important;
+  color: #111 !important;
+}
+
+/* RangeSlider inside the card */
+.ax-pv-controls .rc-slider-rail { background-color: #e1e1e1; }
+.ax-pv-controls .rc-slider-track { background-color: var(--accent); }
+.ax-pv-controls .rc-slider-handle {
+  border: 2px solid var(--accent);
+  background-color: #fff;
+}
+.ax-pv-controls .rc-slider-mark-text { color: var(--ink); }
+
+/* Inputs inside the card (Top N, Min Games) — match global look */
+.ax-pv-controls input[type="number"],
+.ax-pv-controls input[type="text"],
+.ax-pv-controls input[type="search"] {
+  background: #fff;
+  color: #111;
+  border: 1px solid rgba(0,0,0,0.25);
+  border-radius: 10px;
+  padding: 6px 8px;
+}
+
 
 /* =========================================================
    10) Link variants

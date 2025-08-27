@@ -267,3 +267,155 @@ def fetch_player_trajectories(
     except Exception as e:
         print(f"[api_client] Failed to fetch player trajectories: {e}")
         return []
+      
+# --- Analytics Nexus: Player Violins ---
+ALLOWED_ORDER_BY = {"rCV", "IQR", "median"}
+
+def fetch_player_violins(
+    seasons,
+    season_type: str,
+    stat_name: str,
+    position: str,
+    top_n: int,
+    week_start: int = 1,
+    week_end: int = 18,
+    stat_type: str = "base",              # 'base' or 'cumulative'
+    order_by: str = "rCV",                # 'rCV' | 'IQR' | 'median'
+    min_games_for_badges: int = 6,        # small-n badge threshold; does NOT filter players
+    timeout: int = 4,
+    debug: bool = True,
+):
+    """
+    Call Analytics Nexus: Player Consistency/Volatility (Violin) endpoint.
+
+    Args mirror the R function:
+      - seasons: int | iterable[int] | comma-separated str (multi-season window)
+      - season_type: 'REG' | 'POST' | 'ALL'
+      - stat_name: e.g., 'passing_yards'
+      - position: 'QB' | 'RB' | 'WR' | 'TE'
+      - top_n: int
+      - week_start/week_end: inclusive week window (applied within each season)
+      - stat_type: 'base' | 'cumulative'
+      - order_by: 'rCV' | 'IQR' | 'median' (controls x-axis ordering)
+      - min_games_for_badges: n threshold for consistency/volatility badges only
+    Returns:
+      dict with keys: {'weekly', 'summary', 'badges', 'meta'}
+      On error/empty, returns the same shape with empty arrays and echoed meta.
+    """
+    def _empty_payload(_seasons_list):
+        return {
+            "weekly": [],
+            "summary": [],
+            "badges": {"most_consistent": "—", "most_volatile": "—"},
+            "meta": {
+                "position": (position or "").upper().strip(),
+                "stat_name": stat_name,
+                "stat_type": (stat_type or "base").lower().strip(),
+                "season_type": (season_type or "REG").upper().strip(),
+                "seasons": _seasons_list,
+                "week_start": int(week_start),
+                "week_end": int(week_end),
+                "order_by": order_by,
+                "top_n": int(top_n),
+                "min_games_for_badges": int(min_games_for_badges),
+            },
+        }
+
+    try:
+        # --- Normalize inputs ---
+        # Seasons -> unique sorted list[int]
+        if seasons is None:
+            seasons_list = []
+        elif isinstance(seasons, (list, tuple, set)):
+            seasons_list = [int(s) for s in seasons]
+        elif isinstance(seasons, (int,)):
+            seasons_list = [int(seasons)]
+        else:
+            # assume comma-separated string
+            seasons_list = [int(s.strip()) for s in str(seasons).split(",") if s.strip()]
+
+        seasons_list = sorted(set(seasons_list))
+        if not seasons_list:
+            return _empty_payload([])
+
+        pos = (position or "").upper().strip()
+        if pos not in ALLOWED_POSITIONS:
+            raise ValueError(f"position must be one of {sorted(ALLOWED_POSITIONS)}")
+
+        st = (season_type or "").upper().strip()
+        if st not in ALLOWED_SEASON_TYPES:
+            raise ValueError(f"season_type must be one of {sorted(ALLOWED_SEASON_TYPES)}")
+
+        stype = (stat_type or "base").lower().strip()
+        if stype not in {"base", "cumulative"}:
+            raise ValueError("stat_type must be 'base' or 'cumulative'")
+
+        ob = (order_by or "rCV").strip()
+        ob_norm = ob.lower()
+        if ob_norm == "rcv":
+            ob_final = "rCV"
+        elif ob_norm == "iqr":
+            ob_final = "IQR"
+        elif ob_norm == "median":
+            ob_final = "median"
+        else:
+            raise ValueError(f"order_by must be one of {sorted(ALLOWED_ORDER_BY)}")
+
+        ws = int(week_start)
+        we = int(week_end)
+        if ws < 1: ws = 1
+        if we > 22: we = 22
+        if we < ws:
+            return _empty_payload(seasons_list)
+
+        mg = max(0, int(min_games_for_badges))
+        tn = max(1, int(top_n))
+
+        # Safe path segment for stat_name
+        stat_seg = quote(str(stat_name), safe="")
+
+        # Build query params (repeatable 'seasons' is supported by `requests` when value is a list)
+        params = {
+            "seasons": seasons_list,
+            "season_type": st,
+            "stat_type": stype,
+            "week_start": ws,
+            "week_end": we,
+            "order_by": ob_final,
+            "min_games_for_badges": mg,
+        }
+
+        last_err = None
+        for prefix in API_PREFIXES:
+            url = f"{API_BASE}{prefix}/analytics_nexus/player/violins/{stat_seg}/{pos}/{tn}"
+            try:
+                if debug:
+                    print(f"[api_client] GET {url} params={params}")
+                r = requests.get(url, params=params, timeout=timeout)
+                if r.status_code == 404:
+                    last_err = f"404 at {url}"
+                    continue
+                r.raise_for_status()
+                data = r.json()
+                # Expect a dict with 'weekly'/'summary' keys
+                if isinstance(data, dict) and "weekly" in data and "summary" in data:
+                    if debug:
+                        w = len(data.get("weekly", []))
+                        s = len(data.get("summary", []))
+                        print(f"[api_client] OK {url} -> weekly={w}, summary={s}")
+                    return data
+                if debug:
+                    print(f"[api_client] Unexpected payload at {url}: type={type(data)} keys={list(data) if isinstance(data, dict) else 'n/a'}")
+                return _empty_payload(seasons_list)
+            except Exception as e:
+                last_err = str(e)
+                continue
+
+        if debug:
+            print(f"[api_client] Failed after trying {API_PREFIXES}: {last_err}")
+        return _empty_payload(seasons_list)
+
+    except Exception as e:
+        print(f"[api_client] Failed to fetch player violins: {e}")
+        return _empty_payload(sorted(set([int(seasons)])) if isinstance(seasons, (int, str)) else (sorted(set(seasons)) if seasons else []))
+
