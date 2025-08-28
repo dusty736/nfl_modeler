@@ -1,14 +1,43 @@
+"""
+Primetime Router
+----------------
+Endpoints for retrieving primetime NFL games for the next unplayed week.
+
+Base path: /api
+Tags: ["primetime"]
+
+Definition of "primetime":
+- Europe/London timezone
+- Any kickoff not on Sunday (DOW != 0 in Postgres), OR
+- Sunday kickoffs at or after 18:00 local time.
+
+Week selection:
+- Chooses the earliest (MIN) season/week from games with NULL result (i.e., unplayed).
+- Assumes games_tbl reflects the current competition context; if historical/future seasons coexist,
+  MIN(...) should still resolve to the *next* unplayed week in practice.
+
+No functional changes are introduced; this file only adds documentation and comments.
+"""
+
 from fastapi import APIRouter
 from sqlalchemy import text
 from app.db import AsyncSessionLocal
 
+# --- Router setup -------------------------------------------------------------
 router = APIRouter(prefix="/api", tags=["primetime"])
 
 @router.get("/primetime-games")
 async def get_primetime_games():
-    """
-    Returns all primetime games for the current season/week.
-    Primetime = any non-Sunday, or Sunday 18:00+ (Europe/London).
+    """Return all primetime games for the next unplayed (season, week).
+
+    Primetime rule (Europe/London):
+    - Non-Sunday kickoffs, OR
+    - Sunday kickoff time >= 18:00.
+
+    Notes
+    -----
+    - Week detection uses MIN(season), MIN(week) where result IS NULL (unplayed).
+    - Sorting is by kickoff ascending.
     """
     # Step 1: Determine current season and week
     async with AsyncSessionLocal() as session:

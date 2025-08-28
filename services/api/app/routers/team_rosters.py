@@ -1,11 +1,37 @@
-from fastapi import APIRouter, HTTPException
+"""
+Team Rosters Router
+-------------------
+Lookups for team rosters, position-group summaries, and weekly depth-chart starters.
+
+Base path: /team_rosters
+Tags: ["team_rosters"]
+
+Notes
+-----
+- Response shapes: all endpoints return lists of mappings (converted to dicts for JSON).
+- Case handling: team and position inputs are uppercased server-side.
+- Errors: this router returns simple {"error": "..."} payloads instead of raising HTTP 4xx,
+  by design to keep client handling consistent with existing code.
+- No functional changes here — documentation and comments only.
+"""
+
+from fastapi import APIRouter
 from sqlalchemy import text
 from app.db import AsyncSessionLocal
 
+# --- Router setup -------------------------------------------------------------
 router = APIRouter(prefix="/team_rosters", tags=["team_rosters"])
 
 @router.get("/{team_abbr}/{season}")
 async def get_team_roster(team_abbr: str, season: int):
+    """Return the full roster for a team in a given season.
+
+    Returns rows with: season, team (abbr), name, position, status, age, weight, height,
+    college, years_exp, rookie_year.
+
+    Ordering:
+        position ASC, then name ASC.
+    """
     query = """
         select 
         	rt.season, 
@@ -35,6 +61,29 @@ async def get_team_roster(team_abbr: str, season: int):
 
 @router.get("/{team_abbr}/{season}/positions/{position}")
 async def get_team_position_summary(team_abbr: str, season: int, position: str):
+    """Return summary metrics for a position group (and TEAM aggregate) for a team/season.
+
+    Position grouping rules (CASE mapping):
+        TEAM -> TEAM
+        QB -> QB
+        RB, FB -> RB
+        WR -> WR
+        TE -> TE
+        C, G, T, OL -> OL
+        DT, DE, NT, DL -> DL
+        LB, OLB, ILB, MLB -> LB
+        CB, DB, S, SS, FS -> DB
+        K, P, LS, KR, PR, SPEC -> ST
+        everything else -> OTHER
+
+    Output columns:
+        season, team, position (mapped), average_age, average_height, average_weight,
+        average_exp, position_group_score
+
+    Notes:
+        - DISTINCT ON enforces one row per (season, team, position).
+        - The subquery unions position-level and TEAM-level aggregates, then filters to requested position.
+    """
     query = """
         SELECT DISTINCT ON (season, team, position)
                season,
@@ -103,6 +152,15 @@ async def get_team_position_summary(team_abbr: str, season: int, position: str):
 
 @router.get("/{team_abbr}/{season}/weeks/{week}")
 async def get_team_depth_chart_starters(team_abbr: str, season: int, week: int):
+    """Return weekly depth-chart starters for a team (per position group).
+
+    Output columns:
+        season, week, team, player, position, position_group, starts, new_starter
+
+    Notes:
+        - Table: depth_charts_starters_tbl
+        - One row per (team, week, player, position_group) as produced upstream.
+    """
     query = """
         select 
             season, 

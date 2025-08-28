@@ -1,9 +1,31 @@
+"""
+API Client Helpers
+------------------
+Thin convenience wrappers around the internal FastAPI service.
+
+Principles
+- No retries/backoff here (the UI stays snappy and predictable).
+- Fail closed with empty shapes or sensible defaults ([], {}, (None, None)).
+- Do NOT change behaviour: this file only adds documentation/comments.
+
+Caution
+- `API_BASE` is defined twice on purpose in the current code: first via env
+  (default "http://api:8000"), later hard-set to "http://nfl_api_py:8000".
+  The latter *wins* at runtime. We are not changing that precedence here.
+"""
+
 import os
 import requests
 from urllib.parse import quote
 from typing import Iterable, List, Union, Optional, Dict, Any
 
+# --- Core schedule/state lookups ------------------------------------------------
 def fetch_current_season_week():
+    """Return the current (season, week) from /api/season-week.
+    
+    Returns:
+        tuple[int|None, int|None]: (season, week) or (None, None) on error.
+    """
     try:
         r = requests.get("http://api:8000/api/season-week", timeout=2)
         r.raise_for_status()
@@ -13,9 +35,12 @@ def fetch_current_season_week():
         return None, None
 
 def fetch_primetime_games():
-    """
-    Fetch primetime games for the current season/week.
-    Returns a list of dicts, each representing a game.
+    """Fetch primetime games for the current season/week.
+
+    Primetime: any non-Sunday, or Sunday 18:00+ (Europe/London), per backend logic.
+
+    Returns:
+        list[dict]: Zero or more game objects. Empty list on error.
     """
     try:
         response = requests.get("http://api:8000/api/primetime-games", timeout=2)
@@ -26,7 +51,14 @@ def fetch_primetime_games():
         print(f"[api_client] Failed to fetch primetime games: {e}")
         return []
 
+# --- Teams directory ------------------------------------------------------------
 def get_all_teams():
+    """List teams (excluding legacy OAK/STL/SD) from /teams/.
+    
+    Returns:
+        list[dict]: [{team_name, team_abbr, team_division}, ...] or [] on error.
+    """
+
     try:
         r = requests.get("http://api:8000/teams/", timeout=2)
         r.raise_for_status()
@@ -36,6 +68,15 @@ def get_all_teams():
         return []
 
 def get_team_by_abbr(team_abbr: str):
+    """Fetch a single team by abbreviation from /teams/{abbr}.
+    
+    Args:
+        team_abbr (str): e.g., "KC".
+    
+    Returns:
+        dict|list: Team mapping on success; [] on error for UI stability.
+    """
+
     try:
         r = requests.get(f"http://api:8000/teams/{team_abbr}", timeout=2)
         r.raise_for_status()
@@ -44,7 +85,18 @@ def get_team_by_abbr(team_abbr: str):
         print(f"[api_client] Failed to fetch team abbr: {e}")
         return []
       
+# --- Team stats (record/offense/defense/special) --------------------------------
 def get_team_record(team_abbr: str, season: int, week: int):
+    """Get season record snapshot for a team.
+    
+    Args:
+        team_abbr (str), season (int), week (int): week is forwarded unchanged.
+    
+    Returns:
+        dict: {wins, losses, ties, points_scored, points_allowed, point_differential}
+              or {} on error.
+    """
+
     try:
         r = requests.get(
             f"http://api:8000/team_stats/{team_abbr}/record/{season}/{week}",
@@ -57,6 +109,13 @@ def get_team_record(team_abbr: str, season: int, week: int):
         return {}
 
 def get_team_offense(team_abbr: str, season: int, week: int):
+    """Cumulative offensive yards by week (plus TOTAL row).
+    
+    Returns:
+        list[dict]|dict: [{'week','passing_yards','rushing_yards','receiving_yards'}, ...]
+                         or {} on error.
+    """
+
     try:
         r = requests.get(
             f"http://api:8000/team_stats/{team_abbr}/offense/{season}/{week}",
@@ -69,6 +128,12 @@ def get_team_offense(team_abbr: str, season: int, week: int):
         return {}
 
 def get_team_defense(team_abbr: str, season: int, week: int):
+    """Cumulative defensive counting stats by week (plus TOTAL row).
+    
+    Returns:
+        list[dict]|dict: [{'week','tackles','sacks','interceptions'}, ...] or {} on error.
+    """
+
     try:
         r = requests.get(
             f"http://api:8000/team_stats/{team_abbr}/defense/{season}/{week}",
@@ -81,6 +146,12 @@ def get_team_defense(team_abbr: str, season: int, week: int):
         return {}
 
 def get_team_special(team_abbr: str, season: int, week: int):
+    """Cumulative special teams FG counts by week (plus TOTAL row).
+    
+    Returns:
+        list[dict]|dict: [{'week','total_fg_made','total_fg_attempted'}, ...] or {} on error.
+    """
+
     try:
         r = requests.get(
             f"http://api:8000/team_stats/{team_abbr}/special/{season}/{week}",
@@ -92,8 +163,14 @@ def get_team_special(team_abbr: str, season: int, week: int):
         print(f"[api_client] Failed to fetch team special: {e}")
         return {}
       
-      # --- Roster: full team roster ---
+# --- Rosters --------------------------------------------------------------------
 def get_team_roster(team_abbr: str, season: int):
+    """Full roster listing for a season/team.
+  
+    Returns:
+        list[dict]|dict: rows with name, position, status, bio fields; {} on error.
+    """
+
     try:
         r = requests.get(
             f"http://api:8000/team_rosters/{team_abbr}/{season}",
@@ -107,6 +184,12 @@ def get_team_roster(team_abbr: str, season: int):
 
 # --- Roster: position summary ---
 def get_team_position_summary(team_abbr: str, season: int, position: str):
+    """Position-group summary (averages + stability score) or TEAM aggregate.
+  
+    Returns:
+        list[dict]|dict: one row for the requested position; {} on error.
+    """
+
     try:
         r = requests.get(
             f"http://api:8000/team_rosters/{team_abbr}/{season}/positions/{position}",
@@ -120,6 +203,12 @@ def get_team_position_summary(team_abbr: str, season: int, position: str):
 
 # --- Roster: weekly depth chart starters ---
 def get_team_depth_chart_starters(team_abbr: str, season: int, week: int):
+    """Depth chart starters for a given week.
+    
+    Returns:
+        list[dict]|dict: [{position_group, player, starts, new_starter, ...}] or {} on error.
+    """
+
     try:
         r = requests.get(
             f"http://api:8000/team_rosters/{team_abbr}/{season}/weeks/{week}",
@@ -131,13 +220,25 @@ def get_team_depth_chart_starters(team_abbr: str, season: int, week: int):
         print(f"[api_client] Failed to fetch depth chart starters: {e}")
         return {}
 
+# --- Week bounds ----------------------------------------------------------------
 def fetch_max_week(season: int) -> int:
+    """Return max completed week for a season via /api/max-week/{season}.
+    
+    Returns:
+        int: Max week (default 18 on error).
+    """
+
     r = requests.get(f"http://api:8000/api/max-week/{season}", timeout=2)
     if r.ok:
         return r.json().get("max_week", 18)
     return 18
   
 def get_max_week_team(season: int, team: str) -> int:
+    """Return max completed week for a season/team via /api/max-week-team.
+    
+    Returns:
+        int: Max week (default 18 on error).
+    """
     try:
         r = requests.get(
             f"http://api:8000/api/max-week-team/{season}/{team}",
@@ -149,8 +250,13 @@ def get_max_week_team(season: int, team: str) -> int:
         print(f"[api_client] Failed to fetch max week for {team} {season}: {e}")
         return 18
 
-# --- Injuries: team-level summary ---
+# --- Injuries -------------------------------------------------------------------
 def get_team_injury_summary(team_abbr: str, season: int, week: int, position: str):
+    """Team injury counts (weekly and season-to-date) for a position group.
+    
+    Returns:
+        list[dict]|dict: [{'week','position','weekly_injuries','season_injuries'}] or {} on error.
+    """
     try:
         r = requests.get(
             f"http://api:8000/team_injuries/{team_abbr}/injuries/team/{season}/{week}/{position}",
@@ -164,6 +270,11 @@ def get_team_injury_summary(team_abbr: str, season: int, week: int, position: st
 
 # --- Injuries: player-level raw data ---
 def get_player_injuries(team_abbr: str, season: int, week: int, position: str):
+    """Per-player injury details for a position group.
+    
+    Returns:
+        list[dict]|dict: [{'name','position','report_status','practice_status',...}] or {} on error.
+    """
     try:
         r = requests.get(
             f"http://api:8000/team_injuries/{team_abbr}/injuries/player/{season}/{week}/{position}",
@@ -175,7 +286,7 @@ def get_player_injuries(team_abbr: str, season: int, week: int, position: str):
         print(f"[api_client] Failed to fetch player injuries: {e}")
         return {}
 
-# --- Analytics Nexus: Player Trajectories ---
+# --- Analytics Nexus (Players) --------------------------------------------------
 API_BASE = os.getenv("API_BASE", "http://api:8000")
 API_PREFIXES = ["", "/api"]  # try bare path first, then /api
 
@@ -196,15 +307,18 @@ def fetch_player_trajectories(
     timeout: int = 3,
     debug: bool = True,
 ):
-    """
-    Call Analytics Nexus: Top-N player weekly trajectories.
-
-    Query params:
-      - week_start, week_end
-      - stat_type: 'base' | 'cumulative'
-      - rank_by: 'sum' | 'mean'
-      - min_games: int (>=0)
-    Returns: list[dict] (or [] on empty/error)
+    """Analytics Nexus: Top-N player weekly trajectories.
+    
+    Args:
+        season (int), season_type (str), stat_name (str), position (str), top_n (int)
+        week_start/week_end (int): inclusive bounds
+        rank_by (str): "sum"|"mean" (avg)
+        stat_type (str): "base"|"cumulative"
+        min_games (int): minimum non-NULL weeks
+        timeout (int), debug (bool)
+    
+    Returns:
+        list[dict]: rows ordered by player_rank then week; [] on error/empty.
     """
     try:
         pos = (position or "").upper().strip()
@@ -269,7 +383,7 @@ def fetch_player_trajectories(
         print(f"[api_client] Failed to fetch player trajectories: {e}")
         return []
       
-# --- Analytics Nexus: Player Violins ---
+# --- Analytics Nexus (Players — Scatter) ----------------------------------------
 ALLOWED_ORDER_BY = {"rCV", "IQR", "median"}
 
 def fetch_player_violins(
@@ -286,23 +400,13 @@ def fetch_player_violins(
     timeout: int = 4,
     debug: bool = True,
 ):
-    """
-    Call Analytics Nexus: Player Consistency/Volatility (Violin) endpoint.
-
-    Args mirror the R function:
-      - seasons: int | iterable[int] | comma-separated str (multi-season window)
-      - season_type: 'REG' | 'POST' | 'ALL'
-      - stat_name: e.g., 'passing_yards'
-      - position: 'QB' | 'RB' | 'WR' | 'TE'
-      - top_n: int
-      - week_start/week_end: inclusive week window (applied within each season)
-      - stat_type: 'base' | 'cumulative'
-      - order_by: 'rCV' | 'IQR' | 'median' (controls x-axis ordering)
-      - min_games_for_badges: n threshold for consistency/volatility badges only
+    """Analytics Nexus: Player consistency/volatility violins.
+    
     Returns:
-      dict with keys: {'weekly', 'summary', 'badges', 'meta'}
-      On error/empty, returns the same shape with empty arrays and echoed meta.
+        dict: {"weekly": [...], "summary": [...], "badges": {...}, "meta": {...}}
+              Empty-shaped payload on error.
     """
+
     def _empty_payload(_seasons_list):
         return {
             "weekly": [],
@@ -420,7 +524,7 @@ def fetch_player_violins(
         print(f"[api_client] Failed to fetch player violins: {e}")
         return _empty_payload(sorted(set([int(seasons)])) if isinstance(seasons, (int, str)) else (sorted(set(seasons)) if seasons else []))
 
-# Add near the other constants
+# --- Analytics Nexus (Players — Scatter) ----------------------------------------
 ALLOWED_TOP_BY = {"combined", "x_gate", "y_gate", "x_value", "y_value"}
 
 def fetch_player_scatter(
@@ -440,17 +544,12 @@ def fetch_player_scatter(
     timeout: int = 5,
     debug: bool = True,
 ):
-    """
-    Call Analytics Nexus: Player Quadrant Scatter.
-
-    Path params:
-      /analytics_nexus/player/scatter/{metric_x}/{metric_y}/{position}/{top_n}
-
-    Query params:
-      seasons (repeatable or comma list), season_type, week_start, week_end,
-      stat_type='base', top_by, log_x, log_y, label_all_points
-
-    Returns: {"points": [...], "meta": {...}} or {} on error.
+    """Analytics Nexus: Player quadrant scatter.
+    
+    Returns:
+        dict: {"points":[...], "meta":{...}} or {} on error.
+    Notes:
+        stat_type is forced to "base"; seasons can be list or comma string.
     """
     try:
         # --- Validate & normalize ---
@@ -542,14 +641,14 @@ def fetch_player_scatter(
 # API client — Player Rolling Percentiles
 # ============================
 
-import requests
-
-# Set this once for all API calls
-# Use service name from docker-compose for intra-container networking
+# ============================ Analytics Nexus (Players — Rolling) ===============
+# NOTE: This block redefines API_BASE to "http://nfl_api_py:8000" and declares
+#       a local _api_url() helper. This intentionally overrides the earlier
+#       env-based API_BASE. We leave this intact to preserve current behaviour.
 API_BASE = "http://nfl_api_py:8000"
 
 def _api_url(path: str) -> str:
-    """Build full URL for API calls."""
+    """Build a full API URL using the local (overriding) API_BASE."""
     return f"{API_BASE}{path}"
 
 def fetch_player_rolling_percentiles(
@@ -630,7 +729,7 @@ def fetch_player_rolling_percentiles(
         print(f"[fetch_player_rolling_percentiles] error: {e}")
         return {"series": [], "players": [], "meta": {}}
       
-      
+# --- Analytics Nexus (Teams — Trajectories) -------------------------------------
 def fetch_team_trajectories(
     stat_name: str,
     top_n: int,
@@ -644,6 +743,14 @@ def fetch_team_trajectories(
     timeout: int = 4,
     debug: bool = True,
 ):
+    """Analytics Nexus: Top-N team weekly trajectories.
+    
+    Args mirror server: seasons (list[int]), season_type, week window, rank_by, stat_type.
+    
+    Returns:
+        list[dict]: ordered by season, team_rank, week; [] on error/empty.
+    """
+
     try:
         st = (season_type or "REG").upper().strip()
         rb = (rank_by or "sum").lower().strip()
@@ -695,8 +802,7 @@ def fetch_team_trajectories(
         print(f"[api_client] Failed to fetch team trajectories: {e}")
         return []
       
-# --- Analytics Nexus: Team Violins ---
-
+# --- Analytics Nexus (Teams — Violins) ------------------------------------------
 ALLOWED_TEAM_ORDER_BY = {"rCV", "IQR", "median"}
 
 def fetch_team_violins(
@@ -712,19 +818,11 @@ def fetch_team_violins(
     timeout: int = 5,
     debug: bool = True,
 ):
-    """
-    Analytics Nexus — Team Consistency/Volatility (Violin).
-
-    Path:
-      /analytics_nexus/team/violins/{stat_name}/{top_n}
-
-    Query:
-      seasons (repeatable), season_type, week_start, week_end,
-      stat_type='base'|'cumulative', order_by, min_games_for_badges
-
+    """Analytics Nexus: Team consistency/volatility violins.
+    
     Returns:
-      dict with keys: {'weekly', 'summary', 'badges', 'meta'}
-      (empty-shaped payload on error)
+        dict: {"weekly":[...], "summary":[...], "badges":{...}, "meta":{...}}
+              Empty-shaped payload on error.
     """
 
     def _empty_payload(_seasons):
@@ -834,7 +932,7 @@ def fetch_team_violins(
         print(f"[api_client] Failed to fetch team violins: {e}")
         return _empty_payload(seasons_list if 'seasons_list' in locals() else [])
 
-# --- Analytics Nexus: Team Quadrant Scatter ---
+# --- Analytics Nexus (Teams — Scatter) ------------------------------------------
 def fetch_team_scatter(
     seasons,
     season_type: str,
@@ -851,19 +949,14 @@ def fetch_team_scatter(
     timeout: int = 5,
     debug: bool = True,
 ):
-    """
-    Analytics Nexus — Team Quadrant Scatter.
-
-    Path:
-      /analytics_nexus/team/scatter/{metric_x}/{metric_y}/{top_n}
-
-    Query:
-      seasons (repeatable), season_type, week_start, week_end,
-      stat_type='base', top_by, log_x, log_y, label_all_points
-
+    """Analytics Nexus: Team quadrant scatter.
+    
     Returns:
-      dict with keys: {'points', 'meta'}  (empty {} on error)
+        dict: {"points":[...], "meta":{...}} or {} on error.
+    Notes:
+        Enforces 'base' stat_type; seasons can be list or comma string.
     """
+
     try:
         # --- Validate season_type ---
         st = (season_type or "").upper().strip()
@@ -947,6 +1040,7 @@ def fetch_team_scatter(
         print(f"[api_client] Failed to fetch team scatter: {e}")
         return {}
       
+# --- Analytics Nexus (Teams — Rolling) ------------------------------------------
 def fetch_team_rolling_percentiles(
     seasons,
     season_type="REG",            # "REG" | "POST" | "ALL"

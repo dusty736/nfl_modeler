@@ -1,11 +1,49 @@
-from fastapi import APIRouter, HTTPException
+"""
+Team Injuries Router
+--------------------
+Aggregated team injury summaries and per-player injury listings.
+
+Base path: /team_injuries
+Tags: ["team_injuries"]
+
+Notes
+-----
+- Position mapping collapses roles into groups:
+  TOTAL; QB; RB(FB); WR; TE; OL(C,G,T,OL); DL(DT,DE,NT,DL); LB(LB,OLB,ILB,MLB);
+  DB(CB,DB,S,SS,FS); ST(K,P,LS,KR,PR,SPEC); OTHER otherwise.
+- Responses return lists of dicts; on empty, this router intentionally returns {"error": "..."}
+  (not HTTP 4xx) to match existing client behaviour.
+- No functional changes — documentation and comments only.
+"""
+
+from fastapi import APIRouter
 from sqlalchemy import text
 from app.db import AsyncSessionLocal
 
+# --- Router setup -------------------------------------------------------------
 router = APIRouter(prefix="/team_injuries", tags=["team_injuries"])
 
 @router.get("/{team}/injuries/team/{season}/{week}/{position}")
 async def get_team_injury_summary(team: str, season: int, week: int, position: str):
+    """Return team injury counts (weekly and season-to-date) for a position group.
+
+    Args:
+        team: Team abbreviation (case-insensitive), uppercased server-side.
+        season: NFL season (e.g., 2024).
+        week: Target week (filters both position/week tables).
+        position: One of the mapped groups (e.g., QB, RB, WR, DL, LB, DB, ST, TEAM/TOTAL).
+
+    Shape:
+        A list of mappings with: week, position, weekly_injuries, season_injuries.
+        UNION logic combines:
+          - position-level counts from injuries_position_weekly_tbl (mapped to groups), and
+          - team-level totals from injuries_team_weekly_tbl as position='TOTAL'.
+        DISTINCT isn’t needed; GROUP BY + sort_order keeps the two sources clear.
+
+    Notes:
+        - Ordering by week, position, sort_order; client can re-order as needed.
+        - Returns {"error":"Bad query"} if no rows (kept for client compatibility).
+    """
     query = """
         select
           q.week, 
@@ -68,6 +106,22 @@ async def get_team_injury_summary(team: str, season: int, week: int, position: s
 
 @router.get("/{team}/injuries/player/{season}/{week}/{position}")
 async def get_player_injuries(team: str, season: int, week: int, position: str):
+    """Return per-player injury detail for a position group, team, and week.
+
+    Args:
+        team: Team abbreviation (case-insensitive), uppercased server-side.
+        season: NFL season.
+        week: Week number.
+        position: Mapped position group (QB, RB, WR, TE, OL, DL, LB, DB, ST, TOTAL/TEAM).
+
+    Output columns:
+        name, position (mapped), report_status, practice_status, injury_reported, did_not_practice.
+
+    Notes:
+        - Mapping mirrors the team summary endpoint to ensure grouping parity.
+        - Ordered by position then name for stable UI rendering.
+        - Returns {"error":"Bad query"} if no rows found (kept as-is).
+    """
     query = """
         select 
         	name, position, report_status, practice_status, injury_reported, did_not_practice

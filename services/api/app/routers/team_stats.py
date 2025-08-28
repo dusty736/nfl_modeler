@@ -1,11 +1,43 @@
+"""
+Team Stats Router
+-----------------
+Endpoints for team records and phase-specific aggregates (offense/defense/special teams).
+
+Base path: /team_stats
+Tags: ["team_stats"]
+
+Notes
+-----
+- Shapes: 
+  - /{team}/record/{season}/{week} returns a single mapping (dict-like) for the season totals.
+  - /{team}/offense|defense|special/{season}/{week} return a list of mappings with one row per week
+    plus a 'TOTAL' row (week is TEXT: '1','2',...,'TOTAL').
+- The 'week' path param on `/record` is accepted but not used in the SQL by design (season totals).
+- No functional changes — only documentation and comments.
+"""
+
 from fastapi import APIRouter, HTTPException
 from sqlalchemy import text
 from app.db import AsyncSessionLocal
 
+# --- Router setup -------------------------------------------------------------
 router = APIRouter(prefix="/team_stats", tags=["team_stats"])
 
 @router.get("/{team_abbr}/record/{season}/{week}")
 async def get_team_record(season: int, week: int, team_abbr: str):
+    """Return season-level win/loss/tie and points summary for a team.
+  
+      Args:
+          season: NFL season (e.g., 2024).
+          week: Included for URL parity with other endpoints; not used in this SQL.
+          team_abbr: Team code (case-insensitive), uppercased server-side.
+  
+      Returns:
+          A single mapping with keys: wins, losses, ties, points_scored, points_allowed, point_differential.
+  
+      Raises:
+          HTTPException(404): If no season row exists for the team.
+    """
     query = """
         SELECT
             t.wins,
@@ -30,6 +62,16 @@ async def get_team_record(season: int, week: int, team_abbr: str):
 
 @router.get("/{team_abbr}/offense/{season}/{week}")
 async def get_team_offense(team_abbr: str, season: int, week: int):
+    """Return weekly and TOTAL offensive yardage aggregates up to and including `week`.
+
+    Shape:
+        List of mappings where 'week' is TEXT ('1','2',...,'TOTAL') and values are cumulative sums
+        per week row; the 'TOTAL' row aggregates across all included weeks.
+
+    Notes:
+        - No ORDER BY is specified; client/UI may sort as needed.
+        - Returns an empty-fallback dict with zeros if no rows exist (shape differs intentionally).
+    """
     query = """
     (SELECT
         CAST(o.week AS TEXT) AS week,
@@ -72,6 +114,11 @@ async def get_team_offense(team_abbr: str, season: int, week: int):
 
 @router.get("/{team_abbr}/defense/{season}/{week}")
 async def get_team_defense(team_abbr: str, season: int, week: int):
+    """Return weekly and TOTAL defensive aggregates (tackles, sacks, interceptions) up to `week`.
+
+    Shape:
+        List of mappings with 'week' as TEXT and a terminal 'TOTAL' row.
+    """
     query = """
     (SELECT
         CAST(d.week AS TEXT) AS week,
@@ -114,6 +161,11 @@ async def get_team_defense(team_abbr: str, season: int, week: int):
 
 @router.get("/{team_abbr}/special/{season}/{week}")
 async def get_team_special(team_abbr: str, season: int, week: int):
+    """Return weekly and TOTAL special-teams aggregates (field goals) up to `week`.
+  
+      Shape:
+          List of mappings with 'week' as TEXT and a terminal 'TOTAL' row.
+    """
     query = """
     (SELECT
         CAST(s.week AS TEXT) AS week,

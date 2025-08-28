@@ -1,8 +1,36 @@
+"""
+Analytics Nexus Router
+----------------------
+High-level analytics endpoints for players and teams:
+- Weekly trajectories
+- Consistency/volatility violins (+ badges)
+- Quadrant scatter plots (derived metrics + gating)
+- Rolling percentiles (form) for small multiples
+
+Conventions
+-----------
+- Seasons: supports multi-season windows via flexible query parsing (?seasons=…).
+- Season types: REG | POST | ALL (ALL applies filter as OR).
+- Stat series: 'base' for weekly values; 'cumulative' reads pre-aggregated long rows
+  for players and computes window SUM for teams (documented in each endpoint).
+- MV usage: For 2019–2025, position-specific materialized views (MV_MAP) are used;
+  otherwise we fall back to the raw long table. Table names are chosen from fixed
+  constants only (no user-tainted identifiers).
+
+Safety & Shapes
+---------------
+- All user inputs feed bound parameters (no SQL injection). The only f-strings with
+  identifiers come from internal constants MV_MAP and are not user-controlled.
+- Return shapes are stable and documented in each endpoint.
+- This file adds documentation and removes duplicated helpers; NO functional changes.
+"""
+
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Query, Request
-from sqlalchemy import text, bindparam
+from sqlalchemy import text
 from app.db import AsyncSessionLocal
 
+# --- Router setup & globals ---------------------------------------------------
 router = APIRouter(prefix="/analytics_nexus", tags=["analytics_nexus"])
 
 ALLOWED_POSITIONS = {"QB", "RB", "WR", "TE"}
@@ -14,6 +42,12 @@ MV_MAP = {
 }
 MIN_WEEK, MAX_WEEK_HARD = 1, 22  # (REG <= 18; POST small; safe upper bound)
 
+ALLOWED_TOP_BY = {"combined", "x_gate", "y_gate", "x_value", "y_value"}
+
+# Weeks are clamped defensively within [MIN_WEEK, MAX_WEEK_HARD].
+# MAX_WEEK_HARD=22 allows REG up to 18 plus small POST windows without surprises.
+
+# --- Normalizers & helpers (canonical copies; do not re-define below) --------
 def _normalize_rank_by(rank_by: str) -> str:
     rb = (rank_by or "sum").strip().lower()
     if rb in {"sum"}:
@@ -55,6 +89,7 @@ def _pick_source_table(season: int, position: str) -> tuple[str, bool]:
         return MV_MAP[position], True
     return "public.player_weekly_tbl", False
 
+# === Player: Weekly Trajectories =================================================
 @router.get("/player/trajectories/{season}/{season_type}/{stat_name}/{position}/{top_n}")
 async def get_player_weekly_trajectories(
     season: int,
@@ -68,15 +103,47 @@ async def get_player_weekly_trajectories(
     rank_by: str = "sum",           # 'sum' or 'mean'
     min_games: int = 0,             # require at least this many non-NULL weeks in range
 ):
+    """Top-N player weekly trajectories for a single stat.
+    
+    Selects the top players over a week window and returns their week-by-week values
+    for plotting. Uses position-specific materialized views for seasons 2019–2025
+    and falls back to the raw long table otherwise.
+    
+    Args:
+        season (int): Season year (e.g., 2024).
+        season_type (str): One of {"REG","POST","ALL"}; "ALL" keeps both.
+        stat_name (str): Stat identifier in storage (e.g., "rushing_yards").
+        position (str): One of {"QB","RB","WR","TE"}.
+        top_n (int): Number of players to include (ranked by `rank_by` aggregate).
+        week_start (int, optional): Inclusive week lower bound. Clamped to [1,22]. Default 1.
+        week_end (int, optional): Inclusive week upper bound. Clamped to [1,22]. Default 18.
+        stat_type (str, optional): "base" (weekly values) or "cumulative" (pre-computed rows). Default "base".
+        rank_by (str, optional): Aggregate used to rank players: "sum" or "mean". Default "sum".
+        min_games (int, optional): Minimum non-NULL weeks within [week_start, week_end]. Default 0.
+    
+    Returns:
+        List[dict]: Rows ordered by player_rank then week with keys:
+            [
+              {
+                "player_id": str, "name": str, "team": str,
+                "season": int, "season_type": str, "week": int,
+                "position": str, "stat_name": str, "stat_type": str,
+                "value": float|None,
+                "team_color": str, "team_color2": str,
+                "player_rank": int
+              },
+              ...
+            ]
+        If no data match, returns {"error": "No data found"}.
+    
+    Raises:
+        HTTPException: 400 on invalid inputs (position/season_type/stat_type/rank_by or bad weeks).
+    
+    Notes:
+        - SUM/AVG ignore NULLs. `min_games` applies to COUNT(value).
+        - Weeks are clamped defensively to [1,22] before querying.
     """
-    Top-N player weekly trajectories for a stat.
-
-    - Uses position-specific MVs (2019–2025) when available; otherwise falls back to raw table.
-    - stat_type: 'base' (weekly values) or 'cumulative' (use cumulative rows already in long data).
-    - rank_by: 'sum' or 'mean' of weekly `value` (NULLs ignored by SUM/AVG).
-    - min_games: floor on COUNT(value) (counts non-NULL weeks within filters).
-    - Results ordered by player_rank, then week.
-    """
+    
     pos = _normalize_position(position)
     st = _normalize_season_type(season_type)
     series_type = _normalize_series_type(stat_type)
@@ -293,6 +360,8 @@ def _parse_seasons_from_request(request: Request) -> list[int]:
                             detail="At least one season must be provided via seasons=YYYY (repeatable or CSV)")
     return sorted(set(out))
 
+# === Player: Violins (consistency/volatility) ====================================
+# Note: dynamic UNION picks MV vs raw per-season to avoid empty ANY(:param) binds.
 @router.get("/player/violins/{stat_name}/{position}/{top_n}")
 async def get_player_violins(
     request: Request,
@@ -307,9 +376,53 @@ async def get_player_violins(
     min_games_for_badges: int = Query(6, ge=0),
     debug: Optional[bool] = Query(False),
 ):
-    """
-    Consistency/Volatility Violin data for Top-N players over a multi-season window.
-    Mirrors the R function's selection, ordering, badges, and NA handling exactly.
+    """Consistency/volatility violin data for Top-N players over multi-season windows.
+    
+    Ranks players by pooled total (SUM of values) across the selected seasons/weeks,
+    then returns per-player weekly points (for violins) and summary dispersion stats.
+    Also emits simple "badges" for most consistent/volatile among adequately sampled players.
+    
+    Path:
+        /analytics_nexus/player/violins/{stat_name}/{position}/{top_n}
+    
+    Args:
+        request (Request): Used to parse flexible ?seasons inputs (repeatable/CSV/ranges).
+        stat_name (str): Stat to analyze (storage identifier).
+        position (str): {"QB","RB","WR","TE"}.
+        top_n (int): Number of players to include (1..50).
+        season_type (str, query): "REG" | "POST" | "ALL". Default "REG".
+        stat_type (str, query): "base" | "cumulative". Default "base".
+        week_start (int, query): Inclusive lower week (1..22). Default 1.
+        week_end (int, query): Inclusive upper week (1..22). Default 18.
+        order_by (str, query): "rCV" | "IQR" | "median". Controls sort in summary table. Default "rCV".
+        min_games_for_badges (int, query): Minimum n for badge eligibility. Default 6.
+        debug (bool, query): If True, includes extra meta/debug fields.
+    
+    Returns:
+        dict: {
+          "weekly": [ {player_id,name,team,season,season_type,week,position,stat_name,stat_type,value,team_color2,player_order} ],
+          "summary": [
+              {
+                "player_id", "name", "team_mode", "team_color_major",
+                "n_games", "q25","q50","q75","IQR","MAD","rCV","small_n",
+                "order_by","order_metric","player_order"
+              }
+          ],
+          "badges": {"most_consistent": list| "—", "most_volatile": list| "—"},
+          "meta": {
+              "position","stat_name","stat_type","season_type","seasons",
+              "week_start","week_end","order_by","top_n","min_games_for_badges"
+          }
+        }
+        If seasons resolve to no sources or query returns empty, arrays are empty and badges are "—".
+    
+    Raises:
+        HTTPException: 400 on invalid inputs (position/season_type/stat_type/order_by/top_n) or missing seasons.
+    
+    Notes:
+        - Seasons are parsed from multiple syntaxes (?seasons=2023,2024, ranges like 2023-2025, etc.).
+        - Ranking pool uses SUM(value) across the window; violin points exclude NULL values.
+        - rCV = MAD / |median|; badge pool excludes small_n and NaNs.
     """
     pos = _normalize_position(position)
     stype = _normalize_series_type(stat_type)
@@ -658,10 +771,7 @@ async def get_player_violins(
     }
     return payload
   
-  # ===== Quadrant Scatter helpers =====
-
-ALLOWED_TOP_BY = {"combined", "x_gate", "y_gate", "x_value", "y_value"}
-
+# ===== Player Quadrant Scatter — helpers ========================================
 def _normalize_bool(v: Optional[str | bool]) -> bool:
     if isinstance(v, bool):
         return v
@@ -763,10 +873,7 @@ def _split_mv_raw_seasons(seasons: list[int]) -> tuple[list[int], list[int]]:
     raw = [s for s in seasons if s < 2019 or s > 2025]
     return mv, raw
 
-# ===== Quadrant Scatter endpoint =====
-
-from fastapi import Query, Request
-
+# === Player: Quadrant Scatter ====================================================
 @router.get("/player/scatter/{metric_x}/{metric_y}/{position}/{top_n}")
 async def get_player_scatter_quadrants(
     request: Request,
@@ -784,13 +891,51 @@ async def get_player_scatter_quadrants(
     label_all_points: bool | str = Query(True),
     debug: bool = Query(False),
 ):
-    """
-    Player Quadrant Scatter:
-      - Multi-season window (?seasons=YYYY[,YYYY] or repeatable)
-      - Aggregates weekly *base* values, computes derived/raw metrics for X/Y
-      - Top-N selection by `top_by` (combined gate, gates, or values)
-      - Optional log filters drop non-positive values pre-selection
-      - Returns points + medians and labels in meta
+    """Quadrant scatter for players with derived/raw X/Y metrics over a pooled window.
+    
+    Builds ratio-of-sums metrics from weekly *base* values, applies optional log filters
+    (x>0 / y>0) before ranking, selects Top-N by `top_by`, and returns points plus
+    median reference lines.
+    
+    Path:
+        /analytics_nexus/player/scatter/{metric_x}/{metric_y}/{position}/{top_n}
+    
+    Args:
+        request (Request): For flexible ?seasons parsing.
+        metric_x (str): Metric identifier for X (see `_metric_plan`).
+        metric_y (str): Metric identifier for Y.
+        position (str): {"QB","RB","WR","TE"}.
+        top_n (int): Number of players (1..100).
+        season_type (str, query): "REG" | "POST" | "ALL". Default "REG".
+        week_start (int, query): 1..22, default 1.
+        week_end (int, query): 1..22, default 18.
+        stat_type (str, query): Must be "base". Enforced.
+        top_by (str, query): {"combined","x_gate","y_gate","x_value","y_value"}. Default "combined".
+        log_x (bool|str, query): Truthy values ("1","true","yes","on") require x>0.
+        log_y (bool|str, query): Truthy values require y>0.
+        label_all_points (bool|str, query): Passed through in meta; labeling is a frontend concern.
+        debug (bool, query): Adds light debug in meta when true.
+    
+    Returns:
+        dict: {
+          "points": [
+            {"player_id","name","team","team_color","team_color2","x_value","y_value"}
+          ],
+          "meta": {
+            "position","metric_x","metric_y","label_x","label_y",
+            "seasons","season_type","week_start","week_end","stat_type",
+            "top_by","top_n","log_x","log_y","label_all_points",
+            "median_x","median_y"
+          }
+        }
+        Empty result returns points=[], with medians set to None.
+    
+    Raises:
+        HTTPException: 400 on invalid inputs (position/season_type/stat_type/top_by/top_n).
+    
+    Notes:
+        - Metric definitions and gating columns are produced by `_metric_plan`.
+        - Top-N order prioritizes rank_key, then gate_total, then combined value, then name.
     """
     pos = _normalize_position(position)
     st = _normalize_season_type(season_type)
@@ -1012,6 +1157,7 @@ async def get_player_scatter_quadrants(
         },
     }
 
+# === Player: Rolling Percentiles (form over time) =================================
 @router.get("/player/rolling_percentiles/{metric}/{position}/{top_n}")
 async def get_player_rolling_percentiles(
     request: Request,
@@ -1026,13 +1172,50 @@ async def get_player_rolling_percentiles(
     rolling_window: int = Query(4, ge=1),
     debug: Optional[bool] = Query(False),
 ):
-    """
-    Rolling Form Percentiles for Top-N players over a pooled multi-season window.
-    Matches the R implementation:
-      - Top-N players by SUM(value) of the chosen metric across the window.
-      - Percentiles computed per (season, season_type, week) *among those Top-N*.
-      - Rolling mean over 'rolling_window' within (player, season, season_type).
-      - Player panels ordered by last rolling percentile (desc).
+    """Rolling form percentiles for Top-N players across seasons × weeks.
+    
+    Selects Top-N players by pooled SUM(value) of the chosen metric, then computes
+    percentiles among those Top-N for each (season, season_type, week). Builds a
+    unified time index (REG before POST) and a rolling mean over `rolling_window`.
+    
+    Path:
+        /analytics_nexus/player/rolling_percentiles/{metric}/{position}/{top_n}
+    
+    Args:
+        request (Request): For flexible ?seasons parsing (here also available as query param).
+        metric (str): Stat identifier in storage (e.g., "receiving_yards").
+        position (str): {"QB","RB","WR","TE"}.
+        top_n (int): 1..48.
+        seasons (List[int], query): Required; repeatable ?seasons=YYYY.
+        season_type (str, query): "REG" | "POST" | "ALL". Default "REG".
+        stat_type (str, query): "base" | "cumulative". Default "base".
+        week_start (int, query): 1..22, default 1.
+        week_end (int, query): 1..22, default 18.
+        rolling_window (int, query): Window (k) for rolling mean of percentiles. Default 4.
+        debug (bool, query): Adds debug fields when true.
+    
+    Returns:
+        dict: {
+          "series": [
+            {"player_id","name","team","season","season_type","week",
+             "t_idx","pct","pct_roll","team_color","team_color2","player_order"}
+          ],
+          "players": [
+            {"player_id","name","team","team_color","team_color2","last_pct","player_order"}
+          ],
+          "meta": {
+            "position","metric","metric_label","stat_type","season_type","seasons",
+            "week_start","week_end","top_n","rolling_window"
+          },
+          "debug": {...}  # present only if debug=True
+        }
+    
+    Raises:
+        HTTPException: 400 on invalid inputs or if `seasons` is missing.
+    
+    Notes:
+        - Percentiles are computed only among the Top-N pool per week.
+        - Panel ordering uses last rolling percentile (desc) with stable tiebreakers.
     """
     pos = _normalize_position(position)
     stype = _normalize_series_type(stat_type)
@@ -1291,7 +1474,7 @@ async def get_player_rolling_percentiles(
     return payload
   
   
-# ===== Teams — Weekly Trajectories =====
+# === Team: Weekly Trajectories ====================================================
 @router.get("/team/trajectories/{stat_name}/{top_n}")
 async def get_team_weekly_trajectories(
     request: Request,
@@ -1303,13 +1486,42 @@ async def get_team_weekly_trajectories(
     rank_by: str = Query("sum", description="sum | mean"),
     stat_type: str = Query("base", description="base | cumulative"),
 ):
-    """
-    Top-N team weekly trajectories (per season).
-    - Always reads base rows from storage.
-    - If stat_type='cumulative', returns season-to-date via window SUM (monotonic).
-    - Top-N selection is per season by SUM/AVG of base values over the filtered weeks.
-    - Colors come from team_metadata_tbl (team_color, team_color2).
-    - Supports ?highlight=ALL or ?highlight=KC&highlight=DET (adds is_highlight flag).
+    """Top-N team weekly trajectories for a stat across selected seasons.
+    
+    Reads base weekly rows and optionally returns a cumulative view via window SUM.
+    Top-N selection occurs per season using SUM/AVG over the filtered weeks.
+    
+    Path:
+        /analytics_nexus/team/trajectories/{stat_name}/{top_n}
+    
+    Args:
+        request (Request): For flexible ?seasons parsing.
+        stat_name (str): Stat identifier in storage (e.g., "rushing_epa").
+        top_n (int): 1..32.
+        season_type (str, query): "REG" | "POST" | "ALL". Default "REG".
+        week_start (int, query): 1..22, default 1.
+        week_end (int, query): 1..22, default 18.
+        rank_by (str, query): "sum" | "mean". Controls Top-N selection per season. Default "sum".
+        stat_type (str, query): "base" (weekly) or "cumulative" (window SUM view). Default "base".
+    
+    Returns:
+        List[dict]: Rows ordered by season, team_rank, week with keys:
+            {
+              "team": str, "season": int, "season_type": str, "week": int,
+              "stat_name": str, "stat_type": "base",  # logical label; values may be cumulative when requested
+              "value": float|None,
+              "team_color": str, "team_color2": str,
+              "team_rank": int,
+              # optionally "is_highlight": bool when ?highlight=ALL or specific teams provided
+            }
+        If no data match, returns {"error": "No data found"}.
+    
+    Raises:
+        HTTPException: 400 on invalid inputs or missing seasons.
+    
+    Notes:
+        - Highlights: ?highlight=ALL flags all rows; ?highlight=KC&highlight=DET flags matches.
+        - Series rendering uses a single "value" key; cumulative is computed on the fly.
     """
     st = _normalize_season_type(season_type)                # REG | POST | ALL
     series_mode = _normalize_series_type(stat_type)         # 'base' | 'cumulative'
@@ -1445,6 +1657,7 @@ async def get_team_weekly_trajectories(
 
     return rows
 
+# === Team: Violins (consistency/volatility) ======================================
 @router.get("/team/violins/{stat_name}/{top_n}")
 async def get_team_violins(
     request: Request,
@@ -1458,12 +1671,48 @@ async def get_team_violins(
     order_by: str = Query("rCV", description="rCV | IQR | median"),
     min_games_for_badges: int = Query(6, ge=0),
 ):
+    """Team violin data (consistency/volatility) over pooled multi-season windows.
+    
+    Selects Top-N teams by pooled total of the effective series (base or cumulative)
+    and returns weekly points plus dispersion summaries and badges.
+    
+    Path:
+        /analytics_nexus/team/violins/{stat_name}/{top_n}
+    
+    Args:
+        request (Request): For repeatable ?seasons parsing.
+        stat_name (str): Stat identifier (team_weekly).
+        top_n (int): 1..32.
+        seasons (List[int], query): Required; repeatable ?seasons=YYYY.
+        season_type (str, query): "REG" | "POST" | "ALL". Default "REG".
+        week_start (int, query): 1..22, default 1.
+        week_end (int, query): 1..22, default 18.
+        stat_type (str, query): "base" | "cumulative". Default "base".
+        order_by (str, query): "rCV" | "IQR" | "median". Default "rCV".
+        min_games_for_badges (int, query): Badge eligibility minimum. Default 6.
+    
+    Returns:
+        dict: {
+          "weekly": [ {"team","season","week","value","team_color","team_color2"} ],
+          "summary": [
+            {"team","n_games","q25","q50","q75","IQR","MAD","rCV","small_n","team_color_major","team_order"}
+          ],
+          "badges": {"most_consistent": list| "—", "most_volatile": list| "—"},
+          "meta": {
+            "stat_name","stat_type","season_type","seasons",
+            "week_start","week_end","order_by","top_n","min_games_for_badges"
+          }
+        }
+        Empty results produce the same structure with empty arrays and "—" badges.
+    
+    Raises:
+        HTTPException: 400 on invalid inputs or missing seasons.
+    
+    Notes:
+        - Effective series `v_eff` = base or window-cumulative depending on `stat_type`.
+        - Order metric aligns with UI semantics: median desc, or IQR asc, or rCV asc.
     """
-    Team violin data (pooled multi-season window):
-      - Reads base weekly rows; if stat_type='cumulative' computes season-to-date via window SUM.
-      - Top-N teams chosen by pooled total of effective series across seasons+weeks.
-      - Returns 'weekly' points, 'summary' stats, 'badges', and 'meta'.
-    """
+
     try:
         # --- Normalize inputs ---
         n = int(top_n)
@@ -1745,10 +1994,7 @@ async def get_team_violins(
         }
         
         
-# ===== Team Quadrant Scatter =====
-
-ALLOWED_TOP_BY = {"combined", "x_gate", "y_gate", "x_value", "y_value"}
-
+# ===== Team Quadrant Scatter — helpers ===========================================
 def _team_metric_plan(metric: str) -> dict:
     """
     Return a metric plan for team-level scatter:
@@ -1864,7 +2110,7 @@ def _team_metric_plan(metric: str) -> dict:
         gate=f"ABS(COALESCE({ident},0))"
     )
 
-
+# === Team: Quadrant Scatter =======================================================
 @router.get("/team/scatter/{metric_x}/{metric_y}/{top_n}")
 async def get_team_scatter_quadrants(
     request: Request,
@@ -1881,14 +2127,50 @@ async def get_team_scatter_quadrants(
     label_all_points: bool | str = Query(True),
     debug: bool = Query(False),
 ):
+    """Quadrant scatter for teams with derived/raw X/Y metrics.
+    
+    Aggregates weekly *base* values into ratio-of-sums metrics, applies optional
+    log filters (x>0 / y>0) before ranking, selects Top-N by `top_by`, and returns
+    points with global medians.
+    
+    Path:
+        /analytics_nexus/team/scatter/{metric_x}/{metric_y}/{top_n}
+    
+    Args:
+        request (Request): For repeatable ?seasons parsing.
+        metric_x (str): Metric identifier for X (see `_team_metric_plan`).
+        metric_y (str): Metric identifier for Y.
+        top_n (int): 1..32.
+        season_type (str, query): "REG" | "POST" | "ALL". Default "REG".
+        week_start (int, query): 1..22, default 1.
+        week_end (int, query): 1..22, default 18.
+        stat_type (str, query): Must be "base". Enforced.
+        top_by (str, query): {"combined","x_gate","y_gate","x_value","y_value"}. Default "combined".
+        log_x (bool|str, query): Truthy strings accepted; filters require x>0.
+        log_y (bool|str, query): Truthy strings accepted; filters require y>0.
+        label_all_points (bool|str, query): Passed through in meta.
+        debug (bool, query): Adds light debug to meta when true.
+    
+    Returns:
+        dict: {
+          "points": [ {"team","team_color","team_color2","x_value","y_value"} ],
+          "meta": {
+            "metric_x","metric_y","label_x","label_y",
+            "seasons","season_type","week_start","week_end","stat_type",
+            "top_by","top_n","log_x","log_y","label_all_points",
+            "median_x","median_y"
+          }
+        }
+        Empty result returns points=[], medians None.
+    
+    Raises:
+        HTTPException: 400 on invalid inputs or missing seasons.
+    
+    Notes:
+        - Required stats are derived from both metric plans; aggregation is in SQL.
+        - Top-N order: rank_key, then gate_total, then (x+y), then team.
     """
-    Team Quadrant Scatter:
-      - Multi-season window (?seasons=YYYY[,YYYY] or repeatable)
-      - Aggregates weekly *base* values, computes derived/raw metrics for X/Y (ratio-of-sums for rates)
-      - Top-N selection by `top_by` (combined gate, gates, or values)
-      - Optional log filters drop non-positive values pre-selection
-      - Returns points + medians and labels in meta
-    """
+
     # Normalise params
     st = _normalize_season_type(season_type)
     ws, we = _clamp_weeks(week_start, week_end)
@@ -2070,6 +2352,7 @@ async def get_team_scatter_quadrants(
         },
     }
     
+# === Team: Rolling Percentiles (sparkline grid) ==================================
 @router.get("/team/rolling_percentiles/{metric}/{top_n}")
 async def get_team_rolling_percentiles(
     request: Request,
@@ -2083,15 +2366,52 @@ async def get_team_rolling_percentiles(
     rolling_window: int = Query(4, ge=1),
     debug: Optional[bool] = Query(False),
 ):
+    """Rolling form percentiles for Top-N teams across seasons × weeks.
+    
+    Filters team_weekly for a chosen metric, computes an effective series
+    (base or cumulative), selects Top-N teams by pooled total, then computes
+    weekly percentiles among those Top-N. Builds a unified time index and
+    a rolling mean of percentiles over `rolling_window`.
+    
+    Path:
+        /analytics_nexus/team/rolling_percentiles/{metric}/{top_n}
+    
+    Args:
+        request (Request): For repeatable ?seasons parsing.
+        metric (str): Stat identifier in team storage (e.g., "passing_yards").
+        top_n (int): 1..32.
+        seasons (List[int], query): Required; repeatable ?seasons=YYYY.
+        season_type (str, query): "REG" | "POST" | "ALL". Default "REG".
+        stat_type (str, query): "base" | "cumulative". Default "base".
+        week_start (int, query): 1..22, default 1.
+        week_end (int, query): 1..22, default 18.
+        rolling_window (int, query): Window size k for rolling mean. Default 4.
+        debug (bool, query): When true, includes light debug fields.
+    
+    Returns:
+        dict: {
+          "series": [
+            {"team","season","season_type","week","t_idx","pct","pct_roll",
+             "team_color","team_color2","team_order"}
+          ],
+          "teams": [
+            {"team","team_color","team_color2","last_pct","team_order"}
+          ],
+          "meta": {
+            "metric","metric_label","stat_type","season_type","seasons",
+            "week_start","week_end","top_n","rolling_window"
+          }
+        }
+        If no rows, returns empty arrays with meta.
+    
+    Raises:
+        HTTPException: 400 on invalid inputs or missing seasons.
+    
+    Notes:
+        - Unified timeline orders REG before POST within each season.
+        - Panels ordered by last rolling percentile (desc) with team name tiebreaks in SQL.
     """
-    Rolling Form Percentiles — Teams (Sparkline Grid)
-      • Filters team_weekly across seasons × season_type × weeks for a chosen metric
-      • If stat_type='cumulative', computes season-to-date via window SUM on base rows
-      • Selects Top-N teams by pooled total of the effective series (v_eff) over the window
-      • Percentiles are computed per (season, season_type, week) *among those Top-N*
-      • Rolling mean over k within (team, season, season_type) by unified t_idx
-      • Panels ordered by last rolling percentile (desc)
-    """
+
     # --- Normalize/validate ---
     st = _normalize_season_type(season_type)
     series_mode = _normalize_series_type(stat_type)  # 'base' | 'cumulative'
