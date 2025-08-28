@@ -629,3 +629,68 @@ def fetch_player_rolling_percentiles(
     except Exception as e:
         print(f"[fetch_player_rolling_percentiles] error: {e}")
         return {"series": [], "players": [], "meta": {}}
+      
+      
+def fetch_team_trajectories(
+    stat_name: str,
+    top_n: int,
+    seasons: List[int],
+    season_type: str = "REG",
+    week_start: int = 1,
+    week_end: int = 18,
+    rank_by: str = "sum",       # 'sum' or 'mean'
+    stat_type: str = "base",    # 'base' or 'cumulative' (view mode)
+    highlight: Optional[Union[str, List[str]]] = None,  # not used server-side yet
+    timeout: int = 4,
+    debug: bool = True,
+):
+    try:
+        st = (season_type or "REG").upper().strip()
+        rb = (rank_by or "sum").lower().strip()
+        rb = "mean" if rb in {"mean","avg","average"} else "sum"
+        stype = (stat_type or "base").lower().strip()
+        if st not in {"REG","POST","ALL"}:
+            raise ValueError("season_type must be REG, POST, or ALL")
+        if stype not in {"base","cumulative"}:
+            raise ValueError("stat_type must be base or cumulative")
+
+        stat_seg = quote(str(stat_name), safe="")
+        params = {
+            "seasons": [int(s) for s in seasons],
+            "season_type": st,
+            "week_start": int(week_start),
+            "week_end": int(week_end),
+            "rank_by": rb,
+            "stat_type": stype,
+        }
+
+        last_err = None
+        for prefix in API_PREFIXES:
+            url = f"{API_BASE}{prefix}/analytics_nexus/team/trajectories/{stat_seg}/{int(top_n)}"
+            try:
+                if debug:
+                    print(f"[api_client] GET {url} params={params}")
+                r = requests.get(url, params=params, timeout=timeout)
+                if r.status_code == 404:
+                    last_err = f"404 at {url}"
+                    continue
+                r.raise_for_status()
+                data = r.json()
+                if isinstance(data, dict) and data.get("error"):
+                    if debug: print(f"[api_client] Empty (error): {data.get('error')}")
+                    return []
+                if isinstance(data, list):
+                    if debug: print(f"[api_client] OK {url} -> {len(data)} rows")
+                    return data
+                if debug: print(f"[api_client] Unexpected payload at {url}: {type(data)}")
+                return []
+            except Exception as e:
+                last_err = str(e)
+                continue
+
+        if debug:
+            print(f"[api_client] Failed after trying {API_PREFIXES}: {last_err}")
+        return []
+    except Exception as e:
+        print(f"[api_client] Failed to fetch team trajectories: {e}")
+        return []

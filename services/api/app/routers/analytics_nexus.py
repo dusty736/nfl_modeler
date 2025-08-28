@@ -1289,4 +1289,158 @@ async def get_player_rolling_percentiles(
             "seasons_raw": raw_seasons,
         }
     return payload
+  
+  
+# ===== Teams — Weekly Trajectories =====
+@router.get("/team/trajectories/{stat_name}/{top_n}")
+async def get_team_weekly_trajectories(
+    request: Request,
+    stat_name: str,
+    top_n: int,
+    season_type: str = Query("REG", description="REG | POST | ALL"),
+    week_start: int = Query(1, ge=1, le=22),
+    week_end: int = Query(18, ge=1, le=22),
+    rank_by: str = Query("sum", description="sum | mean"),
+    stat_type: str = Query("base", description="base | cumulative"),
+):
+    """
+    Top-N team weekly trajectories (per season).
+    - Always reads base rows from storage.
+    - If stat_type='cumulative', returns season-to-date via window SUM (monotonic).
+    - Top-N selection is per season by SUM/AVG of base values over the filtered weeks.
+    - Colors come from team_metadata_tbl (team_color, team_color2).
+    - Supports ?highlight=ALL or ?highlight=KC&highlight=DET (adds is_highlight flag).
+    """
+    st = _normalize_season_type(season_type)                # REG | POST | ALL
+    series_mode = _normalize_series_type(stat_type)         # 'base' | 'cumulative'
+    agg_func = _normalize_rank_by(rank_by)                  # SQL: SUM or AVG
+    ws, we = _clamp_weeks(week_start, week_end)
 
+    seasons = _parse_seasons_from_request(request)
+    if not seasons:
+        raise HTTPException(status_code=400, detail="Provide at least one season via ?seasons=YYYY[,YYYY]")
+
+    n = int(top_n)
+    if n < 1 or n > 32:
+        raise HTTPException(status_code=400, detail="top_n must be between 1 and 32")
+
+    # Optional highlight param(s): ALL or CSV / repeated tokens
+    raw_h = request.query_params.getlist("highlight")
+    hl_set = set()
+    highlight_all = False
+    for tok in raw_h:
+        if not tok:
+            continue
+        s = str(tok).strip().upper()
+        if not s:
+            continue
+        if s == "ALL":
+            highlight_all = True
+            hl_set.clear()
+            break
+        for part in s.split(","):
+            p = part.strip().upper()
+            if p:
+                hl_set.add(p)
+
+    sql = f"""
+    WITH filtered AS (
+        SELECT
+            twt.team,
+            twt.season,
+            twt.season_type,
+            twt.week,
+            twt.stat_name,
+            twt.value,                         -- base weekly value in storage
+            COALESCE(tmt.team_color,  '#888888') AS team_color,
+            COALESCE(tmt.team_color2, '#AAAAAA') AS team_color2
+        FROM public.team_weekly_tbl twt
+        LEFT JOIN public.team_metadata_tbl tmt
+          ON twt.team = tmt.team_abbr
+        WHERE twt.season = ANY(:seasons)
+          AND (:season_type = 'ALL' OR twt.season_type = :season_type)
+          AND twt.stat_name = :stat_name
+          AND twt.stat_type = 'base'                -- always read base
+          AND twt.week BETWEEN :week_start AND :week_end
+    ),
+    agg AS (
+        SELECT
+            season,
+            team,
+            {agg_func}(value) AS agg_value
+        FROM filtered
+        GROUP BY season, team
+    ),
+    ranked AS (
+        SELECT
+            season,
+            team,
+            RANK() OVER (PARTITION BY season ORDER BY agg_value DESC NULLS LAST, team) AS team_rank
+        FROM agg
+    ),
+    selected AS (
+        SELECT season, team, team_rank
+        FROM ranked
+        WHERE team_rank <= :top_n
+    ),
+    plot AS (
+        SELECT
+            f.season,
+            f.season_type,
+            f.week,
+            f.team,
+            f.stat_name,
+            CASE
+                WHEN :series_mode = 'cumulative'
+                THEN SUM(COALESCE(f.value,0)) OVER (
+                        PARTITION BY f.season, f.team
+                        ORDER BY f.week
+                        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                     )
+                ELSE f.value
+            END AS value,                         -- return under a single 'value' key
+            f.team_color,
+            f.team_color2
+        FROM filtered f
+        JOIN selected s
+          ON s.season = f.season AND s.team = f.team
+    )
+    SELECT
+        p.team,
+        p.season,
+        p.season_type,
+        p.week,
+        p.stat_name,
+        'base'::text AS stat_type,                -- logical view controlled by series_mode
+        p.value,
+        p.team_color,
+        p.team_color2,
+        s.team_rank
+    FROM plot p
+    JOIN selected s
+      ON s.season = p.season AND s.team = p.team
+    ORDER BY p.season, s.team_rank, p.week;
+    """
+
+    params = {
+        "seasons": seasons,
+        "season_type": st,
+        "stat_name": str(stat_name),
+        "week_start": ws,
+        "week_end": we,
+        "top_n": n,
+        "series_mode": series_mode,
+    }
+
+    async with AsyncSessionLocal() as session:
+        res = await session.execute(text(sql), params)
+        rows = [dict(r) for r in res.mappings().all()]
+
+    if not rows:
+        return {"error": "No data found"}
+
+    if highlight_all or hl_set:
+        for r in rows:
+            r["is_highlight"] = True if highlight_all or (str(r.get("team","")).upper() in hl_set) else False
+
+    return rows

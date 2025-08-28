@@ -8,7 +8,8 @@ from helpers.api_client import (
     fetch_player_trajectories,   # <- new client helper you added earlier
     fetch_player_violins,
     fetch_player_scatter,
-    fetch_player_rolling_percentiles
+    fetch_player_rolling_percentiles,
+    fetch_team_trajectories
 )
 
 # --- Register page ---
@@ -867,6 +868,141 @@ layout = html.Div(
                                 # ============================
                                 # /Analytics Nexus — Player Rolling Percentiles
                                 # ============================
+                                # ============================
+                                # Analytics Nexus — Teams Weekly Trajectories (ax-tt-*)
+                                # ============================
+                                html.Section(
+                                    id="ax-tt-section",
+                                    className="ax-tt-section",
+                                    style={"display": "none"},  # hidden by default
+                                    children=[
+                                        html.H2("Teams — Weekly Trajectories", className="ax-tt-title"),
+                                        html.Div(
+                                            className="ax-tt-controls",
+                                            children=[
+                                                html.Div(
+                                                    className="ax-tt-group",
+                                                    children=[
+                                                        html.Label("Seasons (multi)"),
+                                                        dcc.Dropdown(
+                                                            id="ctl-tt-seasons",
+                                                            options=SEASON_OPTIONS,
+                                                            value=[DEFAULT_SEASON],
+                                                            multi=True,
+                                                            clearable=False,
+                                                        ),
+                                                    ],
+                                                ),
+                                                html.Div(
+                                                    className="ax-tt-group",
+                                                    children=[
+                                                        html.Label("Season Type"),
+                                                        dcc.RadioItems(
+                                                            id="ctl-tt-season-type",
+                                                            options=SEASON_TYPE_OPTIONS,
+                                                            value="REG",
+                                                            inline=True,
+                                                            inputClassName="ax-pt-radio-input",
+                                                            labelClassName="ax-pt-radio-label",
+                                                        ),
+                                                    ],
+                                                ),
+                                                html.Div(
+                                                    className="ax-tt-group",
+                                                    children=[
+                                                        html.Label("Stat"),
+                                                        dcc.Dropdown(
+                                                            id="ctl-tt-stat",
+                                                            options=STAT_OPTIONS,
+                                                            value="passing_yards",
+                                                            clearable=False,
+                                                        ),
+                                                    ],
+                                                ),
+                                                html.Div(
+                                                    className="ax-tt-group",
+                                                    children=[
+                                                        html.Label("Top N"),
+                                                        dcc.Input(
+                                                            id="ctl-tt-topn",
+                                                            type="number",
+                                                            min=1, max=32, step=1,
+                                                            value=10,
+                                                            className="ax-pt-topn",
+                                                        ),
+                                                    ],
+                                                ),
+                                                html.Div(
+                                                    className="ax-tt-group ax-pt-span-2",
+                                                    children=[
+                                                        html.Label("Week Range"),
+                                                        dcc.RangeSlider(
+                                                            id="ctl-tt-week-range",
+                                                            min=1, max=22,
+                                                            value=[1, DEFAULT_WEEK_END],
+                                                            allowCross=False, pushable=0,
+                                                            marks={i: str(i) for i in range(1, 23)},
+                                                        ),
+                                                    ],
+                                                ),
+                                                html.Div(
+                                                    className="ax-tt-group",
+                                                    children=[
+                                                        html.Label("Series View"),
+                                                        dcc.RadioItems(
+                                                            id="ctl-tt-series-mode",
+                                                            options=SERIES_MODE_OPTIONS,   # base | cumulative
+                                                            value="base",
+                                                            inline=True,
+                                                            inputClassName="ax-pt-radio-input",
+                                                            labelClassName="ax-pt-radio-label",
+                                                        ),
+                                                    ],
+                                                ),
+                                                html.Div(
+                                                    className="ax-tt-group",
+                                                    children=[
+                                                        html.Label("Rank By"),
+                                                        dcc.RadioItems(
+                                                            id="ctl-tt-rankby",
+                                                            options=RANK_BY_OPTIONS,        # sum | mean
+                                                            value="sum",
+                                                            inline=True,
+                                                            inputClassName="ax-pt-radio-input",
+                                                            labelClassName="ax-pt-radio-label",
+                                                        ),
+                                                    ],
+                                                ),
+                                                html.Div(
+                                                    className="ax-tt-group",
+                                                    children=[
+                                                        html.Label("Highlight (KC, DET or ALL)"),
+                                                        dcc.Input(
+                                                            id="ctl-tt-highlight",
+                                                            type="text",
+                                                            placeholder="ALL or CSV of teams",
+                                                            debounce=True,
+                                                        ),
+                                                    ],
+                                                ),
+                                            ],
+                                        ),
+                                        dcc.Store(id="store-team-trajectories"),
+                                        dcc.Loading(
+                                            type="default",
+                                            children=dcc.Graph(
+                                                id="ax-tt-graph",
+                                                className="ax-tt-graph",
+                                                figure=go.Figure(),
+                                                style={"height": "650px", "width": "100%"},
+                                                config={"displayModeBar": False, "responsive": True},
+                                            ),
+                                        ),
+                                    ],
+                                ),
+                                # ============================
+                                # /Analytics Nexus — Teams Weekly Trajectories
+                                # ============================
                             ],
                         )
                     ],
@@ -1363,17 +1499,23 @@ def render_ax_pv_figure(payload, show_points_vals, stat_name):
     Output("ax-pv-section", "style"),
     Output("ax-ps-section", "style"),
     Output("ax-pr-section", "style"),
+    Output("ax-tt-section", "style"),
     Input("selected-plot", "data"),
 )
 def toggle_sections(selected):
+    show = {"display": "block"}
+    hide = {"display": "none"}
+
     if selected == "nav-player-violin":
-        return {"display": "none"}, {"display": "block"}, {"display": "none"}, {"display": "none"}
+        return hide, show, hide, hide, hide
     if selected == "nav-player-scatter":
-        return {"display": "none"}, {"display": "none"}, {"display": "block"}, {"display": "none"}
+        return hide, hide, show, hide, hide
     if selected == "nav-player-percentiles":
-        return {"display": "none"}, {"display": "none"}, {"display": "none"}, {"display": "block"}
-    # default: trajectories visible
-    return {"display": "block"}, {"display": "none"}, {"display": "none"}, {"display": "none"}
+        return hide, hide, hide, show, hide
+    if selected == "nav-team-timeseries":
+        return hide, hide, hide, hide, show
+    # default: player trajectories visible
+    return show, hide, hide, hide, hide
 
 @callback(
     Output("selected-plot", "data"),
@@ -1381,19 +1523,23 @@ def toggle_sections(selected):
     Input("nav-player-violin", "n_clicks"),
     Input("nav-player-scatter", "n_clicks"),
     Input("nav-player-percentiles", "n_clicks"),
+    Input("nav-team-timeseries", "n_clicks"),   # ← NEW
     prevent_initial_call=True,
 )
-def set_selected_plot(n_pt, n_pv, n_ps, n_pr):
+def set_selected_plot(n_pt, n_pv, n_ps, n_pr, n_tt):
     if not ctx.triggered_id:
         return no_update
-    if ctx.triggered_id == "nav-player-trajectories":
+    tid = ctx.triggered_id
+    if tid == "nav-player-trajectories":
         return "nav-player-trajectories"
-    if ctx.triggered_id == "nav-player-violin":
+    if tid == "nav-player-violin":
         return "nav-player-violin"
-    if ctx.triggered_id == "nav-player-scatter":
+    if tid == "nav-player-scatter":
         return "nav-player-scatter"
-    if ctx.triggered_id == "nav-player-percentiles":
+    if tid == "nav-player-percentiles":
         return "nav-player-percentiles"
+    if tid == "nav-team-timeseries":
+        return "nav-team-timeseries"
     return no_update
   
 # ============================
@@ -1787,4 +1933,238 @@ def render_ax_pr_figure(payload, show_points_vals, label_last_vals, ncol_val):
         height=max(400, 260 * rows),
     )
     fig.update_yaxes(title_text="Percentile (within position, weekly)", row=1, col=1)
+    return fig
+  
+@callback(
+    Output("store-team-trajectories", "data"),
+    Input("selected-plot", "data"),
+    Input("ctl-tt-seasons", "value"),
+    Input("ctl-tt-season-type", "value"),
+    Input("ctl-tt-stat", "value"),
+    Input("ctl-tt-topn", "value"),
+    Input("ctl-tt-week-range", "value"),
+    Input("ctl-tt-series-mode", "value"),
+    Input("ctl-tt-rankby", "value"),
+    Input("ctl-tt-highlight", "value"),
+    prevent_initial_call=False,
+)
+def fetch_ax_tt_data(selected_plot, seasons, season_type, stat_name, topn,
+                     week_range, series_mode, rank_by, highlight):
+    if selected_plot != "nav-team-timeseries":
+        return no_update
+
+    if not all([seasons, season_type, stat_name, topn, week_range, series_mode, rank_by]):
+        return []
+
+    week_start, week_end = int(week_range[0]), int(week_range[1])
+    if week_end < week_start or int(topn) < 1:
+        return []
+
+    hl = None
+    if isinstance(highlight, str) and highlight.strip():
+        s = highlight.strip().upper()
+        hl = s if s == "ALL" else [t.strip() for t in s.split(",") if t.strip()]
+
+    rows = fetch_team_trajectories(
+        stat_name=str(stat_name),
+        top_n=int(topn),
+        seasons=seasons,
+        season_type=str(season_type),
+        week_start=week_start,
+        week_end=week_end,
+        rank_by=str(rank_by),
+        stat_type=str(series_mode),   # base | cumulative (server computes cum)
+        highlight=hl,
+        timeout=5,
+        debug=True,
+    )
+    return rows or []
+
+@callback(
+    Output("ax-tt-graph", "figure"),
+    Input("store-team-trajectories", "data"),
+    State("ctl-tt-stat", "value"),
+    State("ctl-tt-seasons", "value"),
+    State("ctl-tt-season-type", "value"),
+    State("ctl-tt-rankby", "value"),
+    State("ctl-tt-series-mode", "value"),
+    State("ctl-tt-highlight", "value"),   # highlight input (CSV or ALL)
+)
+def render_ax_tt_figure(rows, stat_name, seasons_sel, season_type, rankby, series_mode, highlight_val):
+    fig = go.Figure()
+
+    def _label_for(options, val, fallback):
+        try:
+            return next((o["label"] for o in options if o["value"] == val), fallback)
+        except Exception:
+            return fallback
+
+    stat_label   = _label_for(STAT_OPTIONS, stat_name, stat_name)
+    series_label = "Weekly" if (series_mode or "base") == "base" else "Season-to-Date"
+
+    # Empty state
+    if not rows:
+        fig.update_layout(
+            template="plotly_white",
+            paper_bgcolor="white",
+            plot_bgcolor="white",
+            xaxis=dict(visible=False),
+            yaxis=dict(visible=False),
+            annotations=[dict(
+                text="No team data to plot<br>Check seasons, season type, stat, or week range.",
+                x=0.5, y=0.5, xref="paper", yref="paper",
+                showarrow=False, font=dict(size=16, color="#444"),
+            )],
+            margin=dict(l=40, r=20, t=80, b=40),
+            autosize=True,
+        )
+        return fig
+
+    # ---------- Highlight parsing (client-side fallback) ----------
+    hl_all = False
+    hl_set = set()
+    if isinstance(highlight_val, str) and highlight_val.strip():
+        s = highlight_val.strip().upper()
+        if s == "ALL":
+            hl_all = True
+        else:
+            hl_set = {tok.strip() for tok in s.split(",") if tok.strip()}
+
+    # ---------- Faceting setup ----------
+    # Seasons actually present in the payload
+    seasons_present = sorted({r["season"] for r in rows if r.get("season") is not None})
+
+    # Use the user's selection order where possible, but only include panels that have data
+    season_panels = [s for s in (seasons_sel or []) if s in seasons_present] or seasons_present
+    multi = len(season_panels) > 1
+
+    if multi:
+        fig = make_subplots(
+            rows=len(season_panels), cols=1,
+            shared_xaxes=False, shared_yaxes=False,
+            vertical_spacing=0.08,
+            subplot_titles=[str(s) for s in season_panels],
+        )
+
+    # Group rows by (season, team, team_rank)
+    from collections import defaultdict
+    by_key = defaultdict(list)
+    for r in rows:
+        by_key[(r["season"], r["team"], r.get("team_rank", 10**9))].append(r)
+
+    def _season_keys_in_rank_order(s):
+        return sorted(
+            [k for k in by_key.keys() if k[0] == s],
+            key=lambda k: (k[2], k[1])  # rank asc, then team name
+        )
+
+    for si, season in enumerate(season_panels, start=1):
+        keys = _season_keys_in_rank_order(season)
+
+        season_weeks = []
+        for (_season, team, _rank) in keys:
+            pts = sorted(by_key[(_season, team, _rank)], key=lambda x: x.get("week", 0))
+            if not pts:
+                continue
+
+            weeks  = [p.get("week") for p in pts]
+            values = [p.get("value") for p in pts]
+            color  = pts[0].get("team_color")  or "#888888"
+            fill   = pts[0].get("team_color2") or "#AAAAAA"
+
+            # Determine highlight for this team (server-provided or client CSV/ALL)
+            server_hl = any(p.get("is_highlight") for p in pts)
+            client_hl = hl_all or (team and team.upper() in hl_set)
+            is_hl = server_hl or client_hl
+
+            line_width = 3 if is_hl else 1.6
+            trace_opacity = 1.0 if is_hl else (0.45 if (hl_all or hl_set) else 1.0)
+            marker_opacity = 1.0 if is_hl else (0.55 if (hl_all or hl_set) else 0.9)
+
+            trace = go.Scatter(
+                x=weeks,
+                y=values,
+                mode="lines+markers",
+                name=f"{team} ({season})" if multi else f"{team}",
+                line=dict(width=line_width, color=color),
+                marker=dict(
+                    size=6, symbol="circle",
+                    line=dict(width=1, color="black"),
+                    color=fill, opacity=marker_opacity
+                ),
+                opacity=trace_opacity,
+                connectgaps=False,
+                hovertemplate=(
+                    f"<b>{team}</b><br>"
+                    f"Season {season} • Week %{ '{x}' }<br>"
+                    f"Value: %{ '{y}' }<extra></extra>"
+                ),
+                showlegend=not multi,   # keep legend tidy when faceting
+            )
+
+            if multi:
+                fig.add_trace(trace, row=si, col=1)
+            else:
+                fig.add_trace(trace)
+
+            season_weeks.extend(weeks)
+
+        # Axes per facet
+        if multi and season_weeks:
+            fig.update_xaxes(
+                title="Week",
+                dtick=1, tick0=1,
+                range=[min(season_weeks) - 0.5, max(season_weeks) + 0.5],
+                gridcolor="rgba(0,0,0,0.08)", zeroline=False,
+                row=si, col=1,
+            )
+            fig.update_yaxes(
+                title=stat_label if si == 1 else None,
+                gridcolor="rgba(0,0,0,0.08)", zeroline=False,
+                row=si, col=1,
+            )
+
+    if not multi:
+        all_weeks = [r["week"] for r in rows if r.get("week") is not None]
+        if all_weeks:
+            fig.update_xaxes(
+                title="Week",
+                dtick=1, tick0=1,
+                range=[min(all_weeks) - 0.5, max(all_weeks) + 0.5],
+                gridcolor="rgba(0,0,0,0.08)", zeroline=False,
+            )
+        fig.update_yaxes(
+            title=stat_label,
+            gridcolor="rgba(0,0,0,0.08)", zeroline=False,
+        )
+
+    # Title & subtitle
+    def _season_text(vals):
+        if not vals: return ""
+        s = sorted(vals)
+        return f"{s[0]}–{s[-1]}" if (max(s)-min(s)+1) == len(s) else ", ".join(map(str, s))
+
+    seasons_text = _season_text(seasons_sel or seasons_present)
+    type_text    = "REG+POST" if (season_type == "ALL") else (season_type or "REG")
+    week_vals    = [r["week"] for r in rows if r.get("week") is not None]
+    week_min     = min(week_vals) if week_vals else 1
+    week_max     = max(week_vals) if week_vals else 18
+
+    title = f"Top Teams — {stat_label}"
+    subtitle = f"{series_label} • Seasons {seasons_text} ({type_text}) • Weeks {week_min}–{week_max} • rank_by={rankby}"
+
+    fig.update_layout(
+        template="plotly_white",
+        paper_bgcolor="white",
+        plot_bgcolor="white",
+        title=dict(
+            text=f"{title}<br><span style='font-size:0.8em;color:#444'>{subtitle}</span>",
+            x=0.02, y=0.98, xanchor="left", yanchor="top",
+        ),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0.0),
+        margin=dict(l=60, r=20, t=120, b=56),
+        autosize=True,
+        showlegend=not multi,
+    )
+
     return fig

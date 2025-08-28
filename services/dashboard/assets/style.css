@@ -1293,6 +1293,103 @@ input[type="search"] {
   }
 }
 
+/* =========================================
+   Analytics Nexus — Teams Weekly Trajectories (ax-tt-*)
+   ========================================= */
+
+.ax-tt-section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 12px 14px;
+}
+
+.ax-tt-title {
+  margin: 0 0 4px 0;
+  font-size: 1.3rem;
+  letter-spacing: 0.2px;
+}
+
+/* Controls card — match the other analytics cards */
+.ax-tt-controls {
+  background: var(--platinum);
+  color: var(--ink);
+  border: 1px solid rgba(0,0,0,0.1);
+  border-radius: 12px;
+  padding: 12px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(6, minmax(140px, 1fr));
+  align-items: end;
+}
+
+.ax-tt-group label {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+
+/* Make the “Highlight” input behave like the others */
+#ctl-tt-highlight {
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(0,0,0,0.25);
+  background: #fff;
+  color: #111;
+}
+
+/* Graph card — match pv/ps/pt/pr look */
+.ax-tt-graph {
+  min-height: 650px;
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  background: #fff;
+  padding: 8px 6px 6px;
+}
+
+/* Light theming for Dropdown + RangeSlider inside the team controls card */
+.ax-tt-controls .Select,
+.ax-tt-controls .Select-control {
+  background-color: #fff !important;
+  border: 1px solid rgba(0,0,0,0.25) !important;
+  border-radius: 10px !important;
+  min-height: 36px;
+  box-shadow: none !important;
+  color: #111 !important;
+}
+.ax-tt-controls .Select-placeholder,
+.ax-tt-controls .Select-value,
+.ax-tt-controls .Select-value-label { color: #111 !important; }
+.ax-tt-controls .Select-arrow { border-top-color: #111 !important; }
+.ax-tt-controls .Select-menu-outer {
+  background: #fff !important;
+  color: #111 !important;
+  border: 1px solid rgba(0,0,0,0.15) !important;
+  border-radius: 10px !important;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+}
+.ax-tt-controls .VirtualizedSelectOption { color: #111 !important; }
+.ax-tt-controls .VirtualizedSelectFocusedOption {
+  background: #f0f0f0 !important; color: #111 !important;
+}
+.ax-tt-controls .rc-slider-rail { background-color: #e1e1e1; }
+.ax-tt-controls .rc-slider-track { background-color: var(--accent); }
+.ax-tt-controls .rc-slider-handle {
+  border: 2px solid var(--accent); background-color: #fff;
+}
+.ax-tt-controls .rc-slider-mark-text { color: var(--ink); }
+
+/* Responsive collapse — same breakpoints as the others */
+@media (max-width: 1100px) {
+  .ax-tt-controls { grid-template-columns: repeat(3, minmax(140px, 1fr)); }
+}
+@media (max-width: 720px) {
+  .ax-tt-controls { grid-template-columns: 1fr; }
+}
+
 /* =========================================================
    10) Link variants
    ========================================================= */
