@@ -5,11 +5,13 @@ from plotly.subplots import make_subplots
 
 from helpers.api_client import (
     fetch_current_season_week,
-    fetch_player_trajectories,   # <- new client helper you added earlier
+    fetch_player_trajectories,
     fetch_player_violins,
     fetch_player_scatter,
     fetch_player_rolling_percentiles,
-    fetch_team_trajectories
+    fetch_team_trajectories,
+    fetch_team_violins,
+    fetch_team_scatter
 )
 
 # --- Register page ---
@@ -1003,6 +1005,331 @@ layout = html.Div(
                                 # ============================
                                 # /Analytics Nexus — Teams Weekly Trajectories
                                 # ============================
+                                # ============================
+                                # Analytics Nexus — Team Consistency / Volatility Violin (ax-tv-*)
+                                # ============================
+                                html.Section(
+                                    id="ax-tv-section",
+                                    className="ax-tv-section",
+                                    children=[
+                                        html.H2("Teams — Consistency / Volatility (Violin)", className="ax-tv-title"),
+                                
+                                        # Controls (reuse the light card look)
+                                        html.Div(
+                                            className="ax-pv-controls ax-tv-controls",   # reuse pv styles
+                                            children=[
+                                                html.Div(
+                                                    className="ax-pv-group",
+                                                    children=[
+                                                        html.Label("Seasons (multi)"),
+                                                        dcc.Dropdown(
+                                                            id="ctl-tv-seasons",
+                                                            options=SEASON_OPTIONS,
+                                                            value=[DEFAULT_SEASON],
+                                                            multi=True,
+                                                            clearable=False,
+                                                        ),
+                                                    ],
+                                                ),
+                                                html.Div(
+                                                    className="ax-pv-group",
+                                                    children=[
+                                                        html.Label("Season Type"),
+                                                        dcc.RadioItems(
+                                                            id="ctl-tv-season-type",
+                                                            options=SEASON_TYPE_OPTIONS,
+                                                            value="REG",
+                                                            inline=True,
+                                                            inputClassName="ax-pt-radio-input",
+                                                            labelClassName="ax-pt-radio-label",
+                                                        ),
+                                                    ],
+                                                ),
+                                                html.Div(
+                                                    className="ax-pv-group",
+                                                    children=[
+                                                        html.Label("Stat"),
+                                                        dcc.Dropdown(
+                                                            id="ctl-tv-stat",
+                                                            options=STAT_OPTIONS,
+                                                            value="passing_yards",
+                                                            clearable=False,
+                                                        ),
+                                                    ],
+                                                ),
+                                                html.Div(
+                                                    className="ax-pv-group",
+                                                    children=[
+                                                        html.Label("Top N"),
+                                                        dcc.Input(
+                                                            id="ctl-tv-topn",
+                                                            type="number",
+                                                            min=1, max=32, step=1,
+                                                            value=10,
+                                                            className="ax-pt-topn",
+                                                        ),
+                                                    ],
+                                                ),
+                                                html.Div(
+                                                    className="ax-pv-group ax-pv-span-2",
+                                                    children=[
+                                                        html.Label("Week Range"),
+                                                        dcc.RangeSlider(
+                                                            id="ctl-tv-week-range",
+                                                            min=1, max=22,
+                                                            value=[1, DEFAULT_WEEK_END],
+                                                            allowCross=False, pushable=0,
+                                                            marks={i: str(i) for i in range(1, 23)},
+                                                        ),
+                                                    ],
+                                                ),
+                                                html.Div(
+                                                    className="ax-pv-group",
+                                                    children=[
+                                                        html.Label("Series"),
+                                                        dcc.RadioItems(
+                                                            id="ctl-tv-series",
+                                                            options=SERIES_MODE_OPTIONS,   # base | cumulative
+                                                            value="base",
+                                                            inline=True,
+                                                            inputClassName="ax-pt-radio-input",
+                                                            labelClassName="ax-pt-radio-label",
+                                                        ),
+                                                    ],
+                                                ),
+                                                html.Div(
+                                                    className="ax-pv-group",
+                                                    children=[
+                                                        html.Label("Order By"),
+                                                        dcc.RadioItems(
+                                                            id="ctl-tv-order-by",
+                                                            options=[
+                                                                {"label": "rCV (MAD/median)", "value": "rCV"},
+                                                                {"label": "IQR",              "value": "IQR"},
+                                                                {"label": "Median (desc)",    "value": "median"},
+                                                            ],
+                                                            value="rCV",
+                                                            inline=True,
+                                                            inputClassName="ax-pt-radio-input",
+                                                            labelClassName="ax-pt-radio-label",
+                                                        ),
+                                                    ],
+                                                ),
+                                                html.Div(
+                                                    className="ax-pv-group",
+                                                    children=[
+                                                        html.Label("Badges Min Games"),
+                                                        dcc.Input(
+                                                            id="ctl-tv-min-badges",
+                                                            type="number",
+                                                            min=0, step=1, value=0,   # teams usually play weekly → default 0
+                                                            className="ax-pt-topn",
+                                                        ),
+                                                    ],
+                                                ),
+                                                html.Div(
+                                                    className="ax-pv-group",
+                                                    children=[
+                                                        dcc.Checklist(
+                                                            id="ctl-tv-show-points",
+                                                            options=[{"label": "Show weekly points", "value": "show"}],
+                                                            value=["show"],  # default ON
+                                                            inline=True,
+                                                            inputClassName="ax-pt-radio-input",
+                                                            labelClassName="ax-pt-radio-label",
+                                                        ),
+                                                    ],
+                                                ),
+                                            ],
+                                        ),
+                                
+                                        # Store + Graph
+                                        dcc.Store(id="store-team-violins"),
+                                        dcc.Loading(
+                                            type="default",
+                                            children=dcc.Graph(
+                                                id="ax-tv-graph",
+                                                className="ax-pv-graph ax-tv-graph",   # reuse pv panel style
+                                                figure=go.Figure(),
+                                                style={"height": "650px", "width": "100%"},
+                                                config={"displayModeBar": False, "responsive": True},
+                                            ),
+                                        ),
+                                    ],
+                                ),
+                                # ============================
+                                # /Analytics Nexus — Team Consistency / Volatility Violin
+                                # ============================
+                                # ============================
+                                # Analytics Nexus — Team Quadrant Scatter (ax-ts-*)
+                                # ============================
+                                html.Section(
+                                    id="ax-ts-section",
+                                    className="ax-ts-section",
+                                    style={"display": "none"},  # hidden by default
+                                    children=[
+                                        html.H2("Teams — Quadrant Scatter", className="ax-ts-title"),
+                                
+                                        # Controls (mirrors player scatter)
+                                        html.Div(
+                                            className="ax-pt-controls ax-ts-controls",
+                                            children=[
+                                                html.Div(
+                                                    className="ax-pv-group",
+                                                    children=[
+                                                        html.Label("Seasons (multi)"),
+                                                        dcc.Dropdown(
+                                                            id="ctl-ts-seasons",
+                                                            options=SEASON_OPTIONS,
+                                                            value=[DEFAULT_SEASON],
+                                                            multi=True,
+                                                            clearable=False,
+                                                        ),
+                                                    ],
+                                                ),
+                                                html.Div(
+                                                    className="ax-pv-group",
+                                                    children=[
+                                                        html.Label("Season Type"),
+                                                        dcc.RadioItems(
+                                                            id="ctl-ts-season-type",
+                                                            options=SEASON_TYPE_OPTIONS,
+                                                            value="REG",
+                                                            inline=True,
+                                                            inputClassName="ax-pt-radio-input",
+                                                            labelClassName="ax-pt-radio-label",
+                                                        ),
+                                                    ],
+                                                ),
+                                                html.Div(
+                                                    className="ax-pv-group",
+                                                    children=[
+                                                        html.Label("Top N"),
+                                                        dcc.Input(
+                                                            id="ctl-ts-topn",
+                                                            type="number",
+                                                            min=1, max=32, step=1,
+                                                            value=10,
+                                                            className="ax-pt-topn",
+                                                        ),
+                                                    ],
+                                                ),
+                                                html.Div(
+                                                    className="ax-pv-group",
+                                                    children=[
+                                                        html.Label("Metric X"),
+                                                        dcc.Dropdown(
+                                                            id="ctl-ts-metric-x",
+                                                            options=METRIC_OPTIONS,
+                                                            value="attempts",
+                                                            clearable=False,
+                                                        ),
+                                                    ],
+                                                ),
+                                                html.Div(
+                                                    className="ax-pv-group",
+                                                    children=[
+                                                        html.Label("Metric Y"),
+                                                        dcc.Dropdown(
+                                                            id="ctl-ts-metric-y",
+                                                            options=METRIC_OPTIONS,
+                                                            value="passing_epa",
+                                                            clearable=False,
+                                                        ),
+                                                    ],
+                                                ),
+                                                html.Div(
+                                                    className="ax-pv-group ax-pv-span-2",
+                                                    children=[
+                                                        html.Label("Week Range"),
+                                                        dcc.RangeSlider(
+                                                            id="ctl-ts-week-range",
+                                                            min=1, max=22,
+                                                            value=[1, DEFAULT_WEEK_END],
+                                                            allowCross=False, pushable=0,
+                                                            marks={i: str(i) for i in range(1, 23)},
+                                                        ),
+                                                    ],
+                                                ),
+                                                html.Div(
+                                                    className="ax-pv-group",
+                                                    children=[
+                                                        html.Label("Select Top By"),
+                                                        dcc.RadioItems(
+                                                            id="ctl-ts-top-by",
+                                                            options=[
+                                                                {"label": "Combined Gate (x+y)", "value": "combined"},
+                                                                {"label": "X Gate",               "value": "x_gate"},
+                                                                {"label": "Y Gate",               "value": "y_gate"},
+                                                                {"label": "X Value",              "value": "x_value"},
+                                                                {"label": "Y Value",              "value": "y_value"},
+                                                            ],
+                                                            value="combined",
+                                                            inline=True,
+                                                            inputClassName="ax-pt-radio-input",
+                                                            labelClassName="ax-pt-radio-label",
+                                                        ),
+                                                    ],
+                                                ),
+                                                html.Div(
+                                                    className="ax-pv-group",
+                                                    children=[
+                                                        dcc.Checklist(
+                                                            id="ctl-ts-log-x",
+                                                            options=[{"label": "log₁₀ X", "value": "log"}],
+                                                            value=[],
+                                                            inline=True,
+                                                            inputClassName="ax-pt-radio-input",
+                                                            labelClassName="ax-pt-radio-label",
+                                                        ),
+                                                    ],
+                                                ),
+                                                html.Div(
+                                                    className="ax-pv-group",
+                                                    children=[
+                                                        dcc.Checklist(
+                                                            id="ctl-ts-log-y",
+                                                            options=[{"label": "log₁₀ Y", "value": "log"}],
+                                                            value=[],
+                                                            inline=True,
+                                                            inputClassName="ax-pt-radio-input",
+                                                            labelClassName="ax-pt-radio-label",
+                                                        ),
+                                                    ],
+                                                ),
+                                                html.Div(
+                                                    className="ax-pv-group",
+                                                    children=[
+                                                        dcc.Checklist(
+                                                            id="ctl-ts-labels",
+                                                            options=[{"label": "Label all points", "value": "label"}],
+                                                            value=["label"],  # default ON to match player scatter
+                                                            inline=True,
+                                                            inputClassName="ax-pt-radio-input",
+                                                            labelClassName="ax-pt-radio-label",
+                                                        ),
+                                                    ],
+                                                ),
+                                            ],
+                                        ),
+                                
+                                        # Store + Graph
+                                        dcc.Store(id="store-team-scatter"),
+                                        dcc.Loading(
+                                            type="default",
+                                            children=dcc.Graph(
+                                                id="ax-ts-graph",
+                                                className="ax-ts-graph",
+                                                figure=go.Figure(),
+                                                style={"height": "650px", "width": "100%"},
+                                                config={"displayModeBar": False, "responsive": True},
+                                            ),
+                                        ),
+                                    ],
+                                ),
+                                # ============================
+                                # /Analytics Nexus — Team Quadrant Scatter
+                                # ============================
                             ],
                         )
                     ],
@@ -1500,22 +1827,25 @@ def render_ax_pv_figure(payload, show_points_vals, stat_name):
     Output("ax-ps-section", "style"),
     Output("ax-pr-section", "style"),
     Output("ax-tt-section", "style"),
+    Output("ax-tv-section", "style"),
+    Output("ax-ts-section", "style"),   # ← NEW: team scatter
     Input("selected-plot", "data"),
 )
 def toggle_sections(selected):
-    show = {"display": "block"}
-    hide = {"display": "none"}
+    hidden = {"display": "none"}
+    show   = {"display": "block"}
 
-    if selected == "nav-player-violin":
-        return hide, show, hide, hide, hide
-    if selected == "nav-player-scatter":
-        return hide, hide, show, hide, hide
-    if selected == "nav-player-percentiles":
-        return hide, hide, hide, show, hide
-    if selected == "nav-team-timeseries":
-        return hide, hide, hide, hide, show
-    # default: player trajectories visible
-    return show, hide, hide, hide, hide
+    mapping = {
+        "nav-player-trajectories": ("show", "hide", "hide", "hide", "hide", "hide", "hide"),
+        "nav-player-violin":       ("hide", "show", "hide", "hide", "hide", "hide", "hide"),
+        "nav-player-scatter":      ("hide", "hide", "show", "hide", "hide", "hide", "hide"),
+        "nav-player-percentiles":  ("hide", "hide", "hide", "show", "hide", "hide", "hide"),
+        "nav-team-timeseries":     ("hide", "hide", "hide", "hide", "show", "hide", "hide"),
+        "nav-team-violin":         ("hide", "hide", "hide", "hide", "hide", "show", "hide"),
+        "nav-team-scatter":        ("hide", "hide", "hide", "hide", "hide", "hide", "show"),  # ← NEW
+    }
+    state = mapping.get(selected, ("show", "hide", "hide", "hide", "hide", "hide", "hide"))
+    return tuple(show if s == "show" else hidden for s in state)
 
 @callback(
     Output("selected-plot", "data"),
@@ -1523,25 +1853,16 @@ def toggle_sections(selected):
     Input("nav-player-violin", "n_clicks"),
     Input("nav-player-scatter", "n_clicks"),
     Input("nav-player-percentiles", "n_clicks"),
-    Input("nav-team-timeseries", "n_clicks"),   # ← NEW
+    Input("nav-team-timeseries", "n_clicks"),
+    Input("nav-team-violin", "n_clicks"),
+    Input("nav-team-scatter", "n_clicks"),
     prevent_initial_call=True,
 )
-def set_selected_plot(n_pt, n_pv, n_ps, n_pr, n_tt):
+def set_selected_plot(n_pt, n_pv, n_ps, n_pr, n_tt, n_tv, n_ts):
     if not ctx.triggered_id:
         return no_update
-    tid = ctx.triggered_id
-    if tid == "nav-player-trajectories":
-        return "nav-player-trajectories"
-    if tid == "nav-player-violin":
-        return "nav-player-violin"
-    if tid == "nav-player-scatter":
-        return "nav-player-scatter"
-    if tid == "nav-player-percentiles":
-        return "nav-player-percentiles"
-    if tid == "nav-team-timeseries":
-        return "nav-team-timeseries"
-    return no_update
-  
+    return ctx.triggered_id
+
 # ============================
 # Callbacks — Analytics Nexus: Player scatter plot
 # ============================
@@ -2166,5 +2487,410 @@ def render_ax_tt_figure(rows, stat_name, seasons_sel, season_type, rankby, serie
         autosize=True,
         showlegend=not multi,
     )
+
+    return fig
+  
+# ============================
+# Callbacks — Analytics Nexus: Team Violins
+# ============================
+
+@callback(
+    Output("store-team-violins", "data"),
+    Input("selected-plot", "data"),
+    Input("ctl-tv-seasons", "value"),
+    Input("ctl-tv-season-type", "value"),
+    Input("ctl-tv-stat", "value"),
+    Input("ctl-tv-topn", "value"),
+    Input("ctl-tv-week-range", "value"),
+    Input("ctl-tv-series", "value"),
+    Input("ctl-tv-order-by", "value"),
+    Input("ctl-tv-min-badges", "value"),
+    prevent_initial_call=False,
+)
+def fetch_ax_tv_data(selected_plot, seasons, season_type, stat_name, topn, week_range, series_mode, order_by, min_badges):
+    if selected_plot != "nav-team-violin":
+        return no_update
+
+    if not all([seasons, season_type, stat_name, topn, week_range, series_mode, order_by]) \
+       or min_badges is None:
+        return {"weekly": [], "summary": [], "badges": {"most_consistent": "—", "most_volatile": "—"}, "meta": {}}
+
+    week_start, week_end = int(week_range[0]), int(week_range[1])
+    if week_end < week_start or int(topn) < 1:
+        return {"weekly": [], "summary": [], "badges": {"most_consistent": "—", "most_volatile": "—"}, "meta": {}}
+
+    payload = fetch_team_violins(
+        seasons=seasons,
+        season_type=str(season_type),
+        stat_name=str(stat_name),
+        top_n=int(topn),
+        week_start=week_start,
+        week_end=week_end,
+        stat_type=str(series_mode),          # base | cumulative (computed server-side)
+        order_by=str(order_by),              # rCV | IQR | median
+        min_games_for_badges=int(min_badges),
+        timeout=6,
+        debug=True,
+    )
+    return payload or {"weekly": [], "summary": [], "badges": {"most_consistent": "—", "most_volatile": "—"}, "meta": {}}
+
+@callback(
+    Output("ax-tv-graph", "figure"),
+    Input("store-team-violins", "data"),
+    State("ctl-tv-show-points", "value"),
+    State("ctl-tv-stat", "value"),
+)
+def render_ax_tv_figure(payload, show_points_vals, stat_name):
+    fig = go.Figure()
+    show_points = isinstance(show_points_vals, list) and ("show" in show_points_vals)
+
+    # Empty-state
+    if not payload or not isinstance(payload, dict) or not payload.get("summary"):
+        fig.update_layout(
+            template="plotly_white",
+            paper_bgcolor="white",
+            plot_bgcolor="white",
+            xaxis=dict(visible=False),
+            yaxis=dict(visible=False),
+            annotations=[dict(
+                text="No team data to plot<br>Check filters: seasons, season_type, stat, week_range",
+                x=0.5, y=0.5, xref="paper", yref="paper",
+                showarrow=False, font=dict(size=16, color="#444"),
+            )],
+            margin=dict(l=40, r=20, t=80, b=40),
+            autosize=True,
+        )
+        return fig
+
+    weekly = payload.get("weekly", []) or []
+    summary = payload.get("summary", []) or []
+    badges  = payload.get("badges", {}) or {}
+    meta    = payload.get("meta", {}) or {}
+
+    # Labels
+    stat_label = next((o["label"] for o in STAT_OPTIONS if o["value"] == stat_name), stat_name)
+
+    seasons = meta.get("seasons", [])
+    if seasons:
+        s_sorted = sorted(seasons)
+        season_text = f"{s_sorted[0]}–{s_sorted[-1]}" if (max(s_sorted)-min(s_sorted)+1)==len(s_sorted) else ", ".join(map(str, s_sorted))
+    else:
+        season_text = ""
+
+    type_text = "REG+POST" if meta.get("season_type") == "ALL" else meta.get("season_type", "REG")
+    week_text = f"Weeks {meta.get('week_start', 1)}–{meta.get('week_end', 18)}"
+    order_by  = meta.get("order_by", "rCV")
+    top_n     = meta.get("top_n", 0)
+
+    most_consistent = badges.get("most_consistent", "—")
+    mc_list = most_consistent if isinstance(most_consistent, list) else ([most_consistent] if most_consistent != "—" else [])
+    most_volatile = badges.get("most_volatile", "—")
+    mv_list = most_volatile if isinstance(most_volatile, list) else ([most_volatile] if most_volatile != "—" else [])
+
+    # Order by team_order
+    ordered = sorted(summary, key=lambda s: s.get("team_order", 10**9))
+    x_labels = []
+    order_to_team = {}
+    for s in ordered:
+        lbl = f"{s.get('team','')}\n(n={s.get('n_games',0)})"
+        x_labels.append(lbl)
+        order_to_team[s["team_order"]] = s["team"]
+
+    # Build per-team weekly lists
+    by_team = {}
+    for r in weekly:
+        t = r.get("team")
+        by_team.setdefault(t, {"y": [], "week": [], "season": [], "pt_color": []})
+        by_team[t]["y"].append(r.get("value"))
+        by_team[t]["week"].append(r.get("week"))
+        by_team[t]["season"].append(r.get("season"))
+        by_team[t]["pt_color"].append(r.get("team_color2") or "#AAAAAA")
+
+    # One violin per team
+    for s in ordered:
+        team = s.get("team","")
+        team_color = s.get("team_color_major") or "#888888"
+        small_n = bool(s.get("small_n", False))
+        label = f"{team}\n(n={s.get('n_games',0)})"
+
+        pts = by_team.get(team, {"y": [], "week": [], "season": [], "pt_color": []})
+        yvals = pts["y"]
+        custom = list(zip(pts["week"], pts["season"]))
+
+        # mode of team_color2 for per-team points
+        pt_color_mode = (max(pts["pt_color"], key=pts["pt_color"].count) if pts["pt_color"] else "#AAAAAA")
+
+        fig.add_trace(
+            go.Violin(
+                x=[label] * len(yvals),
+                y=yvals,
+                name=label,
+                line=dict(color=team_color, width=1.1),
+                fillcolor="rgba(0,0,0,0)",
+                opacity=0.45 if small_n else 1.0,
+                points="all" if show_points else False,
+                pointpos=0.0,
+                jitter=0.18,
+                scalemode="width",
+                marker=dict(
+                    size=6,
+                    color=pt_color_mode,
+                    line=dict(color="black", width=0.6),
+                    opacity=0.65,
+                ),
+                customdata=custom,  # (week, season)
+                hoveron="points" if show_points else "violins",
+                hovertemplate=(
+                    "<b>"+team+"</b><br>"
+                    "Week %{customdata[0]} • Season %{customdata[1]}<br>"
+                    "Value: %{y}<extra></extra>"
+                ),
+                showlegend=False,
+            )
+        )
+
+        # IQR band
+        q25 = s.get("q25")
+        q50 = s.get("q50")
+        q75 = s.get("q75")
+        if q25 is not None and q75 is not None:
+            fig.add_trace(
+                go.Scatter(
+                    x=[label, label],
+                    y=[q25, q75],
+                    mode="lines",
+                    line=dict(color=team_color, width=6),
+                    hoverinfo="skip",
+                    showlegend=False,
+                )
+            )
+        if q50 is not None:
+            fig.add_trace(
+                go.Scatter(
+                    x=[label],
+                    y=[q50],
+                    mode="markers",
+                    marker=dict(color=team_color, size=8),
+                    hovertemplate=f"<b>{team}</b><br>Median: %{{y}}<extra></extra>",
+                    showlegend=False,
+                )
+            )
+
+    title = f"Top {top_n} {stat_label} — {season_text} ({type_text})"
+    subtitle = (
+        f"{week_text}  •  Order by {order_by}  •  "
+        f"Most consistent: {', '.join(mc_list) if mc_list else '—'}  •  "
+        f"Most volatile: {', '.join(mv_list) if mv_list else '—'}"
+    )
+
+    fig.update_layout(
+        template="plotly_white",
+        paper_bgcolor="white",
+        plot_bgcolor="white",
+        title=dict(
+            text=f"{title}<br><span style='font-size:0.8em;color:#444'>{subtitle}</span>",
+            x=0.02, y=0.98, xanchor="left", yanchor="top",
+        ),
+        xaxis=dict(
+            title=None,
+            categoryorder="array",
+            categoryarray=x_labels,
+            tickangle=28,
+            tickfont=dict(size=11),
+            gridcolor="rgba(0,0,0,0.08)",
+        ),
+        yaxis=dict(
+            title=stat_label,
+            gridcolor="rgba(0,0,0,0.08)",
+            zeroline=False,
+        ),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0.0),
+        margin=dict(l=60, r=20, t=120, b=64),
+        autosize=True,
+        showlegend=False,
+    )
+    return fig
+
+# ============================
+# Callbacks — Analytics Nexus: Team scatter plot
+# ============================
+
+@callback(
+    Output("store-team-scatter", "data"),
+    Input("selected-plot", "data"),
+    Input("ctl-ts-seasons", "value"),
+    Input("ctl-ts-season-type", "value"),
+    Input("ctl-ts-topn", "value"),
+    Input("ctl-ts-metric-x", "value"),
+    Input("ctl-ts-metric-y", "value"),
+    Input("ctl-ts-week-range", "value"),
+    Input("ctl-ts-top-by", "value"),
+    Input("ctl-ts-log-x", "value"),
+    Input("ctl-ts-log-y", "value"),
+    Input("ctl-ts-labels", "value"),
+    prevent_initial_call=False,
+)
+def fetch_ax_ts_data(selected_plot, seasons, season_type, topn, metric_x, metric_y,
+                     week_range, top_by, log_x_vals, log_y_vals, label_vals):
+    if selected_plot != "nav-team-scatter":
+        return no_update
+
+    if not all([seasons, season_type, topn, metric_x, metric_y, week_range, top_by]):
+        return {}
+
+    week_start, week_end = int(week_range[0]), int(week_range[1])
+    if week_end < week_start or int(topn) < 1:
+        return {}
+
+    log_x = isinstance(log_x_vals, list) and ("log" in log_x_vals)
+    log_y = isinstance(log_y_vals, list) and ("log" in log_y_vals)
+    label_all = isinstance(label_vals, list) and ("label" in label_vals)
+
+    payload = fetch_team_scatter(
+        seasons=seasons,
+        season_type=str(season_type),
+        metric_x=str(metric_x),
+        metric_y=str(metric_y),
+        top_n=int(topn),
+        week_start=week_start,
+        week_end=week_end,
+        stat_type="base",
+        top_by=str(top_by),
+        log_x=log_x,
+        log_y=log_y,
+        label_all_points=label_all,
+        timeout=6,
+        debug=True,
+    )
+    return payload or {}
+
+@callback(
+    Output("ax-ts-graph", "figure"),
+    Input("store-team-scatter", "data"),
+)
+def render_ax_ts_figure(payload):
+    fig = go.Figure()
+
+    if not payload or not isinstance(payload, dict):
+        # Empty-state
+        fig.update_layout(
+            template="plotly_white",
+            paper_bgcolor="white",
+            plot_bgcolor="white",
+            xaxis=dict(visible=False),
+            yaxis=dict(visible=False),
+            annotations=[dict(
+                text="No data to plot<br>Check filters.",
+                x=0.5, y=0.5, xref="paper", yref="paper",
+                showarrow=False, font=dict(size=16, color="#444"),
+            )],
+            margin=dict(l=40, r=20, t=80, b=40),
+            autosize=True,
+        )
+        return fig
+
+    pts  = payload.get("points", []) or []
+    meta = payload.get("meta", {}) or {}
+    if not pts:
+        return fig
+
+    # Data arrays
+    xs      = [p.get("x", p.get("x_value")) for p in pts]
+    ys      = [p.get("y", p.get("y_value")) for p in pts]
+    names   = [p.get("team") or p.get("name","") for p in pts]
+    fills   = [p.get("team_color2") or "#AAAAAA" for p in pts]
+    strokes = [p.get("team_color")  or "#333333"  for p in pts]
+
+    def _pretty(s):
+        return str(s).replace("_", " ").title() if s else None
+
+    metric_x_id = meta.get("metric_x")
+    metric_y_id = meta.get("metric_y")
+
+    x_label = meta.get("metric_x_label") or meta.get("x_label") or _pretty(metric_x_id) or "X"
+    y_label = meta.get("metric_y_label") or meta.get("y_label") or _pretty(metric_y_id) or "Y"
+
+    # Median guides
+    mx = meta.get("median_x", meta.get("med_x"))
+    my = meta.get("median_y", meta.get("med_y"))
+    if mx is not None:
+        fig.add_vline(x=mx, line_width=1, line_dash="dash", line_color="grey")
+    if my is not None:
+        fig.add_hline(y=my, line_width=1, line_dash="dash", line_color="grey")
+
+    # Square aspect
+    fig.update_yaxes(scaleanchor="x", scaleratio=1)
+
+    # Main marks (always show labels to match player scatter)
+    fig.add_trace(
+        go.Scatter(
+            x=xs, y=ys,
+            mode="markers+text",
+            text=names,
+            texttemplate="%{text}",
+            textposition="top center",
+            textfont=dict(size=12),
+            cliponaxis=False,
+            marker=dict(
+                size=16,
+                color=fills,                      # fill = team_color2
+                line=dict(color=strokes, width=0.8),
+            ),
+            hovertemplate=(
+                "<b>%{text}</b><br>"
+                f"{x_label}: %{{x}}<br>"
+                f"{y_label}: %{{y}}<extra></extra>"
+            ),
+            showlegend=False,
+        )
+    )
+
+    # Log axes based on meta
+    if meta.get("log_x"):
+        fig.update_xaxes(type="log")
+    if meta.get("log_y"):
+        fig.update_yaxes(type="log")
+
+    # Title/subtitle
+    title = f"{x_label} vs {y_label}"
+    seasons = meta.get("seasons", [])
+    if seasons:
+        s_sorted = sorted(seasons)
+        season_text = f"{s_sorted[0]}–{s_sorted[-1]}" if (max(s_sorted)-min(s_sorted)+1)==len(s_sorted) else ", ".join(map(str, s_sorted))
+    else:
+        season_text = ""
+    type_text = "REG+POST" if meta.get("season_type") == "ALL" else meta.get("season_type", "REG")
+    week_text = f"Weeks {meta.get('week_start',1)}–{meta.get('week_end',18)}"
+    subtitle = (
+        f"{season_text} ({type_text}) • {week_text} • "
+        f"Top {meta.get('top_n',0)} by {meta.get('top_by','combined')} • Medians shown"
+    )
+
+    fig.update_layout(
+        template="plotly_white",
+        paper_bgcolor="white",
+        plot_bgcolor="white",
+        title=dict(
+            text=f"{title}<br><span style='font-size:0.8em;color:#444'>{subtitle}</span>",
+            x=0.02, y=0.98, xanchor="left", yanchor="top",
+        ),
+        xaxis=dict(
+            title_text=x_label,
+            gridcolor="rgba(0,0,0,0.08)",
+            zeroline=False,
+        ),
+        yaxis=dict(
+            title_text=y_label,
+            gridcolor="rgba(0,0,0,0.08)",
+            zeroline=False,
+        ),
+        margin=dict(l=60, r=20, t=120, b=64),
+        autosize=True,
+        showlegend=False,
+    )
+
+    # belt-and-suspenders
+    fig.update_xaxes(title=x_label)
+    fig.update_yaxes(title=y_label)
 
     return fig

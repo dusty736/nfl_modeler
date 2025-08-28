@@ -1390,6 +1390,167 @@ input[type="search"] {
   .ax-tt-controls { grid-template-columns: 1fr; }
 }
 
+/* =========================================
+   Analytics Nexus — Team Consistency/Volatility (ax-tv-*)
+   ========================================= */
+
+/* Section & title */
+.ax-tv-section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 12px 14px;
+}
+.ax-tv-title {
+  margin: 0 0 4px 0;
+  font-size: 1.3rem;
+  letter-spacing: 0.2px;
+}
+
+/* Controls card — include tv in the shared card look */
+.ax-pt-controls,
+.ax-pv-controls,
+.ax-ps-controls,
+.ax-pr-controls,
+.ax-tv-controls {
+  background: var(--platinum);
+  color: var(--ink);
+  border: 1px solid rgba(0,0,0,0.1);
+  border-radius: 12px;
+  padding: 12px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(6, minmax(140px, 1fr));
+  align-items: end;
+}
+
+/* Span helper (future-proof if you ever use ax-tv-span-2) */
+.ax-pt-span-2,
+.ax-pv-span-2,
+.ax-ps-span-2,
+.ax-pr-span-2,
+.ax-tv-span-2 { grid-column: span 2; }
+
+/* Graph panel — add tv to the shared white card look */
+.ax-pt-graph,
+.ax-pv-graph,
+.ax-ps-graph,
+.ax-pr-graph,
+.ax-tv-graph {
+  min-height: 650px;
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  background: #fff;
+  padding: 8px 6px 6px;
+}
+
+/* Responsive collapse for the tv controls (same breakpoints) */
+@media (max-width: 1100px) {
+  .ax-tv-controls { grid-template-columns: repeat(3, minmax(140px, 1fr)); }
+  .ax-tv-span-2 { grid-column: span 3; }
+}
+@media (max-width: 720px) {
+  .ax-tv-controls { grid-template-columns: 1fr; }
+  .ax-tv-span-2 { grid-column: span 1; }
+}
+
+/* =========================================
+   Analytics Nexus — Team Quadrant Scatter (ax-ts-*)
+   Mirror the player scatter look, with our own hook.
+   ========================================= */
+.ax-ts-section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 12px 14px;
+}
+
+/* Controls: we already apply .ax-pt-controls on the container
+   to inherit the base card look. These tweaks match scatter density. */
+.ax-ts-controls {
+  grid-template-columns: repeat(6, minmax(140px, 1fr));
+  align-items: end;
+  gap: 12px;
+}
+
+/* Labels inside groups */
+.ax-ts-controls .ax-ps-group label,
+.ax-ts-controls .ax-ts-group label {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+
+/* Let week-range span two columns if needed */
+.ax-ts-span-2 { grid-column: span 2; }
+
+/* Light-themed inputs/dropdowns inside the card (match other Analytics cards) */
+.ax-ts-controls .Select,
+.ax-ts-controls .Select-control {
+  background-color: #fff !important;
+  border: 1px solid rgba(0,0,0,0.25) !important;
+  border-radius: 10px !important;
+  min-height: 36px;
+  box-shadow: none !important;
+  color: #111 !important;
+}
+.ax-ts-controls .Select-placeholder,
+.ax-ts-controls .Select-value,
+.ax-ts-controls .Select-value-label { color: #111 !important; }
+.ax-ts-controls .Select-arrow { border-top-color: #111 !important; }
+.ax-ts-controls .Select-menu-outer {
+  background: #fff !important;
+  color: #111 !important;
+  border: 1px solid rgba(0,0,0,0.15) !important;
+  border-radius: 10px !important;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+}
+.ax-ts-controls .VirtualizedSelectOption { color: #111 !important; }
+.ax-ts-controls .VirtualizedSelectFocusedOption {
+  background: #f0f0f0 !important; color: #111 !important;
+}
+
+/* Inputs inside the card */
+.ax-ts-controls input[type="number"],
+.ax-ts-controls input[type="text"] {
+  background: #fff; color: #111;
+  border: 1px solid rgba(0,0,0,0.25);
+  border-radius: 10px; padding: 6px 8px; width: 100%;
+}
+
+/* RangeSlider inside the card */
+.ax-ts-controls .rc-slider-rail { background-color: #e1e1e1; }
+.ax-ts-controls .rc-slider-track { background-color: var(--accent); }
+.ax-ts-controls .rc-slider-handle {
+  border: 2px solid var(--accent); background-color: #fff;
+}
+.ax-ts-controls .rc-slider-mark-text { color: var(--ink); }
+
+/* Graph panel: same white card look as others */
+.ax-ts-graph {
+  min-height: 650px;
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  background: #fff;
+  padding: 8px 6px 6px;
+}
+
+/* Responsive collapse (match your other analytics breakpoints) */
+@media (max-width: 1100px) {
+  .ax-ts-controls {
+    grid-template-columns: repeat(3, minmax(140px, 1fr));
+  }
+  .ax-ts-span-2 { grid-column: span 3; }
+}
+@media (max-width: 720px) {
+  .ax-ts-controls {
+    grid-template-columns: 1fr;
+  }
+  .ax-ts-span-2 { grid-column: span 1; }
+}
+
 /* =========================================================
    10) Link variants
    ========================================================= */

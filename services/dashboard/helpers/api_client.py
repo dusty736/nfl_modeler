@@ -694,3 +694,255 @@ def fetch_team_trajectories(
     except Exception as e:
         print(f"[api_client] Failed to fetch team trajectories: {e}")
         return []
+      
+# --- Analytics Nexus: Team Violins ---
+
+ALLOWED_TEAM_ORDER_BY = {"rCV", "IQR", "median"}
+
+def fetch_team_violins(
+    seasons,
+    season_type: str,
+    stat_name: str,
+    top_n: int,
+    week_start: int = 1,
+    week_end: int = 18,
+    stat_type: str = "base",              # 'base' | 'cumulative'
+    order_by: str = "rCV",                # 'rCV' | 'IQR' | 'median'
+    min_games_for_badges: int = 6,        # only affects badges; does NOT filter teams
+    timeout: int = 5,
+    debug: bool = True,
+):
+    """
+    Analytics Nexus — Team Consistency/Volatility (Violin).
+
+    Path:
+      /analytics_nexus/team/violins/{stat_name}/{top_n}
+
+    Query:
+      seasons (repeatable), season_type, week_start, week_end,
+      stat_type='base'|'cumulative', order_by, min_games_for_badges
+
+    Returns:
+      dict with keys: {'weekly', 'summary', 'badges', 'meta'}
+      (empty-shaped payload on error)
+    """
+
+    def _empty_payload(_seasons):
+        return {
+            "weekly": [],
+            "summary": [],
+            "badges": {"most_consistent": "—", "most_volatile": "—"},
+            "meta": {
+                "stat_name": stat_name,
+                "stat_type": (stat_type or "base"),
+                "season_type": (season_type or "REG"),
+                "seasons": _seasons or [],
+                "week_start": int(week_start) if week_start is not None else 1,
+                "week_end": int(week_end) if week_end is not None else 18,
+                "order_by": order_by or "rCV",
+                "top_n": int(top_n) if top_n is not None else 10,
+                "min_games_for_badges": int(min_games_for_badges) if min_games_for_badges is not None else 6,
+            },
+        }
+
+    try:
+        # --- Normalize seasons → sorted unique list[int] ---
+        if seasons is None:
+            seasons_list = []
+        elif isinstance(seasons, (list, tuple, set)):
+            seasons_list = [int(s) for s in seasons if s is not None]
+        elif isinstance(seasons, int):
+            seasons_list = [seasons]
+        else:
+            # tolerate "2023,2024"
+            seasons_list = [int(s.strip()) for s in str(seasons).split(",") if s.strip()]
+
+        seasons_list = sorted(set(seasons_list))
+        if not seasons_list:
+            return _empty_payload([])
+
+        # --- Validate enums ---
+        st = (season_type or "REG").upper().strip()
+        if st not in ALLOWED_SEASON_TYPES:
+            raise ValueError(f"season_type must be one of {sorted(ALLOWED_SEASON_TYPES)}")
+
+        stype = (stat_type or "base").lower().strip()
+        if stype not in {"base", "cumulative"}:
+            raise ValueError("stat_type must be 'base' or 'cumulative'")
+
+        ob_norm = (order_by or "rCV").strip()
+        if ob_norm.lower() == "rcv":
+            ob_final = "rCV"
+        elif ob_norm.lower() == "iqr":
+            ob_final = "IQR"
+        elif ob_norm.lower() == "median":
+            ob_final = "median"
+        else:
+            raise ValueError(f"order_by must be one of {sorted(ALLOWED_TEAM_ORDER_BY)}")
+
+        ws = max(1, int(week_start))
+        we = min(22, int(week_end))
+        if we < ws:
+            return _empty_payload(seasons_list)
+
+        tn = max(1, int(top_n))
+        mg = max(0, int(min_games_for_badges))
+
+        # --- URL & params ---
+        stat_seg = quote(str(stat_name), safe="")
+        params = {
+            "seasons": seasons_list,    # requests encodes as repeated ?seasons=YYYY
+            "season_type": st,
+            "week_start": ws,
+            "week_end": we,
+            "stat_type": stype,
+            "order_by": ob_final,
+            "min_games_for_badges": mg,
+        }
+
+        last_err = None
+        for prefix in API_PREFIXES:
+            url = f"{API_BASE}{prefix}/analytics_nexus/team/violins/{stat_seg}/{tn}"
+            try:
+                if debug:
+                    print(f"[api_client] GET {url} params={params}")
+                r = requests.get(url, params=params, timeout=timeout)
+                if r.status_code == 404:
+                    last_err = f"404 at {url}"
+                    continue
+                r.raise_for_status()
+                data = r.json()
+
+                if isinstance(data, dict) and "weekly" in data and "summary" in data:
+                    if debug:
+                        print(f"[api_client] OK team violins -> weekly={len(data.get('weekly', []))}, summary={len(data.get('summary', []))}")
+                    return data
+
+                if debug:
+                    print(f"[api_client] Unexpected payload (team violins): type={type(data)}; keys={list(data) if isinstance(data, dict) else 'n/a'}")
+                return _empty_payload(seasons_list)
+
+            except Exception as e:
+                last_err = str(e)
+                continue
+
+        if debug:
+            print(f"[api_client] Team violins failed after trying {API_PREFIXES}: {last_err}")
+        return _empty_payload(seasons_list)
+
+    except Exception as e:
+        print(f"[api_client] Failed to fetch team violins: {e}")
+        return _empty_payload(seasons_list if 'seasons_list' in locals() else [])
+
+# --- Analytics Nexus: Team Quadrant Scatter ---
+def fetch_team_scatter(
+    seasons,
+    season_type: str,
+    metric_x: str,
+    metric_y: str,
+    top_n: int = 20,
+    week_start: int = 1,
+    week_end: int = 18,
+    stat_type: str = "base",                # scatter uses 'base' only
+    top_by: str = "combined",               # combined | x_gate | y_gate | x_value | y_value
+    log_x: bool = False,
+    log_y: bool = False,
+    label_all_points: bool = True,          # UI decides label density
+    timeout: int = 5,
+    debug: bool = True,
+):
+    """
+    Analytics Nexus — Team Quadrant Scatter.
+
+    Path:
+      /analytics_nexus/team/scatter/{metric_x}/{metric_y}/{top_n}
+
+    Query:
+      seasons (repeatable), season_type, week_start, week_end,
+      stat_type='base', top_by, log_x, log_y, label_all_points
+
+    Returns:
+      dict with keys: {'points', 'meta'}  (empty {} on error)
+    """
+    try:
+        # --- Validate season_type ---
+        st = (season_type or "").upper().strip()
+        if st not in ALLOWED_SEASON_TYPES:
+            raise ValueError(f"season_type must be one of {sorted(ALLOWED_SEASON_TYPES)}")
+
+        # --- Enforce 'base' for scatter ---
+        stype = (stat_type or "base").lower().strip()
+        if stype != "base":
+            stype = "base"
+
+        # --- Validate top_by ---
+        tb = (top_by or "combined").strip().lower()
+        if tb not in ALLOWED_TOP_BY:
+            raise ValueError(f"top_by must be one of {sorted(ALLOWED_TOP_BY)}")
+
+        # --- Normalize seasons → sorted unique list[int] ---
+        if seasons is None:
+            raise ValueError("seasons is required")
+        if isinstance(seasons, (int, str)):
+            seasons = [seasons]
+        clean_seasons: List[int] = []
+        for s in seasons:
+            if s is None:
+                continue
+            try:
+                clean_seasons.append(int(s))
+            except Exception:
+                for tok in str(s).split(","):
+                    tok = tok.strip()
+                    if tok:
+                        clean_seasons.append(int(tok))
+        seasons = sorted(set(clean_seasons))
+        if not seasons:
+            raise ValueError("At least one season must be provided")
+
+        # --- Encode path segments safely ---
+        mx = quote(str(metric_x), safe="")
+        my = quote(str(metric_y), safe="")
+
+        # --- Query params ---
+        params = {
+            "season_type": st,
+            "week_start": int(week_start),
+            "week_end": int(week_end),
+            "stat_type": stype,
+            "top_by": tb,
+            "log_x": bool(log_x),
+            "log_y": bool(log_y),
+            "label_all_points": bool(label_all_points),
+        }
+
+        last_err = None
+        for prefix in API_PREFIXES:
+            url = f"{API_BASE}{prefix}/analytics_nexus/team/scatter/{mx}/{my}/{int(top_n)}"
+            try:
+                if debug:
+                    print(f"[api_client] GET {url} seasons={seasons} params={params}")
+                # `requests` encodes list -> repeated ?seasons=YYYY&seasons=YYYY
+                r = requests.get(url, params={**params, "seasons": seasons}, timeout=timeout)
+                if r.status_code == 404:
+                    last_err = f"404 at {url}"
+                    continue
+                r.raise_for_status()
+                data = r.json()
+                if isinstance(data, dict) and "points" in data and "meta" in data:
+                    if debug:
+                        print(f"[api_client] OK team scatter -> {len(data.get('points', []) or [])} points")
+                    return data
+                if debug:
+                    print(f"[api_client] Unexpected payload (team scatter): type={type(data)}")
+                return {}
+            except Exception as e:
+                last_err = str(e)
+                continue
+
+        if debug:
+            print(f"[api_client] Team scatter failed after trying {API_PREFIXES}: {last_err}")
+        return {}
+    except Exception as e:
+        print(f"[api_client] Failed to fetch team scatter: {e}")
+        return {}
