@@ -946,3 +946,103 @@ def fetch_team_scatter(
     except Exception as e:
         print(f"[api_client] Failed to fetch team scatter: {e}")
         return {}
+      
+def fetch_team_rolling_percentiles(
+    seasons,
+    season_type="REG",            # "REG" | "POST" | "ALL"
+    metric="rushing_epa",         # stat_name in storage
+    top_n=16,
+    week_start=1,
+    week_end=18,
+    stat_type="base",             # "base" | "cumulative"
+    rolling_window=4,
+    timeout=8,
+    debug=False,
+):
+    """
+    Call the Analytics Nexus router to get Team Rolling Form Percentiles.
+
+    Returns a payload shaped like:
+      {
+        "series": [
+          {
+            "team": "KC", "season": 2024, "season_type": "REG", "week": 7,
+            "t_idx": 13, "pct": 72.4, "pct_roll": 68.1,
+            "team_color": "#E31837", "team_color2": "#FFB81C",
+            "team_order": 3
+          }, ...
+        ],
+        "teams": [
+          {
+            "team": "KC",
+            "team_color": "#E31837",
+            "team_color2": "#FFB81C",
+            "last_pct": 74.2,
+            "team_order": 3
+          }, ...
+        ],
+        "meta": { ... }
+      }
+    """
+    if not API_BASE:
+        # keep the UI stable even if env is missing
+        return {
+            "series": [],
+            "teams": [],
+            "meta": {
+                "metric": metric,
+                "metric_label": metric.replace("_", " ").title(),
+                "stat_type": stat_type,
+                "season_type": season_type,
+                "seasons": seasons or [],
+                "week_start": week_start,
+                "week_end": week_end,
+                "top_n": int(top_n),
+                "rolling_window": int(rolling_window),
+                "error": "BACKEND_BASE_URL is not set",
+            },
+        }
+
+    url = f"{API_BASE}/analytics_nexus/team/rolling_percentiles/{metric}/{int(top_n)}"
+
+    # requests encodes list values as repeatable query params: ?seasons=2023&seasons=2024
+    params = {
+        "seasons": seasons or [],
+        "season_type": season_type,
+        "stat_type": stat_type,
+        "week_start": int(week_start),
+        "week_end": int(week_end),
+        "rolling_window": int(rolling_window),
+    }
+    if debug:
+        params["debug"] = True
+
+    try:
+        resp = requests.get(url, params=params, timeout=timeout)
+        resp.raise_for_status()
+        payload = resp.json() or {}
+        # normalize minimal shape for safety
+        if not isinstance(payload, dict):
+            return {"series": [], "teams": [], "meta": {"error": "Unexpected response"}}
+        payload.setdefault("series", [])
+        payload.setdefault("teams", [])
+        payload.setdefault("meta", {})
+        return payload
+    except requests.RequestException as e:
+        # stable fallback on transport errors
+        return {
+            "series": [],
+            "teams": [],
+            "meta": {
+                "metric": metric,
+                "metric_label": metric.replace("_", " ").title(),
+                "stat_type": stat_type,
+                "season_type": season_type,
+                "seasons": seasons or [],
+                "week_start": week_start,
+                "week_end": week_end,
+                "top_n": int(top_n),
+                "rolling_window": int(rolling_window),
+                "error": str(e),
+            },
+        }

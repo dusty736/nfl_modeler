@@ -1551,6 +1551,100 @@ input[type="search"] {
   .ax-ts-span-2 { grid-column: span 1; }
 }
 
+/* Controls card — add tt/tv/ts */
+.ax-pt-controls,
+.ax-pv-controls,
+.ax-ps-controls,
+.ax-pr-controls,
+.ax-tt-controls,
+.ax-tv-controls,
+.ax-ts-controls {
+  background: var(--platinum);
+  color: var(--ink);
+  border: 1px solid rgba(0,0,0,0.1);
+  border-radius: 12px;
+  padding: 12px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(6, minmax(140px, 1fr));
+  align-items: end;
+}
+
+/* Field labels — add tt/tv/ts */
+.ax-pt-group label,
+.ax-pv-group label,
+.ax-ps-group label,
+.ax-pr-group label,
+.ax-tt-group label,
+.ax-tv-group label,
+.ax-ts-group label {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+
+/* Span helpers — add tt/tv/ts */
+.ax-pt-span-2,
+.ax-pv-span-2,
+.ax-ps-span-2,
+.ax-pr-span-2,
+.ax-tt-span-2,
+.ax-tv-span-2,
+.ax-ts-span-2 { grid-column: span 2; }
+
+/* Graph panel — add tt/tv/ts */
+.ax-pt-graph,
+.ax-pv-graph,
+.ax-ps-graph,
+.ax-pr-graph,
+.ax-tt-graph,
+.ax-tv-graph,
+.ax-ts-graph {
+  min-height: 650px;
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  background: #fff;
+  padding: 8px 6px 6px; /* room for Plotly title/subtitle */
+}
+
+/* Responsive collapse — add tt/tv/ts */
+@media (max-width: 1100px) {
+  .ax-pt-controls,
+  .ax-pv-controls,
+  .ax-ps-controls,
+  .ax-pr-controls,
+  .ax-tt-controls,
+  .ax-tv-controls,
+  .ax-ts-controls {
+    grid-template-columns: repeat(3, minmax(140px, 1fr));
+  }
+  .ax-pt-span-2,
+  .ax-pv-span-2,
+  .ax-ps-span-2,
+  .ax-pr-span-2,
+  .ax-tt-span-2,
+  .ax-tv-span-2,
+  .ax-ts-span-2 { grid-column: span 3; }
+}
+@media (max-width: 720px) {
+  .ax-pt-controls,
+  .ax-pv-controls,
+  .ax-ps-controls,
+  .ax-pr-controls,
+  .ax-tt-controls,
+  .ax-tv-controls,
+  .ax-ts-controls { grid-template-columns: 1fr; }
+  .ax-pt-span-2,
+  .ax-pv-span-2,
+  .ax-ps-span-2,
+  .ax-pr-span-2,
+  .ax-tt-span-2,
+  .ax-tv-span-2,
+  .ax-ts-span-2 { grid-column: span 1; }
+}
+
 /* =========================================================
    10) Link variants
    ========================================================= */

@@ -2069,3 +2069,258 @@ async def get_team_scatter_quadrants(
             "median_x": med_x, "median_y": med_y,
         },
     }
+    
+@router.get("/team/rolling_percentiles/{metric}/{top_n}")
+async def get_team_rolling_percentiles(
+    request: Request,
+    metric: str,                              # stat_name in storage (e.g., "rushing_epa", "passing_yards")
+    top_n: int,
+    seasons: List[int] = Query(..., description="Repeatable ?seasons=YYYY"),
+    season_type: str = Query("REG", description="REG | POST | ALL"),
+    stat_type: str = Query("base", description="base | cumulative"),
+    week_start: int = Query(1, ge=1, le=22),
+    week_end: int = Query(18, ge=1, le=22),
+    rolling_window: int = Query(4, ge=1),
+    debug: Optional[bool] = Query(False),
+):
+    """
+    Rolling Form Percentiles — Teams (Sparkline Grid)
+      • Filters team_weekly across seasons × season_type × weeks for a chosen metric
+      • If stat_type='cumulative', computes season-to-date via window SUM on base rows
+      • Selects Top-N teams by pooled total of the effective series (v_eff) over the window
+      • Percentiles are computed per (season, season_type, week) *among those Top-N*
+      • Rolling mean over k within (team, season, season_type) by unified t_idx
+      • Panels ordered by last rolling percentile (desc)
+    """
+    # --- Normalize/validate ---
+    st = _normalize_season_type(season_type)
+    series_mode = _normalize_series_type(stat_type)  # 'base' | 'cumulative'
+    ws, we = _clamp_weeks(week_start, week_end)
+
+    if not seasons:
+        raise HTTPException(status_code=400, detail="Provide at least one ?seasons=YYYY")
+    seasons = sorted({int(s) for s in seasons})
+
+    n = int(top_n)
+    if n < 1 or n > 32:
+        raise HTTPException(status_code=400, detail="top_n must be between 1 and 32")
+
+    k = int(rolling_window)
+    if k < 1:
+        raise HTTPException(status_code=400, detail="rolling_window must be >= 1")
+
+    # --- SQL pipeline (mirrors R semantics) ---
+    # Notes:
+    # - Always reads base rows; computes season-to-date when series_mode='cumulative'
+    # - Top-N by pooled SUM(v_eff) across seasons×weeks×types
+    # - Percentile per (season, season_type, week) among Top-N
+    # - Rolling mean over k within (team, season, season_type), ordered by unified t_idx
+    query = f"""
+    WITH filtered AS (
+        SELECT
+            twt.team,
+            twt.season,
+            twt.season_type,
+            twt.week,
+            twt.stat_name,
+            twt.value AS base_value,
+            CASE
+                WHEN :series_mode = 'cumulative'
+                THEN SUM(COALESCE(twt.value,0)) OVER (
+                        PARTITION BY twt.season, twt.team
+                        ORDER BY twt.week
+                        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                     )
+                ELSE twt.value
+            END AS v_eff,
+            COALESCE(tmt.team_color,  '#888888') AS team_color,
+            COALESCE(tmt.team_color2, '#AAAAAA') AS team_color2
+        FROM public.team_weekly_tbl twt
+        LEFT JOIN public.team_metadata_tbl tmt
+          ON twt.team = tmt.team_abbr
+        WHERE twt.season = ANY(:seasons)
+          AND (:season_type = 'ALL' OR twt.season_type = :season_type)
+          AND twt.stat_name = :metric_name
+          AND twt.stat_type = 'base'      -- read base; 'cumulative' computed above
+          AND twt.week BETWEEN :week_start AND :week_end
+    ),
+    top_teams AS (
+        SELECT team
+        FROM (
+            SELECT team, SUM(COALESCE(v_eff,0)) AS total_value
+            FROM filtered
+            GROUP BY team
+        ) t
+        ORDER BY total_value DESC, team
+        LIMIT :top_n
+    ),
+    plot_rows AS (
+        SELECT f.*
+        FROM filtered f
+        JOIN top_teams tt ON tt.team = f.team
+        WHERE f.v_eff IS NOT NULL
+    ),
+    -- unified time index with REG before POST
+    time_map AS (
+        SELECT season, season_type, week,
+               ROW_NUMBER() OVER (
+                 ORDER BY season, CASE WHEN season_type='REG' THEN 1 ELSE 2 END, week
+               ) AS t_idx
+        FROM (SELECT DISTINCT season, season_type, week FROM plot_rows) u
+    ),
+    base_pct AS (
+        SELECT
+            pr.team, pr.season, pr.season_type, pr.week, pr.v_eff AS value,
+            tm.t_idx,
+            COUNT(*) OVER (PARTITION BY pr.season, pr.season_type, pr.week) AS n_obs,
+            PERCENT_RANK() OVER (
+                PARTITION BY pr.season, pr.season_type, pr.week
+                ORDER BY pr.v_eff
+            ) * 100.0 AS pct_raw,
+            pr.team_color, pr.team_color2
+        FROM plot_rows pr
+        JOIN time_map tm USING (season, season_type, week)
+    ),
+    pct_rows AS (
+        SELECT
+            team, season, season_type, week, t_idx,
+            CASE WHEN n_obs > 1 THEN pct_raw ELSE 50.0 END AS pct,
+            team_color, team_color2
+        FROM base_pct
+    ),
+    roll_rows AS (
+        SELECT
+            p.*,
+            AVG(p.pct) OVER (
+                PARTITION BY p.team, p.season, p.season_type
+                ORDER BY p.t_idx
+                ROWS BETWEEN {k - 1} PRECEDING AND CURRENT ROW
+            ) AS pct_roll
+        FROM pct_rows p
+    ),
+    last_idx AS (
+        SELECT team, MAX(t_idx) AS last_t FROM roll_rows GROUP BY team
+    ),
+    last_vals AS (
+        SELECT r.team, r.pct_roll AS last_pct
+        FROM roll_rows r
+        JOIN last_idx li ON li.team = r.team AND li.last_t = r.t_idx
+    ),
+    dom_color AS (
+        SELECT team, team_color AS team_color_major, team_color2 AS team_color2_major
+        FROM (
+            SELECT
+                team, team_color, team_color2,
+                ROW_NUMBER() OVER (PARTITION BY team ORDER BY COUNT(*) DESC, team_color) AS rn
+            FROM roll_rows
+            GROUP BY team, team_color, team_color2
+        ) z
+        WHERE rn = 1
+    ),
+    ordered_teams AS (
+        SELECT
+            r.team,
+            COALESCE(dc.team_color_major,  '#888888') AS team_color_major,
+            COALESCE(dc.team_color2_major, '#AAAAAA') AS team_color2_major,
+            lv.last_pct,
+            ROW_NUMBER() OVER (ORDER BY lv.last_pct DESC NULLS LAST, r.team) AS team_order
+        FROM (SELECT DISTINCT team FROM roll_rows) r
+        LEFT JOIN dom_color dc USING (team)
+        LEFT JOIN last_vals lv USING (team)
+    )
+    SELECT
+        'SERIES' AS section,
+        rr.team, rr.season, rr.season_type, rr.week,
+        rr.t_idx, rr.pct, rr.pct_roll,
+        ot.team_color_major, ot.team_color2_major,
+        ot.team_order
+    FROM roll_rows rr
+    JOIN ordered_teams ot USING (team)
+    UNION ALL
+    SELECT
+        'TEAMS' AS section,
+        ot.team, NULL::int, NULL::text, NULL::int,
+        NULL::int, NULL::double precision, ot.last_pct,
+        ot.team_color_major, ot.team_color2_major,
+        ot.team_order
+    FROM ordered_teams ot
+    ORDER BY 1, 10, 6 NULLS FIRST;  -- section, team_order, t_idx
+    """
+
+    params = {
+        "seasons": seasons,
+        "season_type": st,
+        "metric_name": metric,
+        "series_mode": series_mode,
+        "week_start": ws,
+        "week_end": we,
+        "top_n": n,
+    }
+
+    async with AsyncSessionLocal() as session:
+        res = await session.execute(text(query), params)
+        rows = [dict(r) for r in res.mappings().all()]
+
+    if not rows:
+        return {
+            "series": [],
+            "teams": [],
+            "meta": {
+                "metric": metric,
+                "metric_label": metric.replace("_", " ").title(),
+                "stat_type": series_mode,
+                "season_type": st,
+                "seasons": seasons,
+                "week_start": ws,
+                "week_end": we,
+                "top_n": n,
+                "rolling_window": k,
+            },
+        }
+
+    # --- Split rows into series / teams and shape payload ---
+    series: list[dict] = []
+    teams: list[dict] = []
+    for r in rows:
+        sect = r.pop("section")
+        if sect == "SERIES":
+            series.append({
+                "team": r["team"],
+                "season": r["season"],
+                "season_type": r["season_type"],
+                "week": r["week"],
+                "t_idx": r["t_idx"],
+                "pct": r["pct"],
+                "pct_roll": r["pct_roll"],
+                "team_color": r["team_color_major"],
+                "team_color2": r["team_color2_major"],
+                "team_order": r["team_order"],
+            })
+        else:  # TEAMS
+            teams.append({
+                "team": r["team"],
+                "team_color": r["team_color_major"],
+                "team_color2": r["team_color2_major"],
+                "last_pct": r["pct_roll"],   # selected as last_pct in SQL
+                "team_order": r["team_order"],
+            })
+
+    payload = {
+        "series": series,
+        "teams": sorted(teams, key=lambda x: x["team_order"]),
+        "meta": {
+            "metric": metric,
+            "metric_label": metric.replace("_", " ").title(),
+            "stat_type": series_mode,
+            "season_type": st,
+            "seasons": seasons,
+            "week_start": ws,
+            "week_end": we,
+            "top_n": n,
+            "rolling_window": k,
+        },
+    }
+    if debug:
+        payload["debug"] = {"sql_k": k, "rowcount": len(rows)}
+    return payload
+
