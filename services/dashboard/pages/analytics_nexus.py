@@ -1,11 +1,14 @@
 import dash
 from dash import html, dcc, callback, Input, Output, State, no_update, ctx
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 from helpers.api_client import (
     fetch_current_season_week,
     fetch_player_trajectories,   # <- new client helper you added earlier
-    fetch_player_violins
+    fetch_player_violins,
+    fetch_player_scatter,
+    fetch_player_rolling_percentiles
 )
 
 # --- Register page ---
@@ -38,6 +41,29 @@ STAT_OPTIONS = [
     {"label": "Receptions", "value": "receptions"},
     {"label": "Fantasy Points PPR", "value": "fantasy_points_ppr"},
 ]
+
+METRIC_OPTIONS = [
+    # Derived rates
+    {"label": "EPA per Dropback",          "value": "passing_epa_per_dropback"},
+    {"label": "ANY/A",                      "value": "passing_anya"},
+    {"label": "EPA per Rush",               "value": "rushing_epa_per_carry"},
+    {"label": "EPA per Target",             "value": "receiving_epa_per_target"},
+    {"label": "Total EPA per Opportunity",  "value": "total_epa_per_opportunity"},
+    {"label": "Yards per Opportunity",      "value": "yards_per_opportunity"},
+    # A few raw examples (works across positions)
+    {"label": "Passing Yards", "value": "passing_yards"},
+    {"label": "Passing TDs", "value": "passing_tds"},
+    {"label": "Passing EPA", "value": "passing_epa"},
+    {"label": "Rushing Yards", "value": "rushing_yards"},
+    {"label": "Rushing TDs", "value": "rushing_tds"},
+    {"label": "Receiving Yards", "value": "receiving_yards"},
+    {"label": "Receiving TDs", "value": "receiving_tds"},
+    {"label": "Attempts", "value": "attempts"},
+    {"label": "Targets", "value": "targets"},
+    {"label": "Receptions", "value": "receptions"},
+    {"label": "Fantasy Points PPR", "value": "fantasy_points_ppr"},
+]
+
 
 SEASON_OPTIONS = [{"label": str(y), "value": y} for y in range(2019, 2026)]
 POSITION_OPTIONS = [
@@ -495,6 +521,352 @@ layout = html.Div(
                                 # ============================
                                 # /Analytics Nexus — Player Consistency / Volatility Violin
                                 # ============================
+                                # ============================
+                                # Analytics Nexus — Player Quadrant Scatter (ax-ps-*)
+                                # ============================
+                                html.Section(
+                                    id="ax-ps-section",
+                                    className="ax-ps-section",
+                                    children=[
+                                        html.H2("Players — Quadrant Scatter", className="ax-ps-title"),
+                                
+                                        # Controls (reuse the light card look)
+                                        html.Div(
+                                            className="ax-pt-controls ax-ps-controls",
+                                            children=[
+                                                html.Div(
+                                                    className="ax-pv-group",
+                                                    children=[
+                                                        html.Label("Seasons (multi)"),
+                                                        dcc.Dropdown(
+                                                            id="ctl-ps-seasons",
+                                                            options=SEASON_OPTIONS,
+                                                            value=[DEFAULT_SEASON],
+                                                            multi=True,
+                                                            clearable=False,
+                                                        ),
+                                                    ],
+                                                ),
+                                                html.Div(
+                                                    className="ax-pv-group",
+                                                    children=[
+                                                        html.Label("Season Type"),
+                                                        dcc.RadioItems(
+                                                            id="ctl-ps-season-type",
+                                                            options=SEASON_TYPE_OPTIONS,
+                                                            value="REG",
+                                                            inline=True,
+                                                            inputClassName="ax-pt-radio-input",
+                                                            labelClassName="ax-pt-radio-label",
+                                                        ),
+                                                    ],
+                                                ),
+                                                html.Div(
+                                                    className="ax-pv-group",
+                                                    children=[
+                                                        html.Label("Position"),
+                                                        dcc.RadioItems(
+                                                            id="ctl-ps-position",
+                                                            options=POSITION_OPTIONS,
+                                                            value="QB",
+                                                            inline=True,
+                                                            inputClassName="ax-pt-radio-input",
+                                                            labelClassName="ax-pt-radio-label",
+                                                        ),
+                                                    ],
+                                                ),
+                                                html.Div(
+                                                    className="ax-pv-group",
+                                                    children=[
+                                                        html.Label("Top N"),
+                                                        dcc.Input(
+                                                            id="ctl-ps-topn",
+                                                            type="number",
+                                                            min=1, max=50, step=1,
+                                                            value=10,
+                                                            className="ax-pt-topn",
+                                                        ),
+                                                    ],
+                                                ),
+                                                html.Div(
+                                                    className="ax-pv-group",
+                                                    children=[
+                                                        html.Label("Metric X"),
+                                                        dcc.Dropdown(
+                                                            id="ctl-ps-metric-x",
+                                                            options=METRIC_OPTIONS,
+                                                            value="attempts",
+                                                            clearable=False,
+                                                        ),
+                                                    ],
+                                                ),
+                                                html.Div(
+                                                    className="ax-pv-group",
+                                                    children=[
+                                                        html.Label("Metric Y"),
+                                                        dcc.Dropdown(
+                                                            id="ctl-ps-metric-y",
+                                                            options=METRIC_OPTIONS,
+                                                            value="passing_epa",
+                                                            clearable=False,
+                                                        ),
+                                                    ],
+                                                ),
+                                                html.Div(
+                                                    className="ax-pv-group ax-pv-span-2",
+                                                    children=[
+                                                        html.Label("Week Range"),
+                                                        dcc.RangeSlider(
+                                                            id="ctl-ps-week-range",
+                                                            min=1, max=22,
+                                                            value=[1, DEFAULT_WEEK_END],
+                                                            allowCross=False, pushable=0,
+                                                            marks={i: str(i) for i in range(1, 23)},
+                                                        ),
+                                                    ],
+                                                ),
+                                                html.Div(
+                                                    className="ax-pv-group",
+                                                    children=[
+                                                        html.Label("Select Top By"),
+                                                        dcc.RadioItems(
+                                                            id="ctl-ps-top-by",
+                                                            options=[
+                                                                {"label": "Combined Gate (x+y)", "value": "combined"},
+                                                                {"label": "X Gate",               "value": "x_gate"},
+                                                                {"label": "Y Gate",               "value": "y_gate"},
+                                                                {"label": "X Value",              "value": "x_value"},
+                                                                {"label": "Y Value",              "value": "y_value"},
+                                                            ],
+                                                            value="combined",
+                                                            inline=True,
+                                                            inputClassName="ax-pt-radio-input",
+                                                            labelClassName="ax-pt-radio-label",
+                                                        ),
+                                                    ],
+                                                ),
+                                                html.Div(
+                                                    className="ax-pv-group",
+                                                    children=[
+                                                        dcc.Checklist(
+                                                            id="ctl-ps-log-x",
+                                                            options=[{"label": "log₁₀ X", "value": "log"}],
+                                                            value=[],
+                                                            inline=True,
+                                                            inputClassName="ax-pt-radio-input",
+                                                            labelClassName="ax-pt-radio-label",
+                                                        ),
+                                                    ],
+                                                ),
+                                                html.Div(
+                                                    className="ax-pv-group",
+                                                    children=[
+                                                        dcc.Checklist(
+                                                            id="ctl-ps-log-y",
+                                                            options=[{"label": "log₁₀ Y", "value": "log"}],
+                                                            value=[],
+                                                            inline=True,
+                                                            inputClassName="ax-pt-radio-input",
+                                                            labelClassName="ax-pt-radio-label",
+                                                        ),
+                                                    ],
+                                                ),
+                                                html.Div(
+                                                    className="ax-pv-group",
+                                                    children=[
+                                                        dcc.Checklist(
+                                                            id="ctl-ps-labels",
+                                                            options=[{"label": "Label all points", "value": "label"}],
+                                                            value=["label"],
+                                                            inline=True,
+                                                            inputClassName="ax-pt-radio-input",
+                                                            labelClassName="ax-pt-radio-label",
+                                                        ),
+                                                    ],
+                                                ),
+                                            ],
+                                        ),
+                                
+                                        # Store + Graph
+                                        dcc.Store(id="store-player-scatter"),
+                                        dcc.Loading(
+                                            type="default",
+                                            children=dcc.Graph(
+                                                id="ax-ps-graph",
+                                                className="ax-ps-graph",
+                                                figure=go.Figure(),
+                                                style={"height": "650px", "width": "100%"},
+                                                config={"displayModeBar": False, "responsive": True},
+                                            ),
+                                        ),
+                                    ],
+                                ),
+                                # ============================
+                                # /Analytics Nexus — Player Quadrant Scatter
+                                # ============================
+                                # ============================
+                                # Analytics Nexus — Player Rolling Percentiles (ax-pr-*)
+                                # ============================
+                                html.Section(
+                                    id="ax-pr-section",
+                                    className="ax-pr-section",
+                                    children=[
+                                        html.H2("Players — Rolling Form Percentiles", className="ax-pr-title"),
+                                
+                                        # Controls (reuse same visual card style)
+                                        html.Div(
+                                            className="ax-pt-controls",
+                                            children=[
+                                                html.Div(
+                                                    className="ax-pt-group",
+                                                    children=[
+                                                        html.Label("Seasons (multi)"),
+                                                        dcc.Dropdown(
+                                                            id="ctl-pr-seasons",
+                                                            options=SEASON_OPTIONS,
+                                                            value=[DEFAULT_SEASON],
+                                                            multi=True,
+                                                            clearable=False,
+                                                        ),
+                                                    ],
+                                                ),
+                                                html.Div(
+                                                    className="ax-pt-group",
+                                                    children=[
+                                                        html.Label("Season Type"),
+                                                        dcc.RadioItems(
+                                                            id="ctl-pr-season-type",
+                                                            options=SEASON_TYPE_OPTIONS,
+                                                            value="REG",
+                                                            inline=True,
+                                                            inputClassName="ax-pt-radio-input",
+                                                            labelClassName="ax-pt-radio-label",
+                                                        ),
+                                                    ],
+                                                ),
+                                                html.Div(
+                                                    className="ax-pt-group",
+                                                    children=[
+                                                        html.Label("Position"),
+                                                        dcc.RadioItems(
+                                                            id="ctl-pr-position",
+                                                            options=POSITION_OPTIONS,
+                                                            value="QB",
+                                                            inline=True,
+                                                            inputClassName="ax-pt-radio-input",
+                                                            labelClassName="ax-pt-radio-label",
+                                                        ),
+                                                    ],
+                                                ),
+                                                html.Div(
+                                                    className="ax-pt-group",
+                                                    children=[
+                                                        html.Label("Metric"),
+                                                        dcc.Dropdown(
+                                                            id="ctl-pr-metric",
+                                                            options=STAT_OPTIONS,
+                                                            value="passing_yards",
+                                                            clearable=False,
+                                                        ),
+                                                    ],
+                                                ),
+                                                html.Div(
+                                                    className="ax-pt-group",
+                                                    children=[
+                                                        html.Label("Top N"),
+                                                        dcc.Input(
+                                                            id="ctl-pr-topn",
+                                                            type="number",
+                                                            min=1, max=32, step=1,
+                                                            value=8,
+                                                            className="ax-pt-topn",
+                                                        ),
+                                                    ],
+                                                ),
+                                                html.Div(
+                                                    className="ax-pt-group ax-pt-span-2",
+                                                    children=[
+                                                        html.Label("Week Range"),
+                                                        dcc.RangeSlider(
+                                                            id="ctl-pr-week-range",
+                                                            min=1, max=22,
+                                                            value=[1, DEFAULT_WEEK_END],
+                                                            allowCross=False, pushable=0,
+                                                            marks={i: str(i) for i in range(1, 23)},
+                                                        ),
+                                                    ],
+                                                ),
+                                                html.Div(
+                                                    className="ax-pt-group",
+                                                    children=[
+                                                        html.Label("Rolling Window (k)"),
+                                                        dcc.Input(
+                                                            id="ctl-pr-roll-k",
+                                                            type="number",
+                                                            min=1, step=1, value=4,
+                                                            className="ax-pt-topn",
+                                                        ),
+                                                    ],
+                                                ),
+                                                html.Div(
+                                                    className="ax-pt-group",
+                                                    children=[
+                                                        dcc.Checklist(
+                                                            id="ctl-pr-show-points",
+                                                            options=[{"label": "Show weekly points", "value": "show"}],
+                                                            value=["show"],   # default ON
+                                                            inline=True,
+                                                            inputClassName="ax-pt-radio-input",
+                                                            labelClassName="ax-pt-radio-label",
+                                                        ),
+                                                    ],
+                                                ),
+                                                html.Div(
+                                                    className="ax-pt-group",
+                                                    children=[
+                                                        dcc.Checklist(
+                                                            id="ctl-pr-label-last",
+                                                            options=[{"label": "Label last value", "value": "label"}],
+                                                            value=["label"],  # default ON
+                                                            inline=True,
+                                                            inputClassName="ax-pt-radio-input",
+                                                            labelClassName="ax-pt-radio-label",
+                                                        ),
+                                                    ],
+                                                ),
+                                                html.Div(
+                                                    className="ax-pt-group",
+                                                    children=[
+                                                        html.Label("Panels per row"),
+                                                        dcc.Input(
+                                                            id="ctl-pr-ncol",
+                                                            type="number",
+                                                            min=1, max=6, step=1,
+                                                            value=4,
+                                                            className="ax-pt-topn",
+                                                        ),
+                                                    ],
+                                                ),
+                                            ],
+                                        ),
+                                
+                                        # Store + Graph
+                                        dcc.Store(id="store-player-rolling"),
+                                        dcc.Loading(
+                                            type="default",
+                                            children=dcc.Graph(
+                                                id="ax-pr-graph",
+                                                className="ax-pt-graph",
+                                                figure=go.Figure(),
+                                                style={"height": "650px", "width": "100%"},
+                                                config={"displayModeBar": False, "responsive": True},
+                                            ),
+                                        ),
+                                    ],
+                                ),
+                                # ============================
+                                # /Analytics Nexus — Player Rolling Percentiles
+                                # ============================
                             ],
                         )
                     ],
@@ -680,7 +1052,7 @@ def render_ax_pt_figure(rows, stat_name, position, season_val, season_type, rank
             annotations=[
                 dict(
                     text=f"No data for {position} • {stat_label} • {season_val} {season_type}<br>"
-                         f"{series_label} • Ranke By={rankby}{floor_label}",
+                         f"{series_label} • Rank By={rankby}{floor_label}",
                     x=0.5, y=0.5, xref="paper", yref="paper",
                     showarrow=False, font=dict(size=16, color="#444"),
                 )
@@ -989,25 +1361,430 @@ def render_ax_pv_figure(payload, show_points_vals, stat_name):
 @callback(
     Output("ax-pt-section", "style"),
     Output("ax-pv-section", "style"),
+    Output("ax-ps-section", "style"),
+    Output("ax-pr-section", "style"),
     Input("selected-plot", "data"),
 )
 def toggle_sections(selected):
     if selected == "nav-player-violin":
-        return {"display": "none"}, {"display": "block"}
+        return {"display": "none"}, {"display": "block"}, {"display": "none"}, {"display": "none"}
+    if selected == "nav-player-scatter":
+        return {"display": "none"}, {"display": "none"}, {"display": "block"}, {"display": "none"}
+    if selected == "nav-player-percentiles":
+        return {"display": "none"}, {"display": "none"}, {"display": "none"}, {"display": "block"}
     # default: trajectories visible
-    return {"display": "block"}, {"display": "none"}
+    return {"display": "block"}, {"display": "none"}, {"display": "none"}, {"display": "none"}
 
 @callback(
     Output("selected-plot", "data"),
     Input("nav-player-trajectories", "n_clicks"),
     Input("nav-player-violin", "n_clicks"),
+    Input("nav-player-scatter", "n_clicks"),
+    Input("nav-player-percentiles", "n_clicks"),
     prevent_initial_call=True,
 )
-def set_selected_plot(n_pt, n_pv):
+def set_selected_plot(n_pt, n_pv, n_ps, n_pr):
     if not ctx.triggered_id:
         return no_update
     if ctx.triggered_id == "nav-player-trajectories":
         return "nav-player-trajectories"
     if ctx.triggered_id == "nav-player-violin":
         return "nav-player-violin"
+    if ctx.triggered_id == "nav-player-scatter":
+        return "nav-player-scatter"
+    if ctx.triggered_id == "nav-player-percentiles":
+        return "nav-player-percentiles"
     return no_update
+  
+# ============================
+# Callbacks — Analytics Nexus: Player scatter plot
+# ============================
+  
+@callback(
+  Output("store-player-scatter", "data"),
+  Input("selected-plot", "data"),
+  Input("ctl-ps-seasons", "value"),
+  Input("ctl-ps-season-type", "value"),
+  Input("ctl-ps-position", "value"),
+  Input("ctl-ps-topn", "value"),
+  Input("ctl-ps-metric-x", "value"),
+  Input("ctl-ps-metric-y", "value"),
+  Input("ctl-ps-week-range", "value"),
+  Input("ctl-ps-top-by", "value"),
+  Input("ctl-ps-log-x", "value"),
+  Input("ctl-ps-log-y", "value"),
+  Input("ctl-ps-labels", "value"),
+  prevent_initial_call=False,
+)
+def fetch_ax_ps_data(selected_plot, seasons, season_type, position, topn, metric_x, metric_y,
+                     week_range, top_by, log_x_vals, log_y_vals, label_vals):
+    if selected_plot != "nav-player-scatter":
+        return no_update
+
+    if not all([seasons, season_type, position, topn, metric_x, metric_y, week_range, top_by]):
+        return {}
+
+    week_start, week_end = int(week_range[0]), int(week_range[1])
+    if week_end < week_start or int(topn) < 1:
+        return {}
+
+    log_x = isinstance(log_x_vals, list) and ("log" in log_x_vals)
+    log_y = isinstance(log_y_vals, list) and ("log" in log_y_vals)
+    label_all = isinstance(label_vals, list) and ("label" in label_vals)
+
+    payload = fetch_player_scatter(
+        seasons=seasons,
+        season_type=str(season_type),
+        position=str(position),
+        metric_x=str(metric_x),
+        metric_y=str(metric_y),
+        top_n=int(topn),
+        week_start=week_start,
+        week_end=week_end,
+        stat_type="base",
+        top_by=str(top_by),
+        log_x=log_x,
+        log_y=log_y,
+        label_all_points=label_all,
+        timeout=6,
+        debug=True,
+    )
+    return payload or {}
+
+@callback(
+    Output("ax-ps-graph", "figure"),
+    Input("store-player-scatter", "data"),
+)
+def render_ax_ps_figure(payload):
+    fig = go.Figure()
+
+    if not payload or not isinstance(payload, dict):
+        # Empty-state
+        fig.update_layout(
+            template="plotly_white",
+            paper_bgcolor="white",
+            plot_bgcolor="white",
+            xaxis=dict(visible=False),
+            yaxis=dict(visible=False),
+            annotations=[dict(
+                text="No data to plot<br>Check filters.",
+                x=0.5, y=0.5, xref="paper", yref="paper",
+                showarrow=False, font=dict(size=16, color="#444"),
+            )],
+            margin=dict(l=40, r=20, t=80, b=40),
+            autosize=True,
+        )
+        return fig
+
+    pts  = payload.get("points", []) or []
+    meta = payload.get("meta", {}) or {}
+
+    if not pts:
+        return fig
+
+    # Build arrays directly from payload points
+    xs      = [p.get("x", p.get("x_value")) for p in pts]
+    ys      = [p.get("y", p.get("y_value")) for p in pts]
+    names   = [p.get("name","") for p in pts]
+    fills   = [p.get("team_color2") or "#AAAAAA" for p in pts]  # fill
+    strokes = [p.get("team_color")  or "#333333"  for p in pts]  # outline
+
+    def _pretty(s):
+        return str(s).replace("_", " ").title() if s else None
+
+    metric_x_id = meta.get("metric_x")
+    metric_y_id = meta.get("metric_y")
+
+    x_label = (
+        meta.get("metric_x_label")
+        or meta.get("x_label")
+        or _pretty(metric_x_id)
+        or "X"
+    )
+    y_label = (
+        meta.get("metric_y_label")
+        or meta.get("y_label")
+        or _pretty(metric_y_id)
+        or "Y"
+    )
+
+    # Median guides (handle either key name)
+    mx = meta.get("median_x", meta.get("med_x"))
+    my = meta.get("median_y", meta.get("med_y"))
+    if mx is not None:
+        fig.add_vline(x=mx, line_width=1, line_dash="dash", line_color="grey")
+    if my is not None:
+        fig.add_hline(y=my, line_width=1, line_dash="dash", line_color="grey")
+
+    # Equal aspect (square units)
+    fig.update_yaxes(scaleanchor="x", scaleratio=1)
+
+    # Main scatter points (fill=team_color2, outline=team_color)
+    fig.add_trace(
+        go.Scatter(
+            x=xs, y=ys,
+            mode="markers+text",
+            text=names,                   # always-on labels
+            texttemplate="%{text}",
+            textposition="top center",
+            textfont=dict(size=12),
+            cliponaxis=False,             # allow labels to breathe
+            marker=dict(
+                size=16,
+                color=fills,              # per-point fill (team_color2)
+                line=dict(color=strokes, width=0.8)  # per-point outline (team_color)
+            ),
+            hovertemplate=(
+                "<b>%{text}</b><br>"
+                f"{x_label}: %{{x}}<br>"
+                f"{y_label}: %{{y}}<extra></extra>"
+            ),
+            showlegend=False,
+        )
+    )
+
+    # Log toggles (router pre-filters nonpositive)
+    if meta.get("log_x"):
+        fig.update_xaxes(type="log")
+    if meta.get("log_y"):
+        fig.update_yaxes(type="log")
+
+    # Title + subtitle
+    title = f"{x_label} vs {y_label}"
+    seasons = meta.get("seasons", [])
+    if seasons:
+        s_sorted = sorted(seasons)
+        season_text = f"{s_sorted[0]}–{s_sorted[-1]}" if (max(s_sorted)-min(s_sorted)+1)==len(s_sorted) else ", ".join(map(str, s_sorted))
+    else:
+        season_text = ""
+    type_text = "REG+POST" if meta.get("season_type") == "ALL" else meta.get("season_type", "REG")
+    week_text = f"Weeks {meta.get('week_start',1)}–{meta.get('week_end',18)}"
+    subtitle = (
+        f"{meta.get('position','')} • {season_text} ({type_text}) • "
+        f"{week_text} • Top {meta.get('top_n',0)} by {meta.get('top_by','combined')} • Medians shown"
+    )
+
+    fig.update_layout(
+        template="plotly_white",
+        paper_bgcolor="white",
+        plot_bgcolor="white",
+        title=dict(
+            text=f"{title}<br><span style='font-size:0.8em;color:#444'>{subtitle}</span>",
+            x=0.02, y=0.98, xanchor="left", yanchor="top",
+        ),
+        xaxis=dict(
+            title_text=x_label,
+            gridcolor="rgba(0,0,0,0.08)",
+            zeroline=False,
+        ),
+        yaxis=dict(
+            title_text=y_label,
+            gridcolor="rgba(0,0,0,0.08)",
+            zeroline=False,
+        ),
+        margin=dict(l=60, r=20, t=120, b=64),
+        autosize=True,
+        showlegend=False,
+    )
+
+    # Belt-and-suspenders (force titles in case template overrides)
+    fig.update_xaxes(title=x_label)
+    fig.update_yaxes(title=y_label)
+
+    return fig
+
+# ============================
+# Callbacks — Analytics Nexus: Player Rolling Percentiles
+# ============================
+
+@callback(
+    Output("store-player-rolling", "data"),
+    Input("selected-plot", "data"),
+    Input("ctl-pr-seasons", "value"),
+    Input("ctl-pr-season-type", "value"),
+    Input("ctl-pr-position", "value"),
+    Input("ctl-pr-topn", "value"),
+    Input("ctl-pr-metric", "value"),
+    Input("ctl-pr-week-range", "value"),
+    Input("ctl-pr-roll-k", "value"),
+    prevent_initial_call=False,
+)
+def fetch_ax_pr_data(selected_plot, seasons, season_type, position, topn, metric, week_range, roll_k):
+    # only run on the Rolling Percentiles tab
+    if selected_plot != "nav-player-percentiles":
+        return no_update
+
+    if not all([seasons, season_type, position, topn, metric, week_range, roll_k]):
+        return {"series": [], "players": [], "meta": {}}
+
+    week_start, week_end = int(week_range[0]), int(week_range[1])
+    if week_end < week_start or int(topn) < 1 or int(roll_k) < 1:
+        return {"series": [], "players": [], "meta": {}}
+
+    payload = fetch_player_rolling_percentiles(
+        seasons=seasons,
+        season_type=str(season_type),
+        position=str(position),
+        metric=str(metric),
+        top_n=int(topn),
+        week_start=week_start,
+        week_end=week_end,
+        stat_type="base",
+        rolling_window=int(roll_k),
+        timeout=8,
+        debug=True,
+    )
+    return payload or {"series": [], "players": [], "meta": {}}
+
+
+@callback(
+    Output("ax-pr-graph", "figure"),
+    Input("store-player-rolling", "data"),
+    State("ctl-pr-show-points", "value"),
+    State("ctl-pr-label-last", "value"),
+    State("ctl-pr-ncol", "value"),
+)
+def render_ax_pr_figure(payload, show_points_vals, label_last_vals, ncol_val):
+    # always initialize a figure
+    fig = go.Figure()
+    
+    import json
+
+    # After fetching payload
+    payload_str = json.dumps(payload, indent=2)[:300] 
+
+    # hard title so you can verify callback fires
+    fig.update_layout(
+        template="plotly_white",
+        paper_bgcolor="white",
+        plot_bgcolor="white",
+        title=dict(
+        text=f"<span style='font-size:0.7em;color:#444'>{payload_str}</span>",
+            x=0.02, y=0.98, xanchor="left", yanchor="top",
+        ),
+        margin=dict(l=40, r=20, t=120, b=40),
+        showlegend=False,
+    )
+
+    if not payload or not isinstance(payload, dict):
+        return fig
+
+    series = payload.get("series") or []
+    players = payload.get("players") or []
+    meta = payload.get("meta") or {}
+
+    # we can render from SERIES alone
+    if not series:
+        return fig
+
+    # build per-player series (use keys returned by the router)
+    by_player = {}
+    order_hint = {}
+
+    for r in series:
+        pid = r.get("player_id")
+        if not pid:
+            continue
+        t = r.get("t_idx")
+        y = r.get("pct_roll")
+        if t is None or y is None:
+            continue
+
+        s = by_player.setdefault(pid, {
+            "t": [], "y": [],
+            "name": r.get("name", ""),
+            "line": r.get("team_color", "#888"),
+            "fill": r.get("team_color2", "#AAA"),
+        })
+        # coerce types
+        try:
+            s["t"].append(int(t))
+        except Exception:
+            continue
+        try:
+            s["y"].append(float(y))
+        except Exception:
+            s["y"].append(None)
+
+        po = r.get("player_order")
+        if po is not None:
+            order_hint[pid] = min(order_hint.get(pid, po), po)
+
+    if not by_player:
+        return fig
+
+    # prefer PLAYERS order; fallback to order_hint
+    pids_from_players = [p.get("player_id") for p in players if p.get("player_id")]
+    names_lookup = {p.get("player_id"): p.get("name", "") for p in players if p.get("player_id")}
+
+    pids = [pid for pid in pids_from_players if pid in by_player and by_player[pid]["t"]]
+    if not pids:
+        pids = sorted(by_player.keys(), key=lambda k: (order_hint.get(k, 10**9), k))
+
+    names = [names_lookup.get(pid, by_player[pid]["name"]) for pid in pids]
+
+    # grid layout
+    ncol = max(1, min(6, int(ncol_val or 4)))
+    n = len(pids)
+    rows = (n + ncol - 1) // ncol
+    titles = names + [""] * (rows * ncol - len(names))
+
+    fig = make_subplots(
+        rows=rows, cols=ncol,
+        subplot_titles=tuple(titles),
+        horizontal_spacing=0.05, vertical_spacing=0.1,
+    )
+
+    show_points = isinstance(show_points_vals, list) and ("show" in show_points_vals)
+    label_last  = isinstance(label_last_vals, list)  and ("label" in label_last_vals)
+
+    for i, pid in enumerate(pids):
+        r_i = (i // ncol) + 1
+        c_i = (i % ncol) + 1
+        s = by_player[pid]
+        pts = sorted((tt, yy) for tt, yy in zip(s["t"], s["y"]) if tt is not None and yy is not None)
+        if not pts:
+            continue
+        xs = [a for a, _ in pts]
+        ys = [b for _, b in pts]
+
+        fig.add_trace(
+            go.Scatter(
+                x=xs, y=ys,
+                mode="lines" + ("+markers" if show_points else ""),
+                line=dict(color=s["line"], width=2),
+                marker=(dict(size=6, color=s["fill"], line=dict(color="black", width=0.5)) if show_points else None),
+                hovertemplate="<b>%{y:.0f}</b><extra></extra>",
+                showlegend=False,
+            ),
+            row=r_i, col=c_i
+        )
+
+        if label_last:
+            fig.add_trace(
+                go.Scatter(
+                    x=[xs[-1]], y=[ys[-1]],
+                    mode="text", text=[f"{ys[-1]:.0f}"],
+                    textposition="middle right",
+                    textfont=dict(size=11),
+                    cliponaxis=False, showlegend=False, hoverinfo="skip",
+                ),
+                row=r_i, col=c_i
+            )
+
+        fig.update_xaxes(range=[min(xs)-0.5, max(xs)+0.5], tickmode="linear", dtick=1,
+                         showticklabels=False, row=r_i, col=c_i)
+        fig.update_yaxes(range=[0, 100], tickvals=[0,25,50,75,100], row=r_i, col=c_i)
+
+    # final layout + height scaling
+    fig.update_layout(
+        template="plotly_white",
+        paper_bgcolor="white",
+        plot_bgcolor="white",
+        title=dict(text="HELP ME", x=0.02, y=0.98, xanchor="left", yanchor="top"),
+        margin=dict(l=40, r=20, t=120, b=40),
+        showlegend=False,
+        height=max(400, 260 * rows),
+    )
+    fig.update_yaxes(title_text="Percentile (within position, weekly)", row=1, col=1)
+    return fig

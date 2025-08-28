@@ -657,3 +657,636 @@ async def get_player_violins(
         },
     }
     return payload
+  
+  # ===== Quadrant Scatter helpers =====
+
+ALLOWED_TOP_BY = {"combined", "x_gate", "y_gate", "x_value", "y_value"}
+
+def _normalize_bool(v: Optional[str | bool]) -> bool:
+    if isinstance(v, bool):
+        return v
+    if v is None:
+        return False
+    s = str(v).strip().lower()
+    return s in {"1", "true", "t", "yes", "y", "on"}
+
+def _normalize_top_by(top_by: str) -> str:
+    tb = (top_by or "combined").strip().lower()
+    if tb not in ALLOWED_TOP_BY:
+        raise HTTPException(status_code=400, detail=f"top_by must be one of {sorted(ALLOWED_TOP_BY)}")
+    return tb
+
+# metrics: return label and list of required stats; SQL exprs refer to aggregated columns
+def _metric_plan(metric: str, position: str) -> dict:
+    m = (metric or "").strip()
+    qb = (position.upper() == "QB")
+
+    # derived metrics
+    derived = {
+        "passing_epa_per_dropback": dict(
+            label="EPA per Dropback",
+            required=["attempts", "sacks", "passing_epa"],
+            value="CASE WHEN COALESCE(attempts,0)+COALESCE(sacks,0) > 0 "
+                  "THEN COALESCE(passing_epa,0)::double precision / (COALESCE(attempts,0)+COALESCE(sacks,0)) "
+                  "ELSE NULL END",
+            gate="COALESCE(passing_epa,0)"
+        ),
+        "passing_anya": dict(
+            label="ANY/A",
+            required=["attempts", "sacks", "sack_yards", "passing_yards", "passing_tds", "interceptions"],
+            value="CASE WHEN COALESCE(attempts,0)+COALESCE(sacks,0) > 0 "
+                  "THEN (COALESCE(passing_yards,0) + 20*COALESCE(passing_tds,0) "
+                  "- 45*COALESCE(interceptions,0) - COALESCE(sack_yards,0))::double precision "
+                  "/ (COALESCE(attempts,0)+COALESCE(sacks,0)) "
+                  "ELSE NULL END",
+            gate="COALESCE(passing_yards,0)"
+        ),
+        "rushing_epa_per_carry": dict(
+            label="EPA per Rush",
+            required=["carries","rushing_epa"],
+            value="CASE WHEN COALESCE(carries,0) > 0 "
+                  "THEN COALESCE(rushing_epa,0)::double precision / COALESCE(carries,0) "
+                  "ELSE NULL END",
+            gate="COALESCE(rushing_epa,0)"
+        ),
+        "receiving_epa_per_target": dict(
+            label="EPA per Target",
+            required=["targets","receiving_epa"],
+            value="CASE WHEN COALESCE(targets,0) > 0 "
+                  "THEN COALESCE(receiving_epa,0)::double precision / COALESCE(targets,0) "
+                  "ELSE NULL END",
+            gate="COALESCE(receiving_epa,0)"
+        ),
+        "total_epa_per_opportunity": dict(
+            label="Total EPA per Opportunity",
+            required=["attempts","sacks","carries","targets","passing_epa","rushing_epa","receiving_epa"],
+            value=("CASE WHEN "
+                   f"{'(COALESCE(attempts,0)+COALESCE(sacks,0))+COALESCE(carries,0)' if qb else '(COALESCE(targets,0)+COALESCE(carries,0))'} > 0 "
+                   "THEN "
+                   f"{'(COALESCE(passing_epa,0)+COALESCE(rushing_epa,0))' if qb else '(COALESCE(receiving_epa,0)+COALESCE(rushing_epa,0))'}"
+                   "::double precision / "
+                   f"{'(COALESCE(attempts,0)+COALESCE(sacks,0))+COALESCE(carries,0)' if qb else '(COALESCE(targets,0)+COALESCE(carries,0))'} "
+                   "ELSE NULL END"),
+            gate=(f"(COALESCE(passing_epa,0)+COALESCE(rushing_epa,0))" if qb
+                  else "(COALESCE(receiving_epa,0)+COALESCE(rushing_epa,0))")
+        ),
+        "yards_per_opportunity": dict(
+            label="Yards per Opportunity",
+            required=["attempts","sacks","carries","targets","passing_yards","rushing_yards","receiving_yards"],
+            value=("CASE WHEN "
+                   f"{'(COALESCE(attempts,0)+COALESCE(sacks,0))+COALESCE(carries,0)' if qb else '(COALESCE(targets,0)+COALESCE(carries,0))'} > 0 "
+                   "THEN "
+                   f"{'(COALESCE(passing_yards,0)+COALESCE(rushing_yards,0))' if qb else '(COALESCE(receiving_yards,0)+COALESCE(rushing_yards,0))'}"
+                   "::double precision / "
+                   f"{'(COALESCE(attempts,0)+COALESCE(sacks,0))+COALESCE(carries,0)' if qb else '(COALESCE(targets,0)+COALESCE(carries,0))'} "
+                   "ELSE NULL END"),
+            gate=(f"(COALESCE(passing_yards,0)+COALESCE(rushing_yards,0))" if qb
+                  else "(COALESCE(receiving_yards,0)+COALESCE(rushing_yards,0))")
+        ),
+    }
+
+    if m in derived:
+        return derived[m]
+
+    # raw sum fallback
+    nice = m.replace("_", " ").title()
+    ident = m  # stat column name
+    return dict(
+        label=nice,
+        required=[ident],
+        value=f"COALESCE({ident},0)::double precision",
+        gate=f"ABS(COALESCE({ident},0))"
+    )
+
+def _split_mv_raw_seasons(seasons: list[int]) -> tuple[list[int], list[int]]:
+    mv = [s for s in seasons if 2019 <= s <= 2025]
+    raw = [s for s in seasons if s < 2019 or s > 2025]
+    return mv, raw
+
+# ===== Quadrant Scatter endpoint =====
+
+from fastapi import Query, Request
+
+@router.get("/player/scatter/{metric_x}/{metric_y}/{position}/{top_n}")
+async def get_player_scatter_quadrants(
+    request: Request,
+    metric_x: str,
+    metric_y: str,
+    position: str,
+    top_n: int,
+    season_type: str = Query("REG", description="REG | POST | ALL"),
+    week_start: int = Query(1, ge=1, le=22),
+    week_end: int = Query(18, ge=1, le=22),
+    stat_type: str = Query("base", description="Use 'base' (weekly) values only"),
+    top_by: str = Query("combined", description="combined | x_gate | y_gate | x_value | y_value"),
+    log_x: bool | str = Query(False),
+    log_y: bool | str = Query(False),
+    label_all_points: bool | str = Query(True),
+    debug: bool = Query(False),
+):
+    """
+    Player Quadrant Scatter:
+      - Multi-season window (?seasons=YYYY[,YYYY] or repeatable)
+      - Aggregates weekly *base* values, computes derived/raw metrics for X/Y
+      - Top-N selection by `top_by` (combined gate, gates, or values)
+      - Optional log filters drop non-positive values pre-selection
+      - Returns points + medians and labels in meta
+    """
+    pos = _normalize_position(position)
+    st = _normalize_season_type(season_type)
+    ws, we = _clamp_weeks(week_start, week_end)
+    series_type = _normalize_series_type(stat_type)  # enforce 'base'
+    if series_type != "base":
+        raise HTTPException(status_code=400, detail="stat_type must be 'base' for scatter metrics")
+    tb = _normalize_top_by(top_by)
+    lx = _normalize_bool(log_x)
+    ly = _normalize_bool(log_y)
+    lap = _normalize_bool(label_all_points)  # surfaced in meta; labels are a frontend concern
+
+    # seasons
+    seasons = _parse_seasons_from_request(request)
+    mv_seasons, raw_seasons = _split_mv_raw_seasons(seasons)
+
+    # metric plans
+    plan_x = _metric_plan(metric_x, pos)
+    plan_y = _metric_plan(metric_y, pos)
+    label_x, label_y = plan_x["label"], plan_y["label"]
+    required_stats = sorted(set(plan_x["required"] + plan_y["required"]))
+
+    if top_n < 1 or top_n > 100:
+        raise HTTPException(status_code=400, detail="top_n must be between 1 and 100")
+
+    # Build filtered UNION with stat_name in required set
+    filtered_parts = []
+    params: dict = {
+        "season_type": st,
+        "position": pos,
+        "stat_type": "base",
+        "week_start": ws,
+        "week_end": we,
+        "top_n": int(top_n),
+        "required_stats": required_stats,
+        "top_by": tb,
+        "log_x": lx,
+        "log_y": ly,
+    }
+
+    if mv_seasons:
+        params["seasons_mv"] = mv_seasons
+        filtered_parts.append(f"""
+            SELECT
+              player_id, name, team, season, season_type, week, position,
+              stat_name, value, team_color, team_color2
+            FROM {MV_MAP[pos]}
+            WHERE season = ANY(:seasons_mv)
+              AND (:season_type = 'ALL' OR season_type = :season_type)
+              AND stat_type = :stat_type
+              AND position = :position
+              AND week BETWEEN :week_start AND :week_end
+              AND stat_name = ANY(:required_stats)
+        """)
+
+    if raw_seasons:
+        params["seasons_raw"] = raw_seasons
+        filtered_parts.append("""
+            SELECT
+              pwt.player_id, pwt.name, pwt.team, pwt.season, pwt.season_type, pwt.week, pwt.position,
+              pwt.stat_name, pwt.value, tmt.team_color, tmt.team_color2
+            FROM public.player_weekly_tbl pwt
+            LEFT JOIN public.team_metadata_tbl tmt
+              ON pwt.team = tmt.team_abbr
+            WHERE pwt.season = ANY(:seasons_raw)
+              AND (:season_type = 'ALL' OR pwt.season_type = :season_type)
+              AND pwt.stat_type = :stat_type
+              AND pwt.position = :position
+              AND pwt.week BETWEEN :week_start AND :week_end
+              AND pwt.stat_name = ANY(:required_stats)
+        """)
+
+    if not filtered_parts:
+        return {
+            "points": [],
+            "meta": {
+                "position": pos, "metric_x": metric_x, "metric_y": metric_y,
+                "label_x": label_x, "label_y": label_y,
+                "seasons": seasons, "season_type": st,
+                "week_start": ws, "week_end": we,
+                "stat_type": "base",
+                "top_by": tb, "top_n": top_n,
+                "log_x": lx, "log_y": ly,
+                "label_all_points": lap,
+                "median_x": None, "median_y": None,
+            },
+        }
+
+    filtered_sql = " UNION ALL ".join(filtered_parts)
+
+    # Build dynamic per-stat SUM(...) FILTER columns safely via bound params
+    # e.g., SUM(value) FILTER (WHERE stat_name = :stat_0) AS attempts
+    stat_sums = []
+    for i, stat in enumerate(required_stats):
+        key = f"stat_{i}"
+        params[key] = stat
+        # alias = stat identifier (snake_case)
+        stat_sums.append(f"SUM(value) FILTER (WHERE stat_name = :{key}) AS {stat}")
+
+    sums_sql = ",\n              ".join(stat_sums)
+
+    # SQL: aggregate -> compute metric values -> apply logs -> rank/select -> medians
+    query = f"""
+    WITH filtered AS (
+        {filtered_sql}
+    ),
+    wide AS (
+        SELECT
+          player_id,
+          MAX(name) AS name,
+          team,
+          COALESCE(MAX(team_color), '#888888')    AS team_color,
+          COALESCE(MAX(team_color2), '#AAAAAA')   AS team_color2,
+          {sums_sql}
+        FROM filtered
+        GROUP BY player_id, team
+    ),
+    metrics AS (
+        SELECT
+          player_id, name, team, team_color, team_color2,
+          {plan_x["value"]} AS x_value,
+          {plan_x["gate"]}  AS gate_x,
+          {plan_y["value"]} AS y_value,
+          {plan_y["gate"]}  AS gate_y
+        FROM wide
+    ),
+    filtered_metrics AS (
+        SELECT *
+        FROM metrics
+        WHERE x_value IS NOT NULL AND y_value IS NOT NULL
+          { "AND x_value > 0" if lx else "" }
+          { "AND y_value > 0" if ly else "" }
+    ),
+    ranked AS (
+        SELECT
+          *,
+          (COALESCE(gate_x,0) + COALESCE(gate_y,0)) AS gate_total,
+          CASE
+            WHEN :top_by = 'combined' THEN (COALESCE(gate_x,0) + COALESCE(gate_y,0))
+            WHEN :top_by = 'x_gate'   THEN COALESCE(gate_x,0)
+            WHEN :top_by = 'y_gate'   THEN COALESCE(gate_y,0)
+            WHEN :top_by = 'x_value'  THEN COALESCE(x_value,0)
+            ELSE COALESCE(y_value,0)
+          END AS rank_key
+        FROM filtered_metrics
+    ),
+    topn AS (
+        SELECT *
+        FROM ranked
+        ORDER BY rank_key DESC, gate_total DESC, (COALESCE(x_value,0)+COALESCE(y_value,0)) DESC, name
+        LIMIT :top_n
+    ),
+    medians AS (
+        SELECT
+          percentile_cont(0.5) WITHIN GROUP (ORDER BY x_value) AS med_x,
+          percentile_cont(0.5) WITHIN GROUP (ORDER BY y_value) AS med_y
+        FROM topn
+    )
+    SELECT
+      'POINT' AS section,
+      t.player_id, t.name, t.team, t.team_color, t.team_color2,
+      t.x_value, t.y_value,
+      m.med_x, m.med_y
+    FROM topn t
+    CROSS JOIN medians m
+    ORDER BY t.rank_key DESC, t.gate_total DESC, (COALESCE(t.x_value,0)+COALESCE(t.y_value,0)) DESC, t.name;
+    """
+
+    async with AsyncSessionLocal() as session:
+        res = await session.execute(text(query), params)
+        rows = [dict(r) for r in res.mappings().all()]
+
+    if not rows:
+        return {
+            "points": [],
+            "meta": {
+                "position": pos,
+                "metric_x": metric_x, "metric_y": metric_y,
+                "label_x": label_x, "label_y": label_y,
+                "seasons": seasons, "season_type": st,
+                "week_start": ws, "week_end": we,
+                "stat_type": "base",
+                "top_by": tb, "top_n": top_n,
+                "log_x": lx, "log_y": ly,
+                "label_all_points": lap,
+                "median_x": None, "median_y": None,
+            },
+        }
+
+    # Build payload
+    med_x = rows[0].get("med_x")
+    med_y = rows[0].get("med_y")
+    points = [
+        {
+            "player_id": r["player_id"],
+            "name": r["name"],
+            "team": r["team"],
+            "team_color": r["team_color"],
+            "team_color2": r["team_color2"],
+            "x_value": r["x_value"],
+            "y_value": r["y_value"],
+        }
+        for r in rows
+    ]
+
+    return {
+        "points": points,
+        "meta": {
+            "position": pos,
+            "metric_x": metric_x, "metric_y": metric_y,
+            "label_x": label_x, "label_y": label_y,
+            "seasons": seasons, "season_type": st,
+            "week_start": ws, "week_end": we,
+            "stat_type": "base",
+            "top_by": tb, "top_n": top_n,
+            "log_x": lx, "log_y": ly,
+            "label_all_points": lap,
+            "median_x": med_x, "median_y": med_y,
+        },
+    }
+
+@router.get("/player/rolling_percentiles/{metric}/{position}/{top_n}")
+async def get_player_rolling_percentiles(
+    request: Request,
+    metric: str,                            # matches {metric} in the path
+    position: str,
+    top_n: int,
+    seasons: Optional[List[int]] = Query(None),   # <-- accept seasons here
+    season_type: str = Query("REG", description="REG | POST | ALL"),
+    stat_type: str = Query("base", description="base | cumulative"),
+    week_start: int = Query(1, ge=1, le=22),
+    week_end: int = Query(18, ge=1, le=22),
+    rolling_window: int = Query(4, ge=1),
+    debug: Optional[bool] = Query(False),
+):
+    """
+    Rolling Form Percentiles for Top-N players over a pooled multi-season window.
+    Matches the R implementation:
+      - Top-N players by SUM(value) of the chosen metric across the window.
+      - Percentiles computed per (season, season_type, week) *among those Top-N*.
+      - Rolling mean over 'rolling_window' within (player, season, season_type).
+      - Player panels ordered by last rolling percentile (desc).
+    """
+    pos = _normalize_position(position)
+    stype = _normalize_series_type(stat_type)
+    st = _normalize_season_type(season_type)
+    ws, we = _clamp_weeks(week_start, week_end)
+
+    top_n = int(top_n)
+    if top_n < 1 or top_n > 48:
+        raise HTTPException(status_code=400, detail="top_n must be between 1 and 48")
+
+    if not seasons:
+      raise HTTPException(status_code=400, detail="Query param 'seasons' is required")
+    mv_seasons, raw_seasons = _split_mv_raw_seasons(seasons)
+
+    # Build filtered UNION like other endpoints (only the chosen metric)
+    filtered_parts = []
+    params = {
+        "season_type": st,
+        "metric_name": metric,
+        "stat_type": stype,
+        "position": pos,
+        "week_start": ws,
+        "week_end": we,
+        "top_n": top_n,
+        "k": int(rolling_window),
+    }
+
+    if mv_seasons:
+        params["seasons_mv"] = mv_seasons
+        filtered_parts.append(f"""
+            SELECT
+                player_id, name, team, season, season_type, week, position,
+                stat_name, stat_type, value, team_color, team_color2
+            FROM {MV_MAP[pos]}
+            WHERE season = ANY(:seasons_mv)
+              AND (:season_type = 'ALL' OR season_type = :season_type)
+              AND stat_name = :metric_name
+              AND stat_type = :stat_type
+              AND position = :position
+              AND week BETWEEN :week_start AND :week_end
+        """)
+
+    if raw_seasons:
+        params["seasons_raw"] = raw_seasons
+        filtered_parts.append("""
+            SELECT
+                pwt.player_id, pwt.name, pwt.team, pwt.season, pwt.season_type, pwt.week,
+                pwt.position, pwt.stat_name, pwt.stat_type, pwt.value,
+                tmt.team_color, tmt.team_color2
+            FROM public.player_weekly_tbl pwt
+            LEFT JOIN public.team_metadata_tbl tmt
+              ON pwt.team = tmt.team_abbr
+            WHERE pwt.season = ANY(:seasons_raw)
+              AND (:season_type = 'ALL' OR pwt.season_type = :season_type)
+              AND pwt.stat_name = :metric_name
+              AND pwt.stat_type = :stat_type
+              AND pwt.position = :position
+              AND pwt.week BETWEEN :week_start AND :week_end
+        """)
+
+    if not filtered_parts:
+        return {
+            "series": [],
+            "players": [],
+            "meta": {
+                "position": pos, "metric": metric, "metric_label": metric.replace("_", " ").title(),
+                "season_type": st, "seasons": seasons,
+                "week_start": ws, "week_end": we,
+                "top_n": top_n, "rolling_window": int(rolling_window),
+            },
+        }
+
+    filtered_sql = " UNION ALL ".join(filtered_parts)
+
+    # SQL pipeline:
+    # - filtered: rows in window for the metric
+    # - top_players: Top-N by SUM(value)
+    # - plot_rows: rows from filtered but only Top-N, value NOT NULL
+    # - dom_team: dominant team/color (mode) per player
+    # - time_map: distinct (season,phase,week) for Top-N, ordered -> t_idx
+    # - pct_rows: weekly percentiles among the Top-N for each (season,phase,week)
+    # - roll_rows: rolling mean over k within (player, season, phase) by t_idx
+    # - last_idx: last t_idx per player; last_vals to fetch last pct_roll
+    # - ordered_players: order panels by last_pct_roll desc, then player_id
+    # Final SELECT:
+    #   • SERIES rows: one per player-week with t_idx, pct, pct_roll, colors, player_order
+    #   • PLAYERS rows: player summary with last_pct_roll and colors/order
+    query = f"""
+    WITH filtered AS (
+        {filtered_sql}
+    ),
+    top_players AS (
+        SELECT player_id, MAX(name) AS name, SUM(value) AS total_value
+        FROM filtered
+        WHERE value IS NOT NULL
+        GROUP BY player_id
+        ORDER BY total_value DESC NULLS LAST, player_id
+        LIMIT :top_n
+    ),
+    plot_rows AS (
+        SELECT f.*
+        FROM filtered f
+        JOIN top_players tp USING (player_id)
+        WHERE f.value IS NOT NULL
+    ),
+    dom_team AS (
+        SELECT player_id, team AS team_mode, team_color AS team_color_major, team_color2 AS team_color2_major
+        FROM (
+            SELECT player_id, team, team_color, team_color2,
+                   ROW_NUMBER() OVER (PARTITION BY player_id ORDER BY cnt DESC, team ASC) AS rn
+            FROM (
+                SELECT player_id, team, team_color, team_color2, COUNT(*) AS cnt
+                FROM plot_rows
+                GROUP BY player_id, team, team_color, team_color2
+            ) c
+        ) r
+        WHERE rn = 1
+    ),
+    -- phase ordering: REG before POST
+    time_map AS (
+        SELECT season, season_type, week,
+               ROW_NUMBER() OVER (
+                   ORDER BY season, CASE WHEN season_type='REG' THEN 1 ELSE 2 END, week
+               ) AS t_idx
+        FROM (
+            SELECT DISTINCT season, season_type, week
+            FROM plot_rows
+        ) u
+    ),
+    base_pct AS (
+        SELECT
+            pr.player_id, pr.name, pr.season, pr.season_type, pr.week, pr.value,
+            tm.t_idx,
+            COUNT(*) OVER (PARTITION BY pr.season, pr.season_type, pr.week) AS n_obs,
+            PERCENT_RANK() OVER (
+                PARTITION BY pr.season, pr.season_type, pr.week
+                ORDER BY pr.value
+            ) * 100.0 AS pct_raw
+        FROM plot_rows pr
+        JOIN time_map tm USING (season, season_type, week)
+    ),
+    pct_rows AS (
+        SELECT
+            player_id, name, season, season_type, week, t_idx,
+            CASE WHEN n_obs > 1 THEN pct_raw ELSE 50.0 END AS pct
+        FROM base_pct
+    ),
+    roll_rows AS (
+        SELECT
+            p.*,
+            -- rolling mean within (player, season, season_type) by t_idx (k-1 PRECEDING .. CURRENT ROW)
+            AVG(p.pct) OVER (
+                PARTITION BY p.player_id, p.season, p.season_type
+                ORDER BY p.t_idx
+                ROWS BETWEEN {rolling_window - 1} PRECEDING AND CURRENT ROW
+            ) AS pct_roll
+        FROM pct_rows p
+    ),
+    last_idx AS (
+        SELECT player_id, MAX(t_idx) AS last_t FROM roll_rows GROUP BY player_id
+    ),
+    last_vals AS (
+        SELECT r.player_id, r.pct_roll AS last_pct
+        FROM roll_rows r
+        JOIN last_idx li ON li.player_id = r.player_id AND li.last_t = r.t_idx
+    ),
+    ordered_players AS (
+        SELECT
+            tp.player_id,
+            tp.name,
+            COALESCE(dt.team_mode, MIN(pr.team)) AS team_mode,
+            COALESCE(dt.team_color_major, MIN(pr.team_color)) AS team_color_major,
+            COALESCE(dt.team_color2_major, MIN(pr.team_color2)) AS team_color2_major,
+            lv.last_pct,
+            ROW_NUMBER() OVER (ORDER BY lv.last_pct DESC NULLS LAST, tp.player_id) AS player_order
+        FROM top_players tp
+        LEFT JOIN dom_team dt ON dt.player_id = tp.player_id
+        LEFT JOIN plot_rows pr ON pr.player_id = tp.player_id
+        LEFT JOIN last_vals lv ON lv.player_id = tp.player_id
+        GROUP BY tp.player_id, tp.name, dt.team_mode, dt.team_color_major, dt.team_color2_major, lv.last_pct
+    )
+    SELECT
+        'SERIES' AS section,
+        r.player_id, op.name, op.team_mode AS team, r.season, r.season_type, r.week,
+        r.t_idx, r.pct, r.pct_roll,
+        op.team_color_major, op.team_color2_major,
+        op.player_order
+    FROM roll_rows r
+    JOIN ordered_players op USING (player_id)
+    UNION ALL
+    SELECT
+        'PLAYERS' AS section,
+        op.player_id, op.name, op.team_mode AS team, NULL::int, NULL::text, NULL::int,
+        NULL::int, NULL::double precision, op.last_pct,
+        op.team_color_major, op.team_color2_major,
+        op.player_order
+    FROM ordered_players op
+    ORDER BY 1, 13, 7 NULLS FIRST;  -- section, player_order, t_idx
+    """
+
+    async with AsyncSessionLocal() as session:
+        res = await session.execute(text(query), params)
+        rows = [dict(r) for r in res.mappings().all()]
+
+    series: list[dict] = []
+    players: list[dict] = []
+    for r in rows:
+        sect = r.pop("section")
+        if sect == "SERIES":
+            series.append({
+                "player_id": r["player_id"],
+                "name": r["name"],
+                "team": r["team"],
+                "season": r["season"],
+                "season_type": r["season_type"],
+                "week": r["week"],
+                "t_idx": r["t_idx"],
+                "pct": r["pct"],
+                "pct_roll": r["pct_roll"],
+                "team_color": r["team_color_major"],
+                "team_color2": r["team_color2_major"],
+                "player_order": r["player_order"],
+            })
+        else:  # PLAYERS
+            players.append({
+                "player_id": r["player_id"],
+                "name": r["name"],
+                "team": r["team"],
+                "team_color": r["team_color_major"],
+                "team_color2": r["team_color2_major"],
+                "last_pct": r["pct_roll"],   # selected as last_pct in SQL
+                "player_order": r["player_order"],
+            })
+
+    payload = {
+        "series": series,
+        "players": sorted(players, key=lambda x: x["player_order"]),
+        "meta": {
+            "position": pos,
+            "metric": metric,
+            "metric_label": metric.replace("_", " ").title(),
+            "stat_type": stype,
+            "season_type": st,
+            "seasons": seasons,
+            "week_start": ws,
+            "week_end": we,
+            "top_n": top_n,
+            "rolling_window": int(rolling_window),
+        },
+    }
+    if debug:
+        payload["debug"] = {
+            "seasons_mv": mv_seasons,
+            "seasons_raw": raw_seasons,
+        }
+    return payload
+

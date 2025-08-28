@@ -1083,6 +1083,215 @@ input[type="search"] {
   padding: 6px 8px;
 }
 
+/* =========================================
+   Analytics Nexus — Player Quadrant Scatter (ax-ps-*)
+   ========================================= */
+
+/* Section & title (match other player sections) */
+.ax-ps-section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 12px 14px;
+}
+.ax-ps-title {
+  margin: 0 0 4px 0;
+  font-size: 1.3rem;
+  letter-spacing: 0.2px;
+}
+
+/* Controls card:
+   We inherit the base card styles from .ax-pt-controls via the extra class
+   and then tweak layout density here. */
+.ax-ps-controls {
+  /* already gets: bg, border, radius, shadow from .ax-pt-controls */
+  grid-template-columns: repeat(6, minmax(140px, 1fr));
+  align-items: end;
+  gap: 12px;
+}
+
+/* Group labels — keep them readable on the platinum card */
+.ax-ps-controls .ax-pv-group label,
+.ax-ps-controls .ax-ps-group label {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+
+/* Span helper for the Week Range (if you use ax-ps-span-2 later) */
+.ax-ps-span-2,
+.ax-pv-span-2 {  /* reuse if you already used ax-pv-span-2 in markup */
+  grid-column: span 2;
+}
+
+/* Light-themed inputs inside the controls (match violin/trajectories) */
+.ax-ps-controls .Select,
+.ax-ps-controls .Select-control {
+  background-color: #fff !important;
+  border: 1px solid rgba(0,0,0,0.25) !important;
+  border-radius: 10px !important;
+  min-height: 36px;
+  box-shadow: none !important;
+  color: #111 !important;
+}
+.ax-ps-controls .Select-placeholder,
+.ax-ps-controls .Select-value,
+.ax-ps-controls .Select-value-label { color: #111 !important; }
+.ax-ps-controls .Select-arrow { border-top-color: #111 !important; }
+.ax-ps-controls .Select-menu-outer {
+  background: #fff !important;
+  color: #111 !important;
+  border: 1px solid rgba(0,0,0,0.15) !important;
+  border-radius: 10px !important;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+}
+.ax-ps-controls .VirtualizedSelectOption { color: #111 !important; }
+.ax-ps-controls .VirtualizedSelectFocusedOption {
+  background: #f0f0f0 !important; color: #111 !important;
+}
+
+/* Inputs */
+.ax-ps-controls input[type="number"],
+.ax-ps-controls input[type="text"] {
+  background: #fff; color: #111;
+  border: 1px solid rgba(0,0,0,0.25);
+  border-radius: 10px; padding: 6px 8px; width: 100%;
+}
+
+/* Radio/Checklist spacing */
+.ax-ps-controls .ax-pt-radio-label { margin-right: 10px; font-size: 0.9rem; }
+.ax-ps-controls .ax-pt-radio-input { margin-right: 6px; }
+
+/* RangeSlider styling */
+.ax-ps-controls .rc-slider-rail { background-color: #e1e1e1; }
+.ax-ps-controls .rc-slider-track { background-color: var(--accent); }
+.ax-ps-controls .rc-slider-handle {
+  border: 2px solid var(--accent); background-color: #fff;
+}
+.ax-ps-controls .rc-slider-mark-text { color: var(--ink); }
+
+/* Graph panel: same look as trajectories/violin, generous top padding
+   pairs with the large Plotly title margin set in Python. */
+.ax-ps-graph {
+  min-height: 650px;
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  background: #fff;
+  padding: 8px 6px 6px;
+}
+
+/* Responsive collapse of the controls grid */
+@media (max-width: 1100px) {
+  .ax-ps-controls {
+    grid-template-columns: repeat(3, minmax(140px, 1fr));
+  }
+  .ax-ps-span-2,
+  .ax-pv-span-2 { grid-column: span 3; }
+}
+@media (max-width: 720px) {
+  .ax-ps-controls {
+    grid-template-columns: 1fr;
+  }
+  .ax-ps-span-2,
+  .ax-pv-span-2 { grid-column: span 1; }
+}
+
+/* =========================================
+   Analytics Nexus — Player Rolling Percentiles (ax-pr-*)
+   Match the same option card & graph look as pv/ps/pt
+   ========================================= */
+
+/* Section + title */
+.ax-pr-section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 12px 14px;
+}
+.ax-pr-title {
+  margin: 0 0 4px 0;
+  font-size: 1.3rem;
+  letter-spacing: 0.2px;
+}
+
+/* Controls card — unify with the others */
+.ax-pt-controls,
+.ax-pv-controls,
+.ax-ps-controls,
+.ax-pr-controls {
+  background: var(--platinum);
+  color: var(--ink);
+  border: 1px solid rgba(0,0,0,0.1);
+  border-radius: 12px;
+  padding: 12px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(6, minmax(140px, 1fr));
+  align-items: end;
+}
+
+/* Field groups + labels */
+.ax-pt-group label,
+.ax-pv-group label,
+.ax-ps-group label,
+.ax-pr-group label {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+
+/* Span helpers */
+.ax-pt-span-2,
+.ax-pv-span-2,
+.ax-ps-span-2,
+.ax-pr-span-2 {
+  grid-column: span 2;
+}
+
+/* Graph panel — same white card look, prevent title clipping */
+.ax-pt-graph,
+.ax-pv-graph,
+.ax-ps-graph,
+.ax-pr-graph {
+  min-height: 650px;
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  background: #fff;
+  padding: 8px 6px 6px; /* a bit more top padding for Plotly title/subtitle */
+}
+
+/* Responsive collapse for all analytics cards */
+@media (max-width: 1100px) {
+  .ax-pt-controls,
+  .ax-pv-controls,
+  .ax-ps-controls,
+  .ax-pr-controls {
+    grid-template-columns: repeat(3, minmax(140px, 1fr));
+  }
+  .ax-pt-span-2,
+  .ax-pv-span-2,
+  .ax-ps-span-2,
+  .ax-pr-span-2 {
+    grid-column: span 3;
+  }
+}
+@media (max-width: 720px) {
+  .ax-pt-controls,
+  .ax-pv-controls,
+  .ax-ps-controls,
+  .ax-pr-controls {
+    grid-template-columns: 1fr;
+  }
+  .ax-pt-span-2,
+  .ax-pv-span-2,
+  .ax-ps-span-2,
+  .ax-pr-span-2 {
+    grid-column: span 1;
+  }
+}
 
 /* =========================================================
    10) Link variants
