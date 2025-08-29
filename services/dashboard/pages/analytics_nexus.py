@@ -33,40 +33,375 @@ YOUR_EMAIL = "dustinburnham@gmail.com"
 YOUR_GITHUB = "dusty736"
 
 # --- Simple stat menu for now (can be made dynamic later) ---
-STAT_OPTIONS = [
-    {"label": "Passing Yards", "value": "passing_yards"},
-    {"label": "Passing TDs", "value": "passing_tds"},
-    {"label": "Passing EPA", "value": "passing_epa"},
-    {"label": "Rushing Yards", "value": "rushing_yards"},
-    {"label": "Rushing TDs", "value": "rushing_tds"},
-    {"label": "Receiving Yards", "value": "receiving_yards"},
-    {"label": "Receiving TDs", "value": "receiving_tds"},
-    {"label": "Targets", "value": "targets"},
-    {"label": "Receptions", "value": "receptions"},
-    {"label": "Fantasy Points PPR", "value": "fantasy_points_ppr"},
+# STAT_OPTIONS = [
+#     {"label": "Passing Yards", "value": "passing_yards"},
+#     {"label": "Passing TDs", "value": "passing_tds"},
+#     {"label": "Passing EPA", "value": "passing_epa"},
+#     {"label": "Rushing Yards", "value": "rushing_yards"},
+#     {"label": "Rushing TDs", "value": "rushing_tds"},
+#     {"label": "Receiving Yards", "value": "receiving_yards"},
+#     {"label": "Receiving TDs", "value": "receiving_tds"},
+#     {"label": "Targets", "value": "targets"},
+#     {"label": "Receptions", "value": "receptions"},
+#     {"label": "Fantasy Points PPR", "value": "fantasy_points_ppr"},
+# ]
+# 
+# METRIC_OPTIONS = [
+#     # Derived rates
+#     {"label": "EPA per Dropback",          "value": "passing_epa_per_dropback"},
+#     {"label": "ANY/A",                      "value": "passing_anya"},
+#     {"label": "EPA per Rush",               "value": "rushing_epa_per_carry"},
+#     {"label": "EPA per Target",             "value": "receiving_epa_per_target"},
+#     {"label": "Total EPA per Opportunity",  "value": "total_epa_per_opportunity"},
+#     {"label": "Yards per Opportunity",      "value": "yards_per_opportunity"},
+#     # A few raw examples (works across positions)
+#     {"label": "Passing Yards", "value": "passing_yards"},
+#     {"label": "Passing TDs", "value": "passing_tds"},
+#     {"label": "Passing EPA", "value": "passing_epa"},
+#     {"label": "Rushing Yards", "value": "rushing_yards"},
+#     {"label": "Rushing TDs", "value": "rushing_tds"},
+#     {"label": "Receiving Yards", "value": "receiving_yards"},
+#     {"label": "Receiving TDs", "value": "receiving_tds"},
+#     {"label": "Attempts", "value": "attempts"},
+#     {"label": "Targets", "value": "targets"},
+#     {"label": "Receptions", "value": "receptions"},
+#     {"label": "Fantasy Points PPR", "value": "fantasy_points_ppr"},
+# ]
+
+STAT_OPTIONS_BY_POSITION = {
+    "QB": {
+        # Passing (base)
+        "Completions": "completions",
+        "Attempts": "attempts",
+        "Passing Yards": "passing_yards",
+        "Passing TDs": "passing_tds",
+        "Interceptions": "interceptions",
+        "Sacks": "sacks",
+        "Sack Yards": "sack_yards",
+        "Sack Fumbles": "sack_fumbles",
+        "Sack Fumbles Lost": "sack_fumbles_lost",
+        "Air Yards (Pass)": "passing_air_yards",
+        "Yards After Catch (Pass)": "passing_yards_after_catch",
+        "First Downs (Pass)": "passing_first_downs",
+        "Passing EPA": "passing_epa",
+        "Passing 2PT Conversions": "passing_2pt_conversions",
+        "PACR": "pacr",
+        "DAKOTA": "dakota",
+
+        # Rushing (QB)
+        "Carries": "carries",
+        "Rushing Yards": "rushing_yards",
+        "Rushing TDs": "rushing_tds",
+        "Rushing Fumbles": "rushing_fumbles",
+        "Rushing Fumbles Lost": "rushing_fumbles_lost",
+        "First Downs (Rush)": "rushing_first_downs",
+        "Rushing EPA": "rushing_epa",
+        "Rushing 2PT Conversions": "rushing_2pt_conversions",
+
+        # Fantasy
+        "Fantasy Points": "fantasy_points",
+        "Fantasy Points (PPR)": "fantasy_points_ppr",
+
+        # Next Gen (QB)
+        "NG: Avg Time to Throw": "ng_avg_time_to_throw",
+        "NG: Avg Completed Air Yards": "ng_avg_completed_air_yards",
+        "NG: Avg Intended Air Yards": "ng_avg_intended_air_yards",
+        "NG: Avg Air Yards Differential": "ng_avg_air_yards_differential",
+        "NG: Aggressiveness": "ng_aggressiveness",
+        "NG: Max Completed Air Distance": "ng_max_completed_air_distance",
+        "NG: Avg Air Yards to Sticks": "ng_avg_air_yards_to_sticks",
+        "NG: Attempts": "ng_attempts",
+        "NG: Pass Yards": "ng_pass_yards",
+        "NG: Pass TDs": "ng_pass_touchdowns",
+        "NG: Interceptions": "ng_interceptions",
+        "NG: Passer Rating": "ng_passer_rating",
+        "NG: Completions": "ng_completions",
+        "NG: Completion %": "ng_completion_percentage",
+        "NG: Expected Completion %": "ng_expected_completion_percentage",
+        "NG: CPOE": "ng_completion_percentage_above_expectation",
+        "NG: Avg Air Distance": "ng_avg_air_distance",
+        "NG: Max Air Distance": "ng_max_air_distance",
+
+        # Additional (QB-focused)
+        "EPA per Dropback": "passing_epa_per_dropback",
+        "ANY/A": "passing_anya",
+        "EPA per Rush": "rushing_epa_per_carry",
+        # (omitting EPA per Target / opportunity metrics for QB unless you truly want them)
+    },
+
+    "RB": {
+        # Rushing
+        "Carries": "carries",
+        "Rushing Yards": "rushing_yards",
+        "Rushing TDs": "rushing_tds",
+        "Rushing Fumbles": "rushing_fumbles",
+        "Rushing Fumbles Lost": "rushing_fumbles_lost",
+        "First Downs (Rush)": "rushing_first_downs",
+        "Rushing EPA": "rushing_epa",
+        "Rushing 2PT Conversions": "rushing_2pt_conversions",
+
+        # Receiving
+        "Targets": "targets",
+        "Receptions": "receptions",
+        "Receiving Yards": "receiving_yards",
+        "Receiving TDs": "receiving_tds",
+        "Receiving Fumbles": "receiving_fumbles",
+        "Receiving Fumbles Lost": "receiving_fumbles_lost",
+        "Air Yards (Rec)": "receiving_air_yards",
+        "Yards After Catch (Rec)": "receiving_yards_after_catch",
+        "First Downs (Rec)": "receiving_first_downs",
+        "Receiving EPA": "receiving_epa",
+        "Receiving 2PT Conversions": "receiving_2pt_conversions",
+
+        # Advanced shares
+        "RACR": "racr",
+        "Target Share": "target_share",
+        "Air Yards Share": "air_yards_share",
+        "WOPR": "wopr",
+
+        # Fantasy
+        "Fantasy Points": "fantasy_points",
+        "Fantasy Points (PPR)": "fantasy_points_ppr",
+
+        # Additional (RB)
+        "EPA per Rush": "rushing_epa_per_carry",
+        "EPA per Target": "receiving_epa_per_target",
+        "Total EPA per Opportunity": "total_epa_per_opportunity",
+        "Yards per Opportunity": "yards_per_opportunity",
+    },
+
+    "WR": {
+        # Rushing (WR)
+        "Carries": "carries",
+        "Rushing Yards": "rushing_yards",
+        "Rushing TDs": "rushing_tds",
+        "Rushing Fumbles": "rushing_fumbles",
+        "Rushing Fumbles Lost": "rushing_fumbles_lost",
+        "First Downs (Rush)": "rushing_first_downs",
+        "Rushing EPA": "rushing_epa",
+        "Rushing 2PT Conversions": "rushing_2pt_conversions",
+
+        # Receiving (WR)
+        "Targets": "targets",
+        "Receptions": "receptions",
+        "Receiving Yards": "receiving_yards",
+        "Receiving TDs": "receiving_tds",
+        "Receiving Fumbles": "receiving_fumbles",
+        "Receiving Fumbles Lost": "receiving_fumbles_lost",
+        "Air Yards (Rec)": "receiving_air_yards",
+        "Yards After Catch (Rec)": "receiving_yards_after_catch",
+        "First Downs (Rec)": "receiving_first_downs",
+        "Receiving EPA": "receiving_epa",
+        "Receiving 2PT Conversions": "receiving_2pt_conversions",
+
+        # Advanced shares
+        "RACR": "racr",
+        "Target Share": "target_share",
+        "Air Yards Share": "air_yards_share",
+        "WOPR": "wopr",
+
+        # Fantasy
+        "Fantasy Points": "fantasy_points",
+        "Fantasy Points (PPR)": "fantasy_points_ppr",
+
+        # Additional (WR)
+        "EPA per Target": "receiving_epa_per_target",
+        "Total EPA per Opportunity": "total_epa_per_opportunity",
+        "Yards per Opportunity": "yards_per_opportunity",
+    },
+
+    "TE": {
+        # Rushing (TE)
+        "Carries": "carries",
+        "Rushing Yards": "rushing_yards",
+        "Rushing TDs": "rushing_tds",
+        "Rushing Fumbles": "rushing_fumbles",
+        "Rushing Fumbles Lost": "rushing_fumbles_lost",
+        "First Downs (Rush)": "rushing_first_downs",
+        "Rushing EPA": "rushing_epa",
+        "Rushing 2PT Conversions": "rushing_2pt_conversions",
+
+        # Receiving (TE)
+        "Targets": "targets",
+        "Receptions": "receptions",
+        "Receiving Yards": "receiving_yards",
+        "Receiving TDs": "receiving_tds",
+        "Receiving Fumbles": "receiving_fumbles",
+        "Receiving Fumbles Lost": "receiving_fumbles_lost",
+        "Air Yards (Rec)": "receiving_air_yards",
+        "Yards After Catch (Rec)": "receiving_yards_after_catch",
+        "First Downs (Rec)": "receiving_first_downs",
+        "Receiving EPA": "receiving_epa",
+        "Receiving 2PT Conversions": "receiving_2pt_conversions",
+
+        # Advanced shares
+        "RACR": "racr",
+        "Target Share": "target_share",
+        "Air Yards Share": "air_yards_share",
+        "WOPR": "wopr",
+
+        # Fantasy
+        "Fantasy Points": "fantasy_points",
+        "Fantasy Points (PPR)": "fantasy_points_ppr",
+
+        # Additional (TE)
+        "EPA per Target": "receiving_epa_per_target",
+        "Total EPA per Opportunity": "total_epa_per_opportunity",
+        "Yards per Opportunity": "yards_per_opportunity",
+    },
+}
+
+# ============================
+# Team stat menu (comprehensive + grouped)
+# ============================
+
+# Toggle: include team-level Next Gen items in menus
+TEAM_INCLUDE_NEXT_GEN = True  # set False if your API doesn't support team NG yet
+
+# Your team stats (exactly as provided)
+TEAM_BASE_STATS = [
+    "air_yards_share","attempts","carries","completions","dakota","def_fumble_recovery_opp",
+    "def_fumble_recovery_own","def_fumble_recovery_yards_opp","def_fumble_recovery_yards_own",
+    "def_fumbles","def_fumbles_forced","def_interception_yards","def_interceptions",
+    "def_pass_defended","def_penalty","def_penalty_yards","def_qb_hits","def_sack_yards",
+    "def_sacks","def_safety","def_tackle_assists","def_tackles","def_tackles_for_loss",
+    "def_tackles_for_loss_yards","def_tackles_solo","def_tds","fg_att","fg_blocked",
+    "fg_blocked_distance","fg_long","fg_made","fg_made_0_19","fg_made_20_29","fg_made_30_39",
+    "fg_made_40_49","fg_made_50_59","fg_made_60","fg_made_distance","fg_missed","fg_missed_0_19",
+    "fg_missed_20_29","fg_missed_30_39","fg_missed_40_49","fg_missed_50_59","fg_missed_60",
+    "fg_missed_distance","fg_pct","gwfg_att","gwfg_blocked","gwfg_distance","gwfg_made","gwfg_missed",
+    "injuries","interceptions","losses_entering","n_players","pacr","passing_2pt_conversions",
+    "passing_air_yards","passing_epa","passing_first_downs","passing_tds","passing_yards",
+    "passing_yards_after_catch","pat_att","pat_blocked","pat_made","pat_missed","pat_pct","point_diff",
+    "points_allowed","points_scored","racr","receiving_2pt_conversions","receiving_air_yards",
+    "receiving_epa","receiving_first_downs","receiving_fumbles","receiving_fumbles_lost",
+    "receiving_tds","receiving_yards","receiving_yards_after_catch","receptions",
+    "rushing_2pt_conversions","rushing_epa","rushing_first_downs","rushing_fumbles",
+    "rushing_fumbles_lost","rushing_tds","rushing_yards","sack_yards","sacks","target_share","targets",
+    "ties_entering","weekly_injuries","wins_entering","wopr"
 ]
 
-METRIC_OPTIONS = [
-    # Derived rates
-    {"label": "EPA per Dropback",          "value": "passing_epa_per_dropback"},
-    {"label": "ANY/A",                      "value": "passing_anya"},
-    {"label": "EPA per Rush",               "value": "rushing_epa_per_carry"},
-    {"label": "EPA per Target",             "value": "receiving_epa_per_target"},
-    {"label": "Total EPA per Opportunity",  "value": "total_epa_per_opportunity"},
-    {"label": "Yards per Opportunity",      "value": "yards_per_opportunity"},
-    # A few raw examples (works across positions)
-    {"label": "Passing Yards", "value": "passing_yards"},
-    {"label": "Passing TDs", "value": "passing_tds"},
-    {"label": "Passing EPA", "value": "passing_epa"},
-    {"label": "Rushing Yards", "value": "rushing_yards"},
-    {"label": "Rushing TDs", "value": "rushing_tds"},
-    {"label": "Receiving Yards", "value": "receiving_yards"},
-    {"label": "Receiving TDs", "value": "receiving_tds"},
-    {"label": "Attempts", "value": "attempts"},
-    {"label": "Targets", "value": "targets"},
-    {"label": "Receptions", "value": "receptions"},
-    {"label": "Fantasy Points PPR", "value": "fantasy_points_ppr"},
+# Team-level Next Gen (QB) items to expose in team menus (you said: include Next Gen)
+TEAM_NEXT_GEN_KEYS = [
+    "ng_avg_time_to_throw",
+    "ng_avg_completed_air_yards",
+    "ng_avg_intended_air_yards",
+    "ng_avg_air_yards_differential",
+    "ng_aggressiveness",
+    "ng_max_completed_air_distance",
+    "ng_avg_air_yards_to_sticks",
+    "ng_attempts",
+    "ng_pass_yards",
+    "ng_pass_touchdowns",
+    "ng_interceptions",
+    "ng_passer_rating",
+    "ng_completions",
+    "ng_completion_percentage",
+    "ng_expected_completion_percentage",
+    "ng_completion_percentage_above_expectation",
+    "ng_avg_air_distance",
+    "ng_max_air_distance",
 ]
+
+def _pretty_label(key: str) -> str:
+    txt = key.replace("_", " ").title()
+    # common acronym fixes
+    repl = {
+        "Epa": "EPA",
+        "Pat": "PAT",
+        "Fg": "FG",
+        "Qb": "QB",
+        "Yac": "YAC",
+        "Cpoe": "CPOE",
+        "Tds": "TDs",
+        "Wopr": "WOPR",
+        "Racr": "RACR",
+        "Pacr": "PACR",
+        "Dakota": "DAKOTA",
+        "2Pt": "2PT",
+    }
+    for k, v in repl.items():
+        txt = txt.replace(k, v)
+    # nicer range labels for FG bins
+    txt = txt.replace("0 19", "0–19").replace("20 29", "20–29").replace("30 39", "30–39") \
+             .replace("40 49", "40–49").replace("50 59", "50–59").replace("60", "60+")
+    return txt
+
+def _group_block(title: str, keys: list[str]) -> list[dict]:
+    if not keys:
+        return []
+    header = {"label": f"— {title} —", "value": f"__hdr_{title.lower().replace(' ', '_')}", "disabled": True}
+    items  = [{"label": _pretty_label(k), "value": k} for k in keys]
+    return [header] + items
+
+def build_team_metric_options(include_next_gen: bool = True) -> list[dict]:
+    s = set(TEAM_BASE_STATS)
+
+    # Buckets (explicit + heuristic where sensible)
+    passing = [k for k in s if k.startswith("passing_")] + ["completions","attempts","interceptions","sacks","sack_yards"]
+    rushing = ["carries"] + [k for k in s if k.startswith("rushing_")]
+    receiving = ["targets","receptions","air_yards_share","target_share"] + [k for k in s if k.startswith("receiving_")]
+    defense = [k for k in s if k.startswith("def_")]
+    fg = [k for k in s if k.startswith("fg_") or k.startswith("gwfg_")]
+    pat = [k for k in s if k.startswith("pat_")]
+    summary = [k for k in [
+        "points_scored","points_allowed","point_diff","wins_entering","losses_entering","ties_entering",
+        "n_players","weekly_injuries","injuries"
+    ] if k in s]
+    advanced = [k for k in ["pacr","dakota","racr","wopr"] if k in s]
+
+    # Deduplicate and sort each bucket by pretty label
+    def _uniq_sorted(keys):
+        seen, out = set(), []
+        for k in keys:
+            if k in s and k not in seen:
+                seen.add(k); out.append(k)
+        return sorted(out, key=_pretty_label)
+
+    groups = []
+    groups += _group_block("Passing", _uniq_sorted(passing))
+    groups += _group_block("Rushing", _uniq_sorted(rushing))
+    groups += _group_block("Receiving", _uniq_sorted(receiving))
+    groups += _group_block("Defense", _uniq_sorted(defense))
+    groups += _group_block("Special Teams — Field Goals", _uniq_sorted(fg))
+    groups += _group_block("Special Teams — PAT", _uniq_sorted(pat))
+    groups += _group_block("Team Summary", _uniq_sorted(summary))
+    groups += _group_block("Advanced / Rates", _uniq_sorted(advanced))
+
+    if include_next_gen:
+        groups += _group_block("Next Gen (Team)", TEAM_NEXT_GEN_KEYS)
+
+    return groups
+
+# Build once at import
+TEAM_METRIC_OPTIONS = build_team_metric_options(include_next_gen=TEAM_INCLUDE_NEXT_GEN)
+
+def _options_without_headers(options):
+    return [o for o in options if not o.get("disabled")]
+
+# --- Position-scoped stat helpers (UI only) ---
+DEFAULT_STAT_BY_POS = {
+    "QB": "passing_yards",
+    "RB": "rushing_yards",
+    "WR": "receiving_yards",
+    "TE": "receiving_yards",
+}
+
+# Defaults for PLAYER SCATTER x/y when a choice becomes invalid after a position change
+SCATTER_DEFAULTS_BY_POS = {
+    "QB": ("attempts", "passing_epa"),
+    "RB": ("carries", "rushing_epa"),
+    "WR": ("targets", "receiving_epa"),
+    "TE": ("targets", "receiving_epa"),
+}
+
+def _pos_stat_options(position: str):
+    """
+    Convert STAT_OPTIONS_BY_POSITION[position] (label->value) into
+    Dash options=[{label, value}, ...].
+    """
+    mapping = STAT_OPTIONS_BY_POSITION.get(position, {})
+    return [{"label": lbl, "value": val} for lbl, val in mapping.items()]
 
 
 SEASON_OPTIONS = [{"label": str(y), "value": y} for y in range(2019, 2026)]
@@ -97,6 +432,14 @@ MIN_GAMES_OPTIONS = [
     {"label": "≥ 6 games", "value": 6},
     {"label": "≥ 8 games", "value": 8},
 ]
+
+def stat_label_for_position(stat_name: str, position: str) -> str:
+    mapping = STAT_OPTIONS_BY_POSITION.get(position, {})
+    for lbl, val in mapping.items():
+        if val == stat_name:
+            return lbl
+    # fallback
+    return stat_name.replace("_", " ").title()
 
 # --- Layout ---
 layout = html.Div(
@@ -243,11 +586,12 @@ layout = html.Div(
                                                     children=[
                                                         html.Label("Stat"),
                                                         dcc.Dropdown(
-                                                            id="ctl-stat",
-                                                            options=STAT_OPTIONS,
-                                                            value="passing_yards",
-                                                            clearable=False,
-                                                        ),
+                                                          id="ctl-stat",
+                                                          options=[],          # <-- empty; filled by callback
+                                                          value=None,          # <-- filled by callback
+                                                          placeholder="Select a stat…",
+                                                          clearable=False,
+                                                      ),
                                                     ],
                                                 ),
                                                 html.Div(
@@ -401,11 +745,12 @@ layout = html.Div(
                                                     children=[
                                                         html.Label("Stat"),
                                                         dcc.Dropdown(
-                                                            id="ctl-pv-stat",
-                                                            options=STAT_OPTIONS,
-                                                            value="passing_yards",
-                                                            clearable=False,
-                                                        ),
+                                                          id="ctl-pv-stat",
+                                                          options=[],
+                                                          value=None,
+                                                          placeholder="Select a stat…",
+                                                          clearable=False,
+                                                      ),
                                                     ],
                                                 ),
                                                 html.Div(
@@ -597,11 +942,12 @@ layout = html.Div(
                                                     children=[
                                                         html.Label("Metric X"),
                                                         dcc.Dropdown(
-                                                            id="ctl-ps-metric-x",
-                                                            options=METRIC_OPTIONS,
-                                                            value="attempts",
-                                                            clearable=False,
-                                                        ),
+                                                          id="ctl-ps-metric-x",
+                                                          options=[],
+                                                          value=None,
+                                                          placeholder="Metric X…",
+                                                          clearable=False,
+                                                      ),
                                                     ],
                                                 ),
                                                 html.Div(
@@ -609,11 +955,12 @@ layout = html.Div(
                                                     children=[
                                                         html.Label("Metric Y"),
                                                         dcc.Dropdown(
-                                                            id="ctl-ps-metric-y",
-                                                            options=METRIC_OPTIONS,
-                                                            value="passing_epa",
-                                                            clearable=False,
-                                                        ),
+                                                          id="ctl-ps-metric-y",
+                                                          options=[],
+                                                          value=None,
+                                                          placeholder="Metric Y…",
+                                                          clearable=False,
+                                                      ),
                                                     ],
                                                 ),
                                                 html.Div(
@@ -767,11 +1114,12 @@ layout = html.Div(
                                                     children=[
                                                         html.Label("Metric"),
                                                         dcc.Dropdown(
-                                                            id="ctl-pr-metric",
-                                                            options=STAT_OPTIONS,
-                                                            value="passing_yards",
-                                                            clearable=False,
-                                                        ),
+                                                          id="ctl-pr-metric",
+                                                          options=[],
+                                                          value=None,
+                                                          placeholder="Select a metric…",
+                                                          clearable=False,
+                                                      ),
                                                     ],
                                                 ),
                                                 html.Div(
@@ -916,7 +1264,7 @@ layout = html.Div(
                                                         html.Label("Stat"),
                                                         dcc.Dropdown(
                                                             id="ctl-tt-stat",
-                                                            options=STAT_OPTIONS,
+                                                            options=TEAM_METRIC_OPTIONS,
                                                             value="passing_yards",
                                                             clearable=False,
                                                         ),
@@ -1052,7 +1400,7 @@ layout = html.Div(
                                                         html.Label("Stat"),
                                                         dcc.Dropdown(
                                                             id="ctl-tv-stat",
-                                                            options=STAT_OPTIONS,
+                                                            options=TEAM_METRIC_OPTIONS,
                                                             value="passing_yards",
                                                             clearable=False,
                                                         ),
@@ -1221,7 +1569,7 @@ layout = html.Div(
                                                         html.Label("Metric X"),
                                                         dcc.Dropdown(
                                                             id="ctl-ts-metric-x",
-                                                            options=METRIC_OPTIONS,
+                                                            options=TEAM_METRIC_OPTIONS,
                                                             value="attempts",
                                                             clearable=False,
                                                         ),
@@ -1232,11 +1580,11 @@ layout = html.Div(
                                                     children=[
                                                         html.Label("Metric Y"),
                                                         dcc.Dropdown(
-                                                            id="ctl-ts-metric-y",
-                                                            options=METRIC_OPTIONS,
-                                                            value="passing_epa",
-                                                            clearable=False,
-                                                        ),
+                                                          id="ctl-ts-metric-y",
+                                                          options=TEAM_METRIC_OPTIONS,
+                                                          value="passing_epa",
+                                                          clearable=False,
+                                                      ),
                                                     ],
                                                 ),
                                                 html.Div(
@@ -1377,7 +1725,7 @@ layout = html.Div(
                                                         html.Label("Metric"),
                                                         dcc.Dropdown(
                                                             id="ctl-tr-metric",
-                                                            options=STAT_OPTIONS,
+                                                            options=TEAM_METRIC_OPTIONS,
                                                             value="passing_yards",
                                                             clearable=False,
                                                         ),
@@ -1391,7 +1739,7 @@ layout = html.Div(
                                                             id="ctl-tr-topn",
                                                             type="number",
                                                             min=1, max=32, step=1,
-                                                            value=16,
+                                                            value=18,
                                                             className="ax-pt-topn",
                                                         ),
                                                     ],
@@ -1649,7 +1997,7 @@ def fetch_ax_pt_data(selected_plot, season_val, season_type, stat_name, position
 def render_ax_pt_figure(rows, stat_name, position, season_val, season_type, rankby, series_mode, min_games):
     fig = go.Figure()
 
-    stat_label = next((o["label"] for o in STAT_OPTIONS if o["value"] == stat_name), stat_name)
+    stat_label = stat_label_for_position(stat_name, position)
     series_label = "Weekly" if (series_mode or "base") == "base" else "Season-to-Date"
     floor_label = f" • floor≥{min_games} gp" if (min_games or 0) > 0 else ""
 
@@ -1790,8 +2138,9 @@ def fetch_ax_pv_data(selected_plot, seasons, season_type, stat_name, position,
     Input("store-player-violins", "data"),
     State("ctl-pv-show-points", "value"),
     State("ctl-pv-stat", "value"),
+    State("ctl-pv-position", "value"),  # <-- add this
 )
-def render_ax_pv_figure(payload, show_points_vals, stat_name):
+def render_ax_pv_figure(payload, show_points_vals, stat_name, position):
     fig = go.Figure()
     show_points = isinstance(show_points_vals, list) and ("show" in show_points_vals)
 
@@ -1821,7 +2170,7 @@ def render_ax_pv_figure(payload, show_points_vals, stat_name):
     meta   = payload.get("meta", {}) or {}
 
     # Labels (match R)
-    stat_label = next((o["label"] for o in STAT_OPTIONS if o["value"] == stat_name), stat_name)
+    stat_label = stat_label_for_position(stat_name, position)
     seasons = meta.get("seasons", [])
     if seasons:
         seasons_sorted = sorted(seasons)
@@ -2014,6 +2363,74 @@ def set_selected_plot(n_pt, n_pv, n_ps, n_pr, n_tt, n_tv, n_ts, n_tp):  # ← ad
     if not ctx.triggered_id:
         return no_update
     return ctx.triggered_id
+  
+# ============================
+# Callbacks — UI wiring: position-scoped dropdown options
+# ============================
+
+@callback(
+    Output("ctl-stat", "options"),
+    Output("ctl-stat", "value"),
+    Input("ctl-position", "value"),
+    State("ctl-stat", "value"),
+    prevent_initial_call=False,
+)
+def _ui_player_traj_stat_options(pos, current_val):
+    opts = _pos_stat_options(pos)
+    allowed = {o["value"] for o in opts}
+    # keep current if valid; otherwise fallback for that position
+    fallback = DEFAULT_STAT_BY_POS.get(pos)
+    new_val = current_val if current_val in allowed else (fallback if fallback in allowed else (opts[0]["value"] if opts else None))
+    return opts, new_val
+  
+@callback(
+    Output("ctl-pv-stat", "options"),
+    Output("ctl-pv-stat", "value"),
+    Input("ctl-pv-position", "value"),
+    State("ctl-pv-stat", "value"),
+    prevent_initial_call=False,
+)
+def _ui_player_violin_stat_options(pos, current_val):
+    opts = _pos_stat_options(pos)
+    allowed = {o["value"] for o in opts}
+    fallback = DEFAULT_STAT_BY_POS.get(pos)
+    new_val = current_val if current_val in allowed else (fallback if fallback in allowed else (opts[0]["value"] if opts else None))
+    return opts, new_val
+
+@callback(
+    Output("ctl-pr-metric", "options"),
+    Output("ctl-pr-metric", "value"),
+    Input("ctl-pr-position", "value"),
+    State("ctl-pr-metric", "value"),
+    prevent_initial_call=False,
+)
+def _ui_player_roll_metric_options(pos, current_val):
+    opts = _pos_stat_options(pos)  # same pool; UI label says "Metric"
+    allowed = {o["value"] for o in opts}
+    fallback = DEFAULT_STAT_BY_POS.get(pos)
+    new_val = current_val if current_val in allowed else (fallback if fallback in allowed else (opts[0]["value"] if opts else None))
+    return opts, new_val
+
+@callback(
+    Output("ctl-ps-metric-x", "options"),
+    Output("ctl-ps-metric-x", "value"),
+    Output("ctl-ps-metric-y", "options"),
+    Output("ctl-ps-metric-y", "value"),
+    Input("ctl-ps-position", "value"),
+    State("ctl-ps-metric-x", "value"),
+    State("ctl-ps-metric-y", "value"),
+    prevent_initial_call=False,
+)
+def _ui_player_scatter_metric_options(pos, x_current, y_current):
+    opts = _pos_stat_options(pos)
+    allowed = {o["value"] for o in opts}
+    x_fallback, y_fallback = SCATTER_DEFAULTS_BY_POS.get(pos, ("attempts", "passing_epa"))
+
+    x_new = x_current if x_current in allowed else (x_fallback if x_fallback in allowed else (opts[0]["value"] if opts else None))
+    y_new = y_current if y_current in allowed else (y_fallback if y_fallback in allowed else (opts[0]["value"] if opts else None))
+
+    # Reuse the same filtered options list for both dropdowns
+    return opts, x_new, opts, y_new
 
 # ============================
 # Callbacks — Analytics Nexus: Player scatter plot
@@ -2472,7 +2889,7 @@ def render_ax_tt_figure(rows, stat_name, seasons_sel, season_type, rankby, serie
         except Exception:
             return fallback
 
-    stat_label   = _label_for(STAT_OPTIONS, stat_name, stat_name)
+    stat_label = _label_for(_options_without_headers(TEAM_METRIC_OPTIONS), stat_name, stat_name)
     series_label = "Weekly" if (series_mode or "base") == "base" else "Season-to-Date"
 
     # Empty state
@@ -2720,7 +3137,7 @@ def render_ax_tv_figure(payload, show_points_vals, stat_name):
     meta    = payload.get("meta", {}) or {}
 
     # Labels
-    stat_label = next((o["label"] for o in STAT_OPTIONS if o["value"] == stat_name), stat_name)
+    stat_label = next((o["label"] for o in _options_without_headers(TEAM_METRIC_OPTIONS) if o["value"] == stat_name), stat_name)
 
     seasons = meta.get("seasons", [])
     if seasons:
