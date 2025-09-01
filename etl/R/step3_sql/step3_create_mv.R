@@ -34,14 +34,14 @@ for (pos in positions) {
   } else {
     message("Creating materialized view: ", view_name)
     
-    dbExecute(con, glue("DROP MATERIALIZED VIEW IF EXISTS {view_name} CASCADE;"))
+    dbExecute(con, glue("DROP MATERIALIZED VIEW IF EXISTS prod.{view_name} CASCADE;"))
     dbExecute(con, glue("
-      CREATE MATERIALIZED VIEW {view_name} AS
+      CREATE MATERIALIZED VIEW prod.{view_name} AS
       SELECT distinct pwt.*,
              tmt.team_color,
              tmt.team_color2
-      FROM public.player_weekly_tbl pwt
-      LEFT JOIN public.team_metadata_tbl tmt
+      FROM prod.player_weekly_tbl pwt
+      LEFT JOIN prod.team_metadata_tbl tmt
              ON pwt.team = tmt.team_abbr
       WHERE pwt.position = '{pos}'
         AND pwt.season BETWEEN 2019 AND 2025;
@@ -49,7 +49,7 @@ for (pos in positions) {
     
     message("Creating index on: ", view_name)
     dbExecute(con, glue("
-      CREATE UNIQUE INDEX uq_{view_name} ON {view_name} (player_id, season, season_type, week, stat_name, stat_type);
+      CREATE UNIQUE INDEX uq_{view_name} ON prod.{view_name} (player_id, season, season_type, week, stat_name, stat_type);
     "))
   }
 }

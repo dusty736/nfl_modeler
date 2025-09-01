@@ -36,7 +36,7 @@ async def get_current_season_week():
     """
     sql = text("""
         SELECT MIN(season) AS season, MIN(week) AS week
-        FROM public.games_tbl
+        FROM prod.games_tbl
         WHERE result IS NULL
     """)
     async with AsyncSessionLocal() as session:
@@ -61,7 +61,7 @@ async def get_max_week_team(season: int, team: str):
     """
     sql = text("""
         SELECT MAX(week) AS max_week
-        FROM public.weekly_results_tbl
+        FROM prod.weekly_results_tbl
         WHERE season = :season
           AND team_id = :team
     """)
@@ -87,7 +87,7 @@ async def get_max_week(season: int):
     """
     sql = text("""
         SELECT MAX(week) AS max_week
-        FROM public.weekly_results_tbl
+        FROM prod.weekly_results_tbl
         WHERE season = :season
     """)
     async with AsyncSessionLocal() as session:

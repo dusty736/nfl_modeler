@@ -45,7 +45,7 @@ async def get_team_roster(team_abbr: str, season: int):
         	rt.college,
         	rt.years_exp,
         	rt.rookie_year
-        from public.rosters_tbl rt
+        from prod.rosters_tbl rt
         WHERE rt.season = :season
           AND rt.team_id = :team_abbr
         order by position, name;
@@ -115,8 +115,8 @@ async def get_team_position_summary(team_abbr: str, season: int, position: str):
                 round(avg_exp::numeric, 2)    as average_exp,
                 dcpst.position_group_score,
                 1 as sort_order
-            from public.roster_position_summary_tbl rpst
-            left join public.depth_charts_position_stability_tbl dcpst 
+            from prod.roster_position_summary_tbl rpst
+            left join prod.depth_charts_position_stability_tbl dcpst 
                    using(season, team, position)
         
             union all
@@ -129,10 +129,10 @@ async def get_team_position_summary(team_abbr: str, season: int, position: str):
                 round(avg_exp::numeric, 2)    as average_exp,
                 round(t.avg_position_group_score::numeric, 2) as position_group_score,
                 2 as sort_order
-            from public.roster_summary_tbl rst
+            from prod.roster_summary_tbl rst
             left join (
                 select season, team, avg(position_group_score) as avg_position_group_score
-                from public.depth_charts_position_stability_tbl
+                from prod.depth_charts_position_stability_tbl
                 group by season, team
             ) t using(season, team)
         ) q

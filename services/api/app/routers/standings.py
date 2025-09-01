@@ -68,8 +68,8 @@ async def get_standings():
             COALESCE(srt.points_for, 0)           AS points_for,
             COALESCE(srt.points_against, 0)       AS points_against,
             COALESCE(srt.point_diff, 0)           AS point_diff
-        FROM public.team_metadata_tbl tmt
-        INNER JOIN public.season_results_tbl srt
+        FROM prod.team_metadata_tbl tmt
+        INNER JOIN prod.season_results_tbl srt
                ON tmt.team_abbr = srt.team_id
               AND srt.season = :season
         ORDER BY tmt.team_division, wins DESC, point_diff DESC, team_id;
@@ -102,8 +102,8 @@ async def get_standings_conference():
             COALESCE(srt.points_for, 0)           AS points_for,
             COALESCE(srt.points_against, 0)       AS points_against,
             COALESCE(srt.point_diff, 0)           AS point_diff
-        FROM public.team_metadata_tbl tmt
-        INNER JOIN public.season_results_tbl srt
+        FROM prod.team_metadata_tbl tmt
+        INNER JOIN prod.season_results_tbl srt
                ON tmt.team_abbr = srt.team_id
               AND srt.season = :season
         ORDER BY 

@@ -46,7 +46,7 @@ async def get_team_record(season: int, week: int, team_abbr: str):
             t.points_for as points_scored,
             t.points_against as points_allowed,
             t.point_diff as point_differential
-        FROM public.season_results_tbl t
+        FROM prod.season_results_tbl t
         WHERE t.season = :season
           AND t.team_id   = :team_abbr;
     """
@@ -78,7 +78,7 @@ async def get_team_offense(team_abbr: str, season: int, week: int):
         COALESCE(SUM(o.passing_yards), 0)   AS passing_yards,
         COALESCE(SUM(o.rushing_yards), 0)   AS rushing_yards,
         COALESCE(SUM(o.receiving_yards), 0) AS receiving_yards
-    FROM public.off_team_stats_week_tbl o
+    FROM prod.off_team_stats_week_tbl o
     WHERE o.season = :season
       AND o.team   = :team_abbr
       AND o.week  <= :week
@@ -91,7 +91,7 @@ async def get_team_offense(team_abbr: str, season: int, week: int):
         COALESCE(SUM(o.passing_yards), 0),
         COALESCE(SUM(o.rushing_yards), 0),
         COALESCE(SUM(o.receiving_yards), 0)
-    FROM public.off_team_stats_week_tbl o
+    FROM prod.off_team_stats_week_tbl o
     WHERE o.season = :season
       AND o.team   = :team_abbr
       AND o.week  <= :week
@@ -125,7 +125,7 @@ async def get_team_defense(team_abbr: str, season: int, week: int):
         COALESCE(SUM(d.def_tackles), 0)       AS tackles,
         COALESCE(SUM(d.def_sacks), 0)         AS sacks,
         COALESCE(SUM(d.def_interceptions), 0) AS interceptions
-    FROM public.def_team_stats_week_tbl d
+    FROM prod.def_team_stats_week_tbl d
     WHERE d.season = :season
       AND d.team   = :team_abbr
       AND d.week  <= :week
@@ -138,7 +138,7 @@ async def get_team_defense(team_abbr: str, season: int, week: int):
         COALESCE(SUM(d.def_tackles), 0)       AS tackles,
         COALESCE(SUM(d.def_sacks), 0)         AS sacks,
         COALESCE(SUM(d.def_interceptions), 0) AS interceptions
-    FROM public.def_team_stats_week_tbl d
+    FROM prod.def_team_stats_week_tbl d
     WHERE d.season = :season
       AND d.team   = :team_abbr
       AND d.week  <= :week
@@ -171,7 +171,7 @@ async def get_team_special(team_abbr: str, season: int, week: int):
         CAST(s.week AS TEXT) AS week,
         COALESCE(SUM(s.fg_made), 0) AS total_fg_made,
         COALESCE(SUM(s.fg_att), 0)  AS total_fg_attempted
-    FROM public.st_player_stats_weekly_tbl s
+    FROM prod.st_player_stats_weekly_tbl s
     WHERE s.season = :season
       AND s.team   = :team_abbr
       AND s.week  <= :week
@@ -183,7 +183,7 @@ async def get_team_special(team_abbr: str, season: int, week: int):
         'TOTAL' AS week,
         COALESCE(SUM(s.fg_made), 0),
         COALESCE(SUM(s.fg_att), 0)
-    FROM public.st_player_stats_weekly_tbl s
+    FROM prod.st_player_stats_weekly_tbl s
     WHERE s.season = :season
       AND s.team   = :team_abbr
       AND s.week  <= :week

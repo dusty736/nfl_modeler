@@ -43,7 +43,7 @@ async def get_primetime_games():
     async with AsyncSessionLocal() as session:
         result = await session.execute(text("""
             SELECT MIN(season) AS season, MIN(week) AS week
-            FROM public.games_tbl
+            FROM prod.games_tbl
             WHERE result IS NULL
         """))
         current = result.mappings().first()
@@ -55,7 +55,7 @@ async def get_primetime_games():
         # Step 2: Select primetime games
         query = text("""
             SELECT *
-            FROM public.games_tbl
+            FROM prod.games_tbl
             WHERE season = :season
               AND week = :week
               AND (

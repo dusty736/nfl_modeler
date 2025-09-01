@@ -35,10 +35,10 @@ router = APIRouter(prefix="/analytics_nexus", tags=["analytics_nexus"])
 
 ALLOWED_POSITIONS = {"QB", "RB", "WR", "TE"}
 MV_MAP = {
-    "QB": "public.player_weekly_qb_mv",
-    "RB": "public.player_weekly_rb_mv",
-    "WR": "public.player_weekly_wr_mv",
-    "TE": "public.player_weekly_te_mv",
+    "QB": "prod.player_weekly_qb_mv",
+    "RB": "prod.player_weekly_rb_mv",
+    "WR": "prod.player_weekly_wr_mv",
+    "TE": "prod.player_weekly_te_mv",
 }
 MIN_WEEK, MAX_WEEK_HARD = 1, 22  # (REG <= 18; POST small; safe upper bound)
 
@@ -87,7 +87,7 @@ def _pick_source_table(season: int, position: str) -> tuple[str, bool]:
     """
     if 2019 <= int(season) <= 2025:
         return MV_MAP[position], True
-    return "public.player_weekly_tbl", False
+    return "prod.player_weekly_tbl", False
 
 # === Player: Weekly Trajectories =================================================
 @router.get("/player/trajectories/{season}/{season_type}/{stat_name}/{position}/{top_n}")
@@ -200,8 +200,8 @@ async def get_player_weekly_trajectories(
                 pwt.player_id, pwt.name, pwt.team, pwt.season, pwt.season_type, pwt.week,
                 pwt.position, pwt.stat_name, pwt.stat_type, pwt.value,
                 tmt.team_color, tmt.team_color2
-            FROM public.player_weekly_tbl pwt
-            LEFT JOIN public.team_metadata_tbl tmt
+            FROM prod.player_weekly_tbl pwt
+            LEFT JOIN prod.team_metadata_tbl tmt
               ON pwt.team = tmt.team_abbr
             WHERE pwt.season = :season
               AND (:season_type = 'ALL' OR pwt.season_type = :season_type)
@@ -473,8 +473,8 @@ async def get_player_violins(
                 pwt.player_id, pwt.name, pwt.team, pwt.season, pwt.season_type, pwt.week,
                 pwt.position, pwt.stat_name, pwt.stat_type, pwt.value,
                 tmt.team_color, tmt.team_color2
-            FROM public.player_weekly_tbl pwt
-            LEFT JOIN public.team_metadata_tbl tmt
+            FROM prod.player_weekly_tbl pwt
+            LEFT JOIN prod.team_metadata_tbl tmt
               ON pwt.team = tmt.team_abbr
             WHERE pwt.season = ANY(:seasons_raw)
               AND (:season_type = 'ALL' OR pwt.season_type = :season_type)
@@ -997,8 +997,8 @@ async def get_player_scatter_quadrants(
             SELECT
               pwt.player_id, pwt.name, pwt.team, pwt.season, pwt.season_type, pwt.week, pwt.position,
               pwt.stat_name, pwt.value, tmt.team_color, tmt.team_color2
-            FROM public.player_weekly_tbl pwt
-            LEFT JOIN public.team_metadata_tbl tmt
+            FROM prod.player_weekly_tbl pwt
+            LEFT JOIN prod.team_metadata_tbl tmt
               ON pwt.team = tmt.team_abbr
             WHERE pwt.season = ANY(:seasons_raw)
               AND (:season_type = 'ALL' OR pwt.season_type = :season_type)
@@ -1265,8 +1265,8 @@ async def get_player_rolling_percentiles(
                 pwt.player_id, pwt.name, pwt.team, pwt.season, pwt.season_type, pwt.week,
                 pwt.position, pwt.stat_name, pwt.stat_type, pwt.value,
                 tmt.team_color, tmt.team_color2
-            FROM public.player_weekly_tbl pwt
-            LEFT JOIN public.team_metadata_tbl tmt
+            FROM prod.player_weekly_tbl pwt
+            LEFT JOIN prod.team_metadata_tbl tmt
               ON pwt.team = tmt.team_abbr
             WHERE pwt.season = ANY(:seasons_raw)
               AND (:season_type = 'ALL' OR pwt.season_type = :season_type)
@@ -1566,8 +1566,8 @@ async def get_team_weekly_trajectories(
             twt.value,                         -- base weekly value in storage
             COALESCE(tmt.team_color,  '#888888') AS team_color,
             COALESCE(tmt.team_color2, '#AAAAAA') AS team_color2
-        FROM public.team_weekly_tbl twt
-        LEFT JOIN public.team_metadata_tbl tmt
+        FROM prod.team_weekly_tbl twt
+        LEFT JOIN prod.team_metadata_tbl tmt
           ON twt.team = tmt.team_abbr
         WHERE twt.season = ANY(:seasons)
           AND (:season_type = 'ALL' OR twt.season_type = :season_type)
@@ -1756,8 +1756,8 @@ async def get_team_violins(
                 END AS v_eff,
                 COALESCE(tmt.team_color,  '#888888') AS team_color,
                 COALESCE(tmt.team_color2, '#AAAAAA') AS team_color2
-            FROM public.team_weekly_tbl twt
-            LEFT JOIN public.team_metadata_tbl tmt
+            FROM prod.team_weekly_tbl twt
+            LEFT JOIN prod.team_metadata_tbl tmt
               ON twt.team = tmt.team_abbr
             WHERE twt.season = ANY(:seasons)
               AND (:season_type = 'ALL' OR twt.season_type = :season_type)
@@ -2220,8 +2220,8 @@ async def get_team_scatter_quadrants(
           twt.value,
           COALESCE(tmt.team_color,  '#888888') AS team_color,
           COALESCE(tmt.team_color2, '#AAAAAA') AS team_color2
-        FROM public.team_weekly_tbl twt
-        LEFT JOIN public.team_metadata_tbl tmt
+        FROM prod.team_weekly_tbl twt
+        LEFT JOIN prod.team_metadata_tbl tmt
           ON twt.team = tmt.team_abbr
         WHERE twt.season = ANY(:seasons)
           AND (:season_type = 'ALL' OR twt.season_type = :season_type)
@@ -2455,8 +2455,8 @@ async def get_team_rolling_percentiles(
             END AS v_eff,
             COALESCE(tmt.team_color,  '#888888') AS team_color,
             COALESCE(tmt.team_color2, '#AAAAAA') AS team_color2
-        FROM public.team_weekly_tbl twt
-        LEFT JOIN public.team_metadata_tbl tmt
+        FROM prod.team_weekly_tbl twt
+        LEFT JOIN prod.team_metadata_tbl tmt
           ON twt.team = tmt.team_abbr
         WHERE twt.season = ANY(:seasons)
           AND (:season_type = 'ALL' OR twt.season_type = :season_type)

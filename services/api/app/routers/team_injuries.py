@@ -72,7 +72,7 @@ async def get_team_injury_summary(team: str, season: int, week: int, position: s
         	cumulative_position_injuries as season_injuries,
         	1 as sort_order
         from 
-        	public.injuries_position_weekly_tbl ipwt 
+        	prod.injuries_position_weekly_tbl ipwt 
         union ALL
         select 
         	team,
@@ -83,7 +83,7 @@ async def get_team_injury_summary(team: str, season: int, week: int, position: s
         	cumulative_injuries as season_injuries,
         	2 as sort_order
         from 
-        	public.injuries_team_weekly_tbl itwt) q
+        	prod.injuries_team_weekly_tbl itwt) q
         WHERE q.season = :season
           AND q.week = :week
           AND q.team = :team
@@ -148,7 +148,7 @@ async def get_player_injuries(team: str, season: int, week: int, position: str):
         	season, 
         	team, 
         	week
-        from public.injuries_weekly_tbl iwt) q
+        from prod.injuries_weekly_tbl iwt) q
         where season = :season
         and team = :team
         and week = :week

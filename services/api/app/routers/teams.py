@@ -19,7 +19,7 @@ async def get_all_teams():
     """Return all teams (excluding legacy OAK/STL/SD), sorted by division then name."""
     query = """
         SELECT team_name, team_abbr, team_division
-        FROM public.team_metadata_tbl
+        FROM prod.team_metadata_tbl
         WHERE team_abbr not in ('OAK', 'STL', 'SD')
         ORDER BY team_division, team_name;
     """
@@ -34,7 +34,7 @@ async def get_team_by_abbr(team_abbr: str):
     """Return a single team row by abbreviation (e.g., 'KC')."""
     query = """
         SELECT team_name, team_abbr, team_division
-        FROM public.team_metadata_tbl
+        FROM prod.team_metadata_tbl
         WHERE team_abbr = :abbr;
     """
     async with AsyncSessionLocal() as session:
