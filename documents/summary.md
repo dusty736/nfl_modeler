@@ -1,7 +1,5 @@
 # NFL Analytics Dashboard — Product Summary
 
-> **Audience:** PMs, data scientists, engineers, and stakeholders.
->
 > **Project style:** Human+AI “centaur” workflow — we intentionally pair expert judgment with AI assistance across design, implementation, and operations.
 
 ---
