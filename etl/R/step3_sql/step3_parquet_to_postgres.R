@@ -4,6 +4,7 @@ library(DBI)
 library(RPostgres)
 library(arrow)
 library(dplyr)
+library(here)
 
 source(here("etl", "R", "step3_sql", "step3_parquet_to_postgres_functions.R"))
 
@@ -107,7 +108,7 @@ create_index(con = con, schema = 'prod', table = 'participation_offense_season_t
 load_parquet_to_postgres(file.path(base_path, "pbp_tbl.parquet"), schema = 'prod', "pbp_tbl")
 create_index(con = con, schema = 'prod', table = 'pbp_tbl', id_cols = c("game_id","play_id"), unique = TRUE)
 
-load_parquet_to_postgres(file.path(base_path, "pbp_games_tbl.parquet"), schema = 'prod', "pbp_game_tbl")
+load_parquet_to_postgres(file.path(base_path, "pbp_game_tbl.parquet"), schema = 'prod', "pbp_game_tbl")
 create_index(con = con, schema = 'prod', table = 'pbp_game_tbl', id_cols = c("game_id","team"), unique = TRUE)
 
 load_parquet_to_postgres(file.path(base_path, "roster_position_summary_tbl.parquet"), schema = 'prod', "roster_position_summary_tbl")

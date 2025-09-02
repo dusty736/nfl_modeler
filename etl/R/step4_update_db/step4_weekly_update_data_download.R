@@ -62,7 +62,7 @@ game_team_feats <- pbp_clean %>%
     qd_min_yards = 20
   ) %>% distinct()
 
-write_parquet(pbp, "data/staging/pbp.parquet")
+write_parquet(pbp_feats, "data/staging/pbp.parquet")
 write_parquet(game_team_feats, "data/staging/pbp_games.parquet")
 
 ################################################################################
@@ -357,19 +357,19 @@ arrow::write_parquet(
 # Long Player Table
 ################################################################################
 # Offense
-weekly_wr <- pivot_player_stats_long(file_path = here("data", "staging", 
+weekly_wr <- pivot_player_stats_long(file_path = here("data", "processed", 
                                                       "weekly_stats_wr.parquet"))
-weekly_te <- pivot_player_stats_long(file_path = here("data", "staging", 
+weekly_te <- pivot_player_stats_long(file_path = here("data", "processed", 
                                                       "weekly_stats_te.parquet"))
-weekly_qb <- pivot_player_stats_long(file_path = here("data", "staging", 
+weekly_qb <- pivot_player_stats_long(file_path = here("data", "processed", 
                                                       "weekly_stats_qb.parquet"))
-weekly_rb <- pivot_player_stats_long(file_path = here("data", "staging", 
+weekly_rb <- pivot_player_stats_long(file_path = here("data", "processed", 
                                                       "weekly_stats_rb.parquet"))
-weekly_ng_qb <- pivot_ngs_player_stats_long(file_path = here("data", "staging", 
+weekly_ng_qb <- pivot_ngs_player_stats_long(file_path = here("data", "processed", 
                                                              "nextgen_stats_player_weekly.parquet"), 
                                             opponent_df = weekly_qb)
-weekly_pbp_qb <- pivot_pbp_game_stats_long(input_path = here("data", "staging", 
-                                                             "pbp_games.parquet"))
+weekly_pbp_qb <- pivot_pbp_game_stats_long(input_path = here("data", "processed", 
+                                                             "pbp_cleaned_games.parquet"))
 
 weekly_pbp_qb <- weekly_qb %>% 
   dplyr::select(player_id, name, position, season, season_type, week, team, opponent) %>% 
@@ -428,17 +428,17 @@ game_id_map <- weekly_results %>%
   dplyr::select(team = team_id, game_id, season, week) %>% 
   distinct()
 
-weekly_off <- pivot_team_stats_long(here("data", "staging", "off_team_stats_week.parquet"),
+weekly_off <- pivot_team_stats_long(here("data", "processed", "off_team_stats_week.parquet"),
                                     team_schedule, "recent_team") %>% filter(stat_name != 'games_played')
-weekly_def <- pivot_team_stats_long(here("data", "staging", "def_team_stats_week.parquet"),
+weekly_def <- pivot_team_stats_long(here("data", "processed", "def_team_stats_week.parquet"),
                                     team_schedule, "team")
-weekly_inj <- pivot_team_stats_long(here("data", "staging", "injuries_team_weekly.parquet"),
+weekly_inj <- pivot_team_stats_long(here("data", "processed", "injuries_team_weekly.parquet"),
                                     team_schedule, "team")
-weekly_pbp <- pivot_pbp_game_stats_long(input_path = here("data", "staging", 
+weekly_pbp <- pivot_pbp_game_stats_long(input_path = here("data", "processed", 
                                                           "pbp_games.parquet"))
 weekly_game_stats <- pivot_game_results_long(here("data", "staging", "weekly_results.parquet")) %>% 
   left_join(., team_schedule, by=c('team', 'season', 'week'))
-weekly_st_stats <- pivot_special_teams_long(here("data", "staging", "st_player_stats_weekly.parquet")) %>% 
+weekly_st_stats <- pivot_special_teams_long(here("data", "processed", "st_player_stats_weekly.parquet")) %>% 
   left_join(., team_schedule, by=c('team', 'season', 'week', 'season_type'))
 
 historic_team_long <- arrow::read_parquet("data/for_database/team_weekly_tbl.parquet") %>% 

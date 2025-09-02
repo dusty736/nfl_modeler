@@ -1,5 +1,5 @@
 ################################################################################
-# step3_database_file_prep
+# step4_weekly_upload_to_db
 ################################################################################
 
 library(arrow)
@@ -411,7 +411,7 @@ load_parquet_to_postgres(file.path(base_path, "team_weekly_tbl.parquet"), schema
 create_index(con = con, schema = 'stage', table = 'team_weekly_tbl', id_cols = c("season","season_type","week","team","stat_name", "stat_type"), unique = TRUE)
 
 # Team season long
-parquet_to_postgres(file.path(base_path, "team_season_tbl.parquet"), schema = 'stage', "team_season_tbl")
+load_parquet_to_postgres(file.path(base_path, "team_season_tbl.parquet"), schema = 'stage', "team_season_tbl")
 create_index(con = con, schema = 'stage', table = 'team_season_tbl', id_cols = c("season","season_type","team","stat_name", "stat_type"), unique = TRUE)
 
 # Team total long
@@ -420,7 +420,7 @@ create_index(con = con, schema = 'stage', table = 'team_career_tbl', id_cols = c
 
 # Player weekly long
 load_parquet_to_postgres(file.path(base_path, "player_weekly_tbl.parquet"), schema = 'stage', "player_weekly_tbl")
-create_index(con = con, schema = 'stage', table = 'player_weekly_tbl', id_cols = c("season","season_type","week","player_id","stat_name", "stat_type"), unique = FALSE)
+create_index(con = con, schema = 'stage', table = 'player_weekly_tbl', id_cols = c("season","season_type","week","player_id","stat_name", "stat_type"), unique = TRUE)
 
 # Player season long
 load_parquet_to_postgres(file.path(base_path, "player_season_tbl.parquet"), schema = 'stage', "player_season_tbl")
@@ -429,6 +429,3 @@ create_index(con = con, schema = 'stage', table = 'player_season_tbl', id_cols =
 # Player total long
 load_parquet_to_postgres(file.path(base_path, "player_career_tbl.parquet"), schema = 'stage', "player_career_tbl")
 create_index(con = con, schema = 'stage', table = 'player_career_tbl', id_cols = c("player_id","season_type","position","name","stat_name", "agg_type"), unique = TRUE)
-
-
-
