@@ -23,6 +23,6 @@ qb_contracts <- add_qb_contract_metadata(contracts_clean)
 ################################################################################
 # Save processed output
 ################################################################################
-arrow::write_parquet(position_cap_pct, "data/processed/contracts_position_cap_pct.parquet")
-arrow::write_parquet(qb_contracts, "data/processed/contracts_qb.parquet")
+arrow::write_parquet(position_cap_pct %>% distinct(), "data/processed/contracts_position_cap_pct.parquet")
+arrow::write_parquet(qb_contracts %>% distinct(), "data/processed/contracts_qb.parquet")
 

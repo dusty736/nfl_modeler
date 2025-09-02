@@ -14,6 +14,6 @@ id_map <- arrow::read_parquet(here("data", "raw", "id_map.parquet"))
 ################################################################################
 # Save processed output
 ################################################################################
-arrow::write_parquet(id_map, "data/processed/id_map.parquet")
+arrow::write_parquet(id_map %>% distinct(), "data/processed/id_map.parquet")
 
 

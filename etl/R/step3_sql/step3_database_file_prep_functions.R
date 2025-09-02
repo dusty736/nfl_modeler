@@ -2355,5 +2355,189 @@ form_team_alltime_for_sql <- function(input_path,
   invisible(team_alltime_sql)
 }
 
+# step2_pbp_process_sql_forms.R
+
+#' Play-by-Play (play level) — SQL form
+#'
+#' Reads a processed play-level Parquet (output of your cleaning/feature steps),
+#' casts to consistent types, orders columns, and writes a SQL-ready Parquet.
+#'
+#' @param input_path Path to the input Parquet (e.g., "data/processed/pbp_play.parquet")
+#' @param output_path Path to the SQL-ready file to write (e.g., "pbp_play_tbl.parquet")
+#' @return The cleaned tibble (invisibly).
+#' @export
+form_pbp_play_for_sql <- function(input_path, output_path) {
+  df <- arrow::read_parquet(input_path)
+  
+  # Keep to stable names from your clean_pbp_data(); booleans map cleanly to SQL BOOLEAN.
+  pbp_play_sql <- dplyr::transmute(
+    df,
+    # --- identifiers ---
+    game_id                     = as.character(game_id),
+    play_id                     = as.integer(play_id),
+    
+    # --- state / situation ---
+    qtr                         = as.integer(qtr),
+    down                        = as.integer(down),
+    ydstogo                     = as.integer(ydstogo),
+    yardline_100                = as.integer(yardline_100),
+    goal_to_go                  = as.logical(goal_to_go),
+    
+    # --- teams ---
+    posteam                     = as.character(posteam),
+    defteam                     = as.character(defteam),
+    home_team                   = as.character(home_team),
+    away_team                   = as.character(away_team),
+    
+    # --- clock ---
+    quarter_seconds_remaining   = as.numeric(quarter_seconds_remaining),
+    half_seconds_remaining      = as.numeric(half_seconds_remaining),
+    game_seconds_remaining      = as.numeric(game_seconds_remaining),
+    time                        = as.character(time),
+    play_clock                  = as.character(play_clock),
+    
+    # --- scoreboard ---
+    home_score                  = as.integer(home_score),
+    away_score                  = as.integer(away_score),
+    posteam_score               = as.integer(posteam_score),
+    defteam_score               = as.integer(defteam_score),
+    total_home_score            = as.integer(total_home_score),
+    total_away_score            = as.integer(total_away_score),
+    score_differential          = as.integer(score_differential),
+    score_differential_post     = as.integer(score_differential_post),
+    
+    # --- outcomes / probs ---
+    yards_gained                = as.integer(yards_gained),
+    epa                         = as.numeric(epa),
+    wpa                         = as.numeric(wpa),
+    wp                          = as.numeric(wp),
+    home_wp_post                = as.numeric(home_wp_post),
+    away_wp_post                = as.numeric(away_wp_post),
+    vegas_wp                    = as.numeric(vegas_wp),
+    vegas_home_wp               = as.numeric(vegas_home_wp),
+    
+    # --- play details ---
+    play_type                   = as.character(play_type),
+    desc                        = as.character(desc),
+    success                     = as.logical(success),
+    penalty                     = as.logical(penalty),
+    timeout                     = as.logical(timeout),
+    aborted_play                = as.logical(aborted_play),
+    play_deleted                = as.logical(play_deleted),
+    
+    # --- modeling features ---
+    air_yards                   = as.numeric(air_yards),
+    yards_after_catch           = as.numeric(yards_after_catch),
+    pass_length                 = as.character(pass_length),
+    pass_location               = as.character(pass_location),
+    rush_attempt                = as.logical(rush_attempt),
+    pass_attempt                = as.logical(pass_attempt),
+    sack                        = as.logical(sack),
+    touchdown                   = as.logical(touchdown),
+    interception                = as.logical(interception),
+    
+    # --- probabilistic inputs ---
+    xpass                       = as.numeric(xpass),
+    pass_oe                     = as.numeric(pass_oe),
+    
+    # --- drive / series context ---
+    series                      = as.integer(series),
+    series_result               = as.character(series_result),
+    drive                       = as.integer(drive),
+    drive_play_count            = as.integer(drive_play_count),
+    drive_ended_with_score      = as.logical(drive_ended_with_score),
+    drive_time_of_possession    = as.character(drive_time_of_possession)
+  ) |>
+    dplyr::arrange(game_id, play_id)
+  
+  arrow::write_parquet(pbp_play_sql, output_path)
+  invisible(pbp_play_sql)
+}
+
+
+#' Team-Game (game level) — SQL form
+#'
+#' Reads a team-game Parquet (output of `summarise_team_game_features()`),
+#' coerces types, derives opponent + result, and writes a SQL-ready Parquet.
+#'
+#' Required input columns include: game_id, posteam, points_scored, drives, plays_total,
+#' epa_total, epa_per_play, success_rate, explosive_rate, pass_rate, rush_rate,
+#' quality_drives, quality_drive_rate, three_and_outs, short_turnovers_leq3, etc.
+#'
+#' @param input_path Path to the input Parquet (e.g., "data/processed/team_game_features.parquet")
+#' @param output_path Path to the SQL-ready file (e.g., "team_game_features_tbl.parquet")
+#' @return The cleaned tibble (invisibly).
+#' @export
+form_team_game_for_sql <- function(input_path, output_path) {
+  g <- arrow::read_parquet(input_path)
+  
+  # Build opponent + points_allowed by self-joining within each game
+  opp_map <- g |>
+    dplyr::select(game_id, opp_team = posteam) |>
+    dplyr::distinct()
+  
+  g2 <- g |>
+    dplyr::left_join(opp_map, by = "game_id") |>
+    dplyr::filter(posteam != opp_team) |>
+    dplyr::group_by(game_id, posteam) |>
+    dplyr::slice_head(n = 1) |>
+    dplyr::ungroup()
+  
+  team_game_sql <- dplyr::transmute(
+    g2,
+    # --- identifiers ---
+    game_id                        = as.character(game_id),
+    team                           = as.character(posteam),
+    opponent                       = as.character(opp_team),
+    
+    # --- drive & play volume ---
+    drives                         = as.integer(drives),
+    plays_total                    = as.integer(plays_total),
+    
+    # --- core efficiency ---
+    epa_total                      = as.numeric(epa_total),
+    epa_per_play                   = as.numeric(epa_per_play),
+    success_rate                   = as.numeric(success_rate),
+    explosive_rate                 = as.numeric(explosive_rate),
+    pass_rate                      = as.numeric(pass_rate),
+    rush_rate                      = as.numeric(rush_rate),
+    
+    # --- quality / red zone ---
+    quality_drives                 = as.integer(quality_drives),
+    quality_drive_rate             = as.numeric(quality_drive_rate),
+    red_zone_trips                 = as.integer(red_zone_trips),
+    red_zone_trip_rate             = as.numeric(red_zone_trip_rate),
+    red_zone_scores                = as.integer(red_zone_scores),
+    red_zone_score_rate            = as.numeric(red_zone_score_rate),
+    
+    # --- turnovers & negatives ---
+    sacks_per_drive                = as.numeric(sacks_per_drive),
+    interceptions_per_drive        = as.numeric(interceptions_per_drive),
+    three_and_outs                 = as.integer(three_and_outs),
+    three_and_out_rate             = as.numeric(three_and_out_rate),
+    short_turnovers_leq3           = as.integer(short_turnovers_leq3),
+    short_turnover_leq3_rate       = as.numeric(short_turnover_leq3_rate),
+    three_and_out_or_short_turnover= as.integer(three_and_out_or_short_turnover),
+    three_and_out_or_short_turnover_rate = as.numeric(three_and_out_or_short_turnover_rate),
+    
+    # --- timing & position ---
+    avg_start_yardline_100         = as.numeric(avg_start_yardline_100),
+    avg_drive_depth_into_opp       = as.numeric(avg_drive_depth_into_opp),
+    avg_drive_plays                = as.numeric(avg_drive_plays),
+    avg_drive_time_seconds         = as.numeric(avg_drive_time_seconds),
+    
+    # --- WP/early-down flavor (if present) ---
+    wpa_total                      = as.numeric(dplyr::coalesce(wpa_total, 0)),
+    early_plays                    = as.integer(dplyr::coalesce(early_plays, 0)),
+    early_epa_total                = as.numeric(dplyr::coalesce(early_epa_total, 0)),
+    early_epa_per_play             = as.numeric(dplyr::coalesce(early_epa_per_play, 0)),
+    early_success_rate             = as.numeric(dplyr::coalesce(early_success_rate, 0)),
+    pass_oe_mean                   = as.numeric(dplyr::coalesce(pass_oe_mean, 0))
+  ) |>
+    dplyr::arrange(game_id, team)
+  
+  arrow::write_parquet(team_game_sql, output_path)
+  invisible(team_game_sql)
+}
 
 

@@ -23,5 +23,5 @@ st_stats_season <- summarize_special_teams_by_season(st_stats_cleaned)
 ################################################################################
 # Save processed output
 ################################################################################
-arrow::write_parquet(st_stats_games, "data/processed/st_player_stats_weekly.parquet")
-arrow::write_parquet(st_stats_season, "data/processed/st_player_stats_season.parquet")
+arrow::write_parquet(st_stats_games %>% distinct(), "data/processed/st_player_stats_weekly.parquet")
+arrow::write_parquet(st_stats_season %>% distinct(), "data/processed/st_player_stats_season.parquet")

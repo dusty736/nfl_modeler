@@ -33,7 +33,7 @@ nextgen_stats_player_season_cumulative <- compute_cumulative_nextgen_stats(nextg
 ################################################################################
 # Save processed output
 ################################################################################
-arrow::write_parquet(nextgen_stats_player_season, "data/processed/nextgen_stats_player_season.parquet")
-arrow::write_parquet(nextgen_stats_player_career, "data/processed/nextgen_stats_player_career.parquet")
-arrow::write_parquet(nextgen_stats_player_postseason, "data/processed/nextgen_stats_player_postseason.parquet")
-arrow::write_parquet(nextgen_stats_player_season_cumulative, "data/processed/nextgen_stats_player_weekly.parquet")
+arrow::write_parquet(nextgen_stats_player_season %>% distinct(), "data/processed/nextgen_stats_player_season.parquet")
+arrow::write_parquet(nextgen_stats_player_career %>% distinct(), "data/processed/nextgen_stats_player_career.parquet")
+arrow::write_parquet(nextgen_stats_player_postseason %>% distinct(), "data/processed/nextgen_stats_player_postseason.parquet")
+arrow::write_parquet(nextgen_stats_player_season_cumulative %>% distinct(), "data/processed/nextgen_stats_player_weekly.parquet")

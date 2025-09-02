@@ -26,6 +26,13 @@ weekly_rb <- pivot_player_stats_long(file_path = here("data", "processed",
 weekly_ng_qb <- pivot_ngs_player_stats_long(file_path = here("data", "processed", 
                                                       "nextgen_stats_player_weekly.parquet"), 
                                             opponent_df = weekly_qb)
+weekly_pbp_qb <- pivot_pbp_game_stats_long(input_path = here("data", "processed", 
+                                                             "pbp_cleaned_games.parquet"))
+
+weekly_pbp_qb <- weekly_qb %>% 
+  dplyr::select(player_id, name, position, season, season_type, week, team, opponent) %>% 
+  distinct() %>% 
+  left_join(., weekly_pbp_qb, by=c('season', 'season_type', 'week', 'team', 'opponent'))
 
 # Defense
 opponent_df <- weekly_rb %>% 
@@ -49,14 +56,16 @@ weekly_players <- rbind(weekly_qb,
 ################################################################################
 
 seasonal_players <- create_season_stats(weekly_players) %>% 
-  mutate_if(is.numeric, round, 0)
+  mutate_if(is.numeric, round, 0) %>% 
+  distinct()
 
 ################################################################################
 # PIVOT! - Career (Starting in 1999)
 ################################################################################
 
 career_players <- create_career_stats(weekly_players) %>% 
-  mutate_if(is.numeric, round, 3)
+  mutate_if(is.numeric, round, 3) %>% 
+  distinct()
 
 ################################################################################
 # Save

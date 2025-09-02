@@ -23,5 +23,5 @@ espn_qbr_career <- espn_qbr_career_by_season_type(espn_qbr_raw)
 ################################################################################
 # Save processed output
 ################################################################################
-arrow::write_parquet(espn_qbr_season, "data/processed/espn_qbr_season.parquet")
-arrow::write_parquet(espn_qbr_career, "data/processed/espn_qbr_career.parquet")
+arrow::write_parquet(espn_qbr_season %>% distinct(), "data/processed/espn_qbr_season.parquet")
+arrow::write_parquet(espn_qbr_career %>% distinct(), "data/processed/espn_qbr_career.parquet")

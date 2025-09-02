@@ -8,6 +8,7 @@ library(dplyr)
 library(tidyverse)
 
 source(here("etl", "R", "step3_sql", "step3_long_team_format_functions.R"))
+source(here("etl", "R", "step3_sql", "step3_long_player_format_functions.R"))
 
 team_metadata <- arrow::read_parquet(here("data", "processed", "team_metadata.parquet"))
 team_schedule <- arrow::read_parquet(here("data", "processed", "weekly_results.parquet")) %>% 
@@ -27,7 +28,10 @@ weekly_def <- pivot_team_stats_long(here("data", "processed", "def_team_stats_we
                                      team_schedule, "team")
 weekly_inj <- pivot_team_stats_long(here("data", "processed", "injuries_team_weekly.parquet"),
                                     team_schedule, "team")
-weekly_game_stats <- pivot_game_results_long(here("data", "processed", "weekly_results.parquet"))
+weekly_pbp <- pivot_pbp_game_stats_long(input_path = here("data", "processed", 
+                                                          "pbp_cleaned_games.parquet"))
+weekly_game_stats <- pivot_game_results_long(here("data", "processed", "weekly_results.parquet")) %>% 
+  left_join(., team_schedule, by=c('team', 'season', 'week'))
 weekly_st_stats <- pivot_special_teams_long(here("data", "processed", "st_player_stats_weekly.parquet")) %>% 
   left_join(., team_schedule, by=c('team', 'season', 'week', 'season_type'))
 
@@ -35,7 +39,8 @@ weekly_total <- rbind(weekly_off %>% left_join(., game_id_map, by=c('team', 'sea
                       weekly_def %>% left_join(., game_id_map, by=c('team', 'season', 'week')),
                       weekly_st_stats %>% left_join(., game_id_map, by=c('team', 'season', 'week')),
                       weekly_inj %>% left_join(., game_id_map, by=c('team', 'season', 'week')),
-                      weekly_game_stats %>% left_join(., team_schedule, by=c('team', 'season', 'week'))) %>% 
+                      weekly_game_stats,
+                      weekly_pbp %>% left_join(., game_id_map, by=c('team', 'season', 'week'))) %>% 
   distinct()
 
 ################################################################################

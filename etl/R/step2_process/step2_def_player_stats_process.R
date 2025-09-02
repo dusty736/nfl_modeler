@@ -26,8 +26,8 @@ def_player_stats_career <- summarize_defensive_stats_by_player(def_player_stats_
 ################################################################################
 # Save processed output
 ################################################################################
-arrow::write_parquet(def_player_stats_cleaned, "data/processed/def_player_stats_weekly.parquet")
-arrow::write_parquet(def_player_stats_season, "data/processed/def_player_stats_season.parquet")
-arrow::write_parquet(def_player_stats_career, "data/processed/def_player_stats_career.parquet")
-arrow::write_parquet(def_team_stats_season, "data/processed/def_team_stats_season.parquet")
-arrow::write_parquet(def_team_stats_weekly, "data/processed/def_team_stats_week.parquet")
+arrow::write_parquet(def_player_stats_cleaned %>% distinct(), "data/processed/def_player_stats_weekly.parquet")
+arrow::write_parquet(def_player_stats_season %>% distinct(), "data/processed/def_player_stats_season.parquet")
+arrow::write_parquet(def_player_stats_career %>% distinct(), "data/processed/def_player_stats_career.parquet")
+arrow::write_parquet(def_team_stats_season %>% distinct(), "data/processed/def_team_stats_season.parquet")
+arrow::write_parquet(def_team_stats_weekly %>% distinct(), "data/processed/def_team_stats_week.parquet")

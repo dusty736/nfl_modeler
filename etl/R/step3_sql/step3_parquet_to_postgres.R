@@ -107,6 +107,9 @@ create_index(con = con, schema = 'prod', table = 'participation_offense_season_t
 load_parquet_to_postgres(file.path(base_path, "pbp_tbl.parquet"), schema = 'prod', "pbp_tbl")
 create_index(con = con, schema = 'prod', table = 'pbp_tbl', id_cols = c("game_id","play_id"), unique = TRUE)
 
+load_parquet_to_postgres(file.path(base_path, "pbp_games_tbl.parquet"), schema = 'prod', "pbp_game_tbl")
+create_index(con = con, schema = 'prod', table = 'pbp_game_tbl', id_cols = c("game_id","team"), unique = TRUE)
+
 load_parquet_to_postgres(file.path(base_path, "roster_position_summary_tbl.parquet"), schema = 'prod', "roster_position_summary_tbl")
 create_index(con = con, schema = 'prod', table = 'roster_position_summary_tbl', id_cols = c("season","team","position"), unique = TRUE)
 
@@ -183,7 +186,7 @@ load_parquet_to_postgres(file.path(base_path, "off_team_stats_season_tbl.parquet
 create_index(con = con, schema = 'prod', table = 'off_team_stats_season_tbl', id_cols = c("season","team"), unique = TRUE)
 
 load_parquet_to_postgres(file.path(base_path, "player_weekly_tbl.parquet"), schema = 'prod', "player_weekly_tbl")
-create_index(con = con, schema = 'prod', table = 'player_weekly_tbl', id_cols = c("season","season_type","week","player_id","stat_name", "stat_type"), unique = TRUE)
+create_index(con = con, schema = 'prod', table = 'player_weekly_tbl', id_cols = c("season","season_type","week","player_id","stat_name", "stat_type"), unique = FALSE)
 
 load_parquet_to_postgres(file.path(base_path, "player_season_tbl.parquet"), schema = 'prod', "player_season_tbl")
 create_index(con = con, schema = 'prod', table = 'player_season_tbl', id_cols = c("season","season_type","player_id","name", "stat_name","agg_type"), unique = TRUE)
@@ -201,4 +204,4 @@ load_parquet_to_postgres(file.path(base_path, "team_career_tbl.parquet"), schema
 create_index(con = con, schema = 'prod', table = 'team_career_tbl', id_cols = c("team","season_type","stat_name", "stat_type"), unique = TRUE)
 
 #source(file.path("etl", "R", "step3_sql", "step3_createIDx.R"))
-#source(file.path("etl", "R", "step3_sql", "step3_create_mv.R"))
+source(file.path("etl", "R", "step3_sql", "step3_create_mv.R"))

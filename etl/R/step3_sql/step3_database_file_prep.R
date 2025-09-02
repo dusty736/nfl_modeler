@@ -14,8 +14,11 @@ source(here("etl", "R", "utils.R"))
 ################################################################################
 
 # PBP 
-format_pbp_for_sql(file.path("data", "processed", "pbp_cleaned.parquet"),
-                   file.path("data", "for_database", "pbp_tbl.parquet"))
+form_pbp_play_for_sql(file.path("data", "processed", "pbp_cleaned.parquet"),
+                      file.path("data", "for_database", "pbp_tbl.parquet"))
+
+form_team_game_for_sql(file.path("data", "processed", "pbp_cleaned_games.parquet"),
+                       file.path("data", "for_database", "pbp_game_tbl.parquet"))
 
 # Games (games.parquet)
 format_game_for_sql(file.path("data", "processed", "games.parquet"),
@@ -325,6 +328,9 @@ form_off_team_season_for_sql(
 #   file.path("data", "processed", "off_team_stats_season.parquet"),
 #   file.path("data", "for_database", "off_team_stats_season_tbl.parquet")
 # )
+
+source(file.path("etl", "R", "step3_sql", "step3_long_player_format.R"))
+source(file.path("etl", "R", "step3_sql", "step3_long_team_format.R"))
 
 ################################################################################
 # Summarize Data

@@ -16,6 +16,6 @@ team_metadata_raw <- arrow::read_parquet(here("data", "raw", "team_metadata.parq
 ################################################################################
 # Save processed output
 ################################################################################
-arrow::write_parquet(team_metadata_raw, "data/processed/team_metadata.parquet")
+arrow::write_parquet(team_metadata_raw %>% distinct(), "data/processed/team_metadata.parquet")
 
 

@@ -24,14 +24,14 @@ season_results <- summarize_season_team_results(schedule_raw)
 # Write to processed/
 ################################################################################
 arrow::write_parquet(
-  schedule_clean,
+  schedule_clean %>% distinct(),
   here("data", "processed", "games.parquet")
 )
 arrow::write_parquet(
-  weekly_results,
+  weekly_results %>% distinct(),
   here("data", "processed", "weekly_results.parquet")
 )
 arrow::write_parquet(
-  season_results,
+  season_results %>% distinct(),
   here("data", "processed", "season_results.parquet")
 )

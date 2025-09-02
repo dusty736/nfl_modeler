@@ -23,7 +23,7 @@ snapcount_career <- summarize_snapcounts_career(snapcount_raw)
 ################################################################################
 # Save processed output
 ################################################################################
-arrow::write_parquet(snapcount_weekly, "data/processed/snapcount_weekly.parquet")
-arrow::write_parquet(snapcount_season, "data/processed/snapcount_season.parquet")
-arrow::write_parquet(snapcount_career, "data/processed/snapcount_career.parquet")
+arrow::write_parquet(snapcount_weekly %>% distinct(), "data/processed/snapcount_weekly.parquet")
+arrow::write_parquet(snapcount_season %>% distinct(), "data/processed/snapcount_season.parquet")
+arrow::write_parquet(snapcount_career %>% distinct(), "data/processed/snapcount_career.parquet")
 

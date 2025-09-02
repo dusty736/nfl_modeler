@@ -23,6 +23,6 @@ roster_position_summary <- summarize_rosters_by_team_position(roster_clean)
 ################################################################################
 # Save processed output
 ################################################################################
-arrow::write_parquet(roster_clean, "data/processed/rosters.parquet")
-arrow::write_parquet(roster_summary, "data/processed/roster_summary.parquet")
-arrow::write_parquet(roster_position_summary, "data/processed/roster_position_summary.parquet")
+arrow::write_parquet(roster_clean %>% distinct(), "data/processed/rosters.parquet")
+arrow::write_parquet(roster_summary %>% distinct(), "data/processed/roster_summary.parquet")
+arrow::write_parquet(roster_position_summary %>% distinct(), "data/processed/roster_position_summary.parquet")

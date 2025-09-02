@@ -30,9 +30,9 @@ injuries_season_team <- season_injury_summary(injuries_week_team)
 ################################################################################
 # Save processed output
 ################################################################################
-arrow::write_parquet(injuries_cleaned, "data/processed/injuries_weekly.parquet")
-arrow::write_parquet(injuries_position, "data/processed/injuries_position_weekly.parquet")
-arrow::write_parquet(injuries_week_team, "data/processed/injuries_team_weekly.parquet")
-arrow::write_parquet(injuries_season_team, "data/processed/injuries_team_season.parquet")
+arrow::write_parquet(injuries_cleaned %>% distinct(), "data/processed/injuries_weekly.parquet")
+arrow::write_parquet(injuries_position %>% distinct(), "data/processed/injuries_position_weekly.parquet")
+arrow::write_parquet(injuries_week_team %>% distinct(), "data/processed/injuries_team_weekly.parquet")
+arrow::write_parquet(injuries_season_team %>% distinct(), "data/processed/injuries_team_season.parquet")
 
 

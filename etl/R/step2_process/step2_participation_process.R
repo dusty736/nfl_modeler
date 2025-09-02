@@ -31,11 +31,11 @@ participation_season_defense <- summarize_defense_by_team_season(participation_p
 ################################################################################
 # Save processed output
 ################################################################################
-arrow::write_parquet(participation_pbp_offense, "data/processed/participation_offense_pbp.parquet")
-arrow::write_parquet(participation_game_offense, "data/processed/participation_offense_game.parquet")
-arrow::write_parquet(participation_game_formation_offense, "data/processed/participation_offense_formation_game.parquet")
-arrow::write_parquet(participation_season_offense, "data/processed/participation_offense_season.parquet")
-arrow::write_parquet(participation_pbp_defense, "data/processed/participation_defense_pbp.parquet")
-arrow::write_parquet(participation_game_defense, "data/processed/participation_defense_game.parquet")
-arrow::write_parquet(participation_season_defense, "data/processed/participation_defense_season.parquet")
+arrow::write_parquet(participation_pbp_offense %>% distinct(), "data/processed/participation_offense_pbp.parquet")
+arrow::write_parquet(participation_game_offense %>% distinct(), "data/processed/participation_offense_game.parquet")
+arrow::write_parquet(participation_game_formation_offense %>% distinct(), "data/processed/participation_offense_formation_game.parquet")
+arrow::write_parquet(participation_season_offense %>% distinct(), "data/processed/participation_offense_season.parquet")
+arrow::write_parquet(participation_pbp_defense %>% distinct(), "data/processed/participation_defense_pbp.parquet")
+arrow::write_parquet(participation_game_defense %>% distinct(), "data/processed/participation_defense_game.parquet")
+arrow::write_parquet(participation_season_defense %>% distinct(), "data/processed/participation_defense_season.parquet")
 

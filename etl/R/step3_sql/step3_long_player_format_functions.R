@@ -281,32 +281,52 @@ pivot_def_player_stats_long <- function(file_path, opponent_df) {
 #' @export
 create_season_stats <- function(weekly_df) {
   # mapping table: stat_name → aggregation rule
+  # Averages only (rates/means; summing would be nonsense)
+  avg_only <- c(
+    # PBP game/team rates
+    "points_per_drive","epa_per_play","success_rate","explosive_rate",
+    "pass_rate","rush_rate","sacks_per_drive","interceptions_per_drive",
+    "red_zone_trip_rate","red_zone_score_rate","td_rate_per_drive",
+    "three_and_out_rate","short_turnover_leq3_rate","three_and_out_or_short_turnover_rate",
+    "early_epa_per_play","early_success_rate","pass_oe_mean",
+    # positional + advanced player means
+    "passing_epa","rushing_epa","receiving_epa","pacr","dakota","racr",
+    "target_share","air_yards_share","wopr",
+    # next-gen passer/receiver means
+    "ng_avg_time_to_throw","ng_avg_completed_air_yards","ng_avg_intended_air_yards",
+    "ng_avg_air_yards_differential","ng_aggressiveness","ng_max_completed_air_distance",
+    "ng_avg_air_yards_to_sticks","ng_passer_rating","ng_completion_percentage",
+    "ng_expected_completion_percentage","ng_completion_percentage_above_expectation",
+    "ng_avg_air_distance","ng_max_air_distance",
+    # useful field/tempo means from game context
+    "avg_start_yardline_100","avg_drive_depth_into_opp",
+    "avg_drive_plays","avg_drive_time_seconds"
+  )
+  
+  # Both total and mean (volumes where both season totals and per-game means are handy)
   sum_and_avg <- c(
+    # your original player volumes
     "completions","attempts","passing_yards","passing_tds","interceptions",
     "sacks","sack_yards","sack_fumbles","sack_fumbles_lost","passing_air_yards",
     "passing_yards_after_catch","passing_first_downs","passing_2pt_conversions",
     "carries","rushing_yards","rushing_tds","rushing_fumbles","rushing_fumbles_lost",
     "rushing_first_downs","rushing_2pt_conversions","fantasy_points","fantasy_points_ppr",
-    "ng_attempts","ng_pass_yards","ng_pass_touchdowns","ng_interceptions",
-    "ng_completions","targets","receptions","receiving_yards","receiving_tds",
-    "receiving_fumbles","receiving_fumbles_lost","receiving_air_yards",
-    "receiving_yards_after_catch","receiving_first_downs","receiving_2pt_conversions",
+    "ng_attempts","ng_pass_yards","ng_pass_touchdowns","ng_interceptions","ng_completions",
+    "targets","receptions","receiving_yards","receiving_tds","receiving_fumbles",
+    "receiving_fumbles_lost","receiving_air_yards","receiving_yards_after_catch",
+    "receiving_first_downs","receiving_2pt_conversions",
     "def_tackles","def_tackles_solo","def_tackle_assists","def_tackles_for_loss",
     "def_tackles_for_loss_yards","def_fumbles_forced","def_sacks","def_sack_yards",
     "def_qb_hits","def_interceptions","def_interception_yards","def_pass_defended",
     "def_tds","def_fumbles","def_fumble_recovery_own","def_fumble_recovery_yards_own",
     "def_fumble_recovery_opp","def_fumble_recovery_yards_opp","def_safety",
-    "def_penalty","def_penalty_yards"
-  )
-  
-  avg_only <- c(
-    "passing_epa","pacr","dakota","rushing_epa",
-    "ng_avg_time_to_throw","ng_avg_completed_air_yards","ng_avg_intended_air_yards",
-    "ng_avg_air_yards_differential","ng_aggressiveness","ng_max_completed_air_distance",
-    "ng_avg_air_yards_to_sticks","ng_passer_rating","ng_completion_percentage",
-    "ng_expected_completion_percentage","ng_completion_percentage_above_expectation",
-    "ng_avg_air_distance","ng_max_air_distance","receiving_epa","racr",
-    "target_share","air_yards_share","wopr"
+    "def_penalty","def_penalty_yards",
+    # team/game PBP volumes
+    "drives","plays_total","points_scored","red_zone_trips","red_zone_scores",
+    "td_drives","three_and_outs","short_turnovers_leq3","three_and_out_or_short_turnover",
+    "early_plays","early_successes",
+    # raw additive EPA/WPA sums
+    "epa_total","wpa_total","early_epa_total","pass_oe_sum"
   )
   
   # filter base stats only
@@ -376,32 +396,51 @@ create_season_stats <- function(weekly_df) {
 #' @export
 create_career_stats <- function(weekly_df) {
   # mapping table: stat_name → aggregation rule
+  avg_only <- c(
+    # PBP game/team rates
+    "points_per_drive","epa_per_play","success_rate","explosive_rate",
+    "pass_rate","rush_rate","sacks_per_drive","interceptions_per_drive",
+    "red_zone_trip_rate","red_zone_score_rate","td_rate_per_drive",
+    "three_and_out_rate","short_turnover_leq3_rate","three_and_out_or_short_turnover_rate",
+    "early_epa_per_play","early_success_rate","pass_oe_mean",
+    # positional + advanced player means
+    "passing_epa","rushing_epa","receiving_epa","pacr","dakota","racr",
+    "target_share","air_yards_share","wopr",
+    # next-gen passer/receiver means
+    "ng_avg_time_to_throw","ng_avg_completed_air_yards","ng_avg_intended_air_yards",
+    "ng_avg_air_yards_differential","ng_aggressiveness","ng_max_completed_air_distance",
+    "ng_avg_air_yards_to_sticks","ng_passer_rating","ng_completion_percentage",
+    "ng_expected_completion_percentage","ng_completion_percentage_above_expectation",
+    "ng_avg_air_distance","ng_max_air_distance",
+    # useful field/tempo means from game context
+    "avg_start_yardline_100","avg_drive_depth_into_opp",
+    "avg_drive_plays","avg_drive_time_seconds"
+  )
+  
+  # Both total and mean (volumes where both season totals and per-game means are handy)
   sum_and_avg <- c(
+    # your original player volumes
     "completions","attempts","passing_yards","passing_tds","interceptions",
     "sacks","sack_yards","sack_fumbles","sack_fumbles_lost","passing_air_yards",
     "passing_yards_after_catch","passing_first_downs","passing_2pt_conversions",
     "carries","rushing_yards","rushing_tds","rushing_fumbles","rushing_fumbles_lost",
     "rushing_first_downs","rushing_2pt_conversions","fantasy_points","fantasy_points_ppr",
-    "ng_attempts","ng_pass_yards","ng_pass_touchdowns","ng_interceptions",
-    "ng_completions","targets","receptions","receiving_yards","receiving_tds",
-    "receiving_fumbles","receiving_fumbles_lost","receiving_air_yards",
-    "receiving_yards_after_catch","receiving_first_downs","receiving_2pt_conversions",
+    "ng_attempts","ng_pass_yards","ng_pass_touchdowns","ng_interceptions","ng_completions",
+    "targets","receptions","receiving_yards","receiving_tds","receiving_fumbles",
+    "receiving_fumbles_lost","receiving_air_yards","receiving_yards_after_catch",
+    "receiving_first_downs","receiving_2pt_conversions",
     "def_tackles","def_tackles_solo","def_tackle_assists","def_tackles_for_loss",
     "def_tackles_for_loss_yards","def_fumbles_forced","def_sacks","def_sack_yards",
     "def_qb_hits","def_interceptions","def_interception_yards","def_pass_defended",
     "def_tds","def_fumbles","def_fumble_recovery_own","def_fumble_recovery_yards_own",
     "def_fumble_recovery_opp","def_fumble_recovery_yards_opp","def_safety",
-    "def_penalty","def_penalty_yards"
-  )
-  
-  avg_only <- c(
-    "passing_epa","pacr","dakota","rushing_epa",
-    "ng_avg_time_to_throw","ng_avg_completed_air_yards","ng_avg_intended_air_yards",
-    "ng_avg_air_yards_differential","ng_aggressiveness","ng_max_completed_air_distance",
-    "ng_avg_air_yards_to_sticks","ng_passer_rating","ng_completion_percentage",
-    "ng_expected_completion_percentage","ng_completion_percentage_above_expectation",
-    "ng_avg_air_distance","ng_max_air_distance","receiving_epa","racr",
-    "target_share","air_yards_share","wopr"
+    "def_penalty","def_penalty_yards",
+    # team/game PBP volumes
+    "drives","plays_total","points_scored","red_zone_trips","red_zone_scores",
+    "td_drives","three_and_outs","short_turnovers_leq3","three_and_out_or_short_turnover",
+    "early_plays","early_successes",
+    # raw additive EPA/WPA sums
+    "epa_total","wpa_total","early_epa_total","pass_oe_sum"
   )
   
   # filter base stats only
@@ -437,5 +476,85 @@ create_career_stats <- function(weekly_df) {
   out <- dplyr::bind_rows(df_sum, df_avg, df_total_sum, df_total_avg)
   
   return(out)
+}
+
+#' Pivot PBP team-game features to long format
+#'
+#' Reads a wide team-game Parquet and reshapes to tidy long format.
+#' - Parses season/week from game_id (e.g., "1999_01_ARI_PHI")
+#' - Derives season_type = "REG" (week <= 17) else "POST"
+#' - Joins opponent by pairing teams within each game_id
+#' - Pivots all numeric feature columns to (stat_name, value)
+#'
+#' @param input_path Path to the team-game wide Parquet (e.g., "data/staging/pbp_games.parquet")
+#' @return Long tibble with columns:
+#'   season, season_type, week, team, opponent, stat_type="base", stat_name, value
+#' @export
+pivot_pbp_game_stats_long <- function(input_path) {
+  df <- arrow::read_parquet(input_path)
+  
+  # Ensure expected id cols exist
+  if (!all(c("game_id", "posteam") %in% names(df))) {
+    stop("Expected columns `game_id` and `posteam` not found.")
+  }
+  
+  # --- derive season/week/season_type from game_id ---
+  # game_id like "1999_01_ARI_PHI"
+  parts <- strsplit(df$game_id, "_", fixed = TRUE)
+  season_chr <- vapply(parts, `[[`, character(1), 1)
+  week_chr   <- vapply(parts, `[[`, character(1), 2)
+  
+  # basic numeric week parse; keep it KISS
+  week_num <- suppressWarnings(as.integer(week_chr))
+  
+  df <- df %>%
+    dplyr::mutate(
+      season      = as.integer(season_chr),
+      week        = week_num,
+      season_type = dplyr::if_else(!is.na(week) & week <= 17L, "REG", "POST")
+    )
+  
+  # --- opponent pairing inside each game_id ---
+  team_pairs <- df %>%
+    dplyr::distinct(game_id, team = posteam) %>%
+    dplyr::inner_join(., ., by = "game_id", suffix = c("", "_opp")) %>%
+    dplyr::filter(team != team_opp) %>%
+    dplyr::transmute(game_id, team, opponent = team_opp) %>%
+    dplyr::distinct()
+  
+  df2 <- df %>%
+    dplyr::rename(team = posteam) %>%
+    dplyr::left_join(team_pairs, by = c("game_id","team"))
+  
+  # --- choose columns to pivot: all numeric stats; keep id columns out ---
+  id_cols <- c("game_id", "season", "season_type", "week", "team", "opponent")
+  stat_cols <- df2 %>%
+    dplyr::select(-dplyr::all_of(id_cols)) %>%
+    dplyr::select(where(is.numeric)) %>%
+    names()
+  
+  if (length(stat_cols) == 0) {
+    stop("No numeric stat columns found to pivot.")
+  }
+  
+  out <- df2 %>%
+    tidyr::pivot_longer(
+      cols = dplyr::all_of(stat_cols),
+      names_to = "stat_name",
+      values_to = "value"
+    ) %>%
+    dplyr::transmute(
+      season       = as.integer(season),
+      season_type  = as.character(season_type),
+      week         = as.integer(week),
+      team         = as.character(team),
+      opponent     = as.character(opponent),
+      stat_type    = "base",
+      stat_name    = as.character(stat_name),
+      value        = as.numeric(value)
+    ) %>%
+    dplyr::arrange(season, week, team, stat_name)
+  
+  out
 }
 

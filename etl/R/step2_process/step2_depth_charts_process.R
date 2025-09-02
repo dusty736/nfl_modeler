@@ -45,7 +45,7 @@ lineup_stability_scores <- get_lineup_stability_by_week(starters)
 ################################################################################
 # Save processed output
 ################################################################################
-arrow::write_parquet(starter_switches_all, "data/processed/depth_charts_starters.parquet")
-arrow::write_parquet(qb_stats_by_team_season, "data/processed/depth_charts_qb_team.parquet")
-arrow::write_parquet(player_start_totals_season, "data/processed/depth_charts_player_starts.parquet")
-arrow::write_parquet(lineup_stability_scores, "data/processed/depth_charts_position_stability.parquet")
+arrow::write_parquet(starter_switches_all %>% distinct(), "data/processed/depth_charts_starters.parquet")
+arrow::write_parquet(qb_stats_by_team_season %>% distinct(), "data/processed/depth_charts_qb_team.parquet")
+arrow::write_parquet(player_start_totals_season %>% distinct(), "data/processed/depth_charts_player_starts.parquet")
+arrow::write_parquet(lineup_stability_scores %>% distinct(), "data/processed/depth_charts_position_stability.parquet")

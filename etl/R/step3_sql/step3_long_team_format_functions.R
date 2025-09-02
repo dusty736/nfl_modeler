@@ -365,7 +365,9 @@ aggregate_team_season_stats <- function(weekly_df) {
   library(tidyr)
   
   # ---- classification vectors ----
+  # ---- classification vectors ----
   sum_and_avg <- c(
+    # offense/defense/player volumes
     "completions","attempts","passing_yards","passing_tds","interceptions",
     "sacks","passing_air_yards","passing_yards_after_catch","passing_first_downs",
     "carries","rushing_yards","rushing_tds","rushing_first_downs",
@@ -373,7 +375,12 @@ aggregate_team_season_stats <- function(weekly_df) {
     "receiving_air_yards","receiving_yards_after_catch","receiving_first_downs",
     "def_tackles","def_tackles_solo","def_tackle_assists","def_tackles_for_loss",
     "def_sacks","def_qb_hits","def_interceptions","def_pass_defended",
-    "points_scored","points_allowed", "weekly_injuries","injuries"
+    # scoring / injuries
+    "points_scored","points_allowed","weekly_injuries","injuries",
+    # --- NEW: team-game volumes you’ll want totals AND per-game means for ---
+    "drives","plays_total","red_zone_trips","red_zone_scores","td_drives",
+    "quality_drives","three_and_outs","short_turnovers_leq3",
+    "three_and_out_or_short_turnover","early_plays","early_successes"
   )
   
   sum_only <- c(
@@ -390,13 +397,25 @@ aggregate_team_season_stats <- function(weekly_df) {
     "fg_missed_0_19","fg_missed_20_29","fg_missed_30_39","fg_missed_40_49","fg_missed_50_59","fg_missed_60",
     "pat_att","pat_made","pat_missed","pat_blocked",
     "gwfg_att","gwfg_made","gwfg_missed","gwfg_blocked",
-    "fg_made_distance","fg_missed_distance","fg_blocked_distance", "gwfg_distance"
+    "fg_made_distance","fg_missed_distance","fg_blocked_distance","gwfg_distance",
+    # --- NEW: additive “totals” only ---
+    "epa_total","wpa_total","early_epa_total","pass_oe_sum",
+    "short_turnovers_raw","three_and_outs_raw"
   )
   
   avg_only <- c(
+    # player-level rates/means
     "passing_epa","rushing_epa","receiving_epa",
     "pacr","dakota","racr","wopr","target_share","air_yards_share",
-    "fg_pct","pat_pct","n_players"
+    "fg_pct","pat_pct","n_players",
+    # --- NEW: team-game rates/means only ---
+    "points_per_drive","epa_per_play","success_rate","explosive_rate",
+    "pass_rate","rush_rate","sacks_per_drive","interceptions_per_drive",
+    "red_zone_trip_rate","red_zone_score_rate","td_rate_per_drive",
+    "quality_drive_rate","three_and_out_rate","short_turnover_leq3_rate",
+    "three_and_out_or_short_turnover_rate","early_epa_per_play","early_success_rate",
+    "pass_oe_mean","avg_start_yardline_100","avg_drive_depth_into_opp",
+    "avg_drive_plays","avg_drive_time_seconds"
   )
   
   max_only <- c("fg_long","wins_entering","losses_entering","ties_entering")
@@ -524,6 +543,7 @@ aggregate_team_alltime_stats <- function(weekly_df) {
   library(tidyr)
   
   # ---- classification vectors ----
+  # ---- classification vectors ----
   sum_and_avg <- c(
     "completions","attempts","passing_yards","passing_tds","interceptions",
     "sacks","passing_air_yards","passing_yards_after_catch","passing_first_downs",
@@ -532,7 +552,11 @@ aggregate_team_alltime_stats <- function(weekly_df) {
     "receiving_air_yards","receiving_yards_after_catch","receiving_first_downs",
     "def_tackles","def_tackles_solo","def_tackle_assists","def_tackles_for_loss",
     "def_sacks","def_qb_hits","def_interceptions","def_pass_defended",
-    "points_scored","points_allowed", "weekly_injuries","injuries"
+    "points_scored","points_allowed","weekly_injuries","injuries",
+    # NEW (totals + per-game means both useful)
+    "drives","plays_total","red_zone_trips","red_zone_scores","td_drives",
+    "quality_drives","three_and_outs","short_turnovers_leq3",
+    "three_and_out_or_short_turnover","early_plays","early_successes"
   )
   
   sum_only <- c(
@@ -549,13 +573,23 @@ aggregate_team_alltime_stats <- function(weekly_df) {
     "fg_missed_0_19","fg_missed_20_29","fg_missed_30_39","fg_missed_40_49","fg_missed_50_59","fg_missed_60",
     "pat_att","pat_made","pat_missed","pat_blocked",
     "gwfg_att","gwfg_made","gwfg_missed","gwfg_blocked",
-    "fg_made_distance","fg_missed_distance","fg_blocked_distance", "gwfg_distance"
+    "fg_made_distance","fg_missed_distance","fg_blocked_distance","gwfg_distance",
+    # NEW (purely additive)
+    "epa_total","wpa_total","early_epa_total","pass_oe_sum",
+    "short_turnovers_raw","three_and_outs_raw"
   )
   
   avg_only <- c(
     "passing_epa","rushing_epa","receiving_epa",
     "pacr","dakota","racr","wopr","target_share","air_yards_share",
-    "fg_pct","pat_pct","n_players"
+    "fg_pct","pat_pct","n_players",
+    # NEW (rates/means)
+    "points_per_drive","epa_per_play","success_rate","explosive_rate",
+    "pass_rate","rush_rate","sacks_per_drive","interceptions_per_drive",
+    "red_zone_trip_rate","red_zone_score_rate","td_rate_per_drive","quality_drive_rate",
+    "three_and_out_rate","short_turnover_leq3_rate","three_and_out_or_short_turnover_rate",
+    "early_epa_per_play","early_success_rate","pass_oe_mean",
+    "avg_start_yardline_100","avg_drive_depth_into_opp","avg_drive_plays","avg_drive_time_seconds"
   )
   
   max_only <- c("fg_long","wins_entering","losses_entering","ties_entering")
