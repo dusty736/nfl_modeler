@@ -260,6 +260,7 @@ TEAM_INCLUDE_NEXT_GEN = True  # set False if your API doesn't support team NG ye
 
 # Your team stats (exactly as provided)
 TEAM_BASE_STATS = [
+    "sos", "rating_net", "net_epa_smooth", "n_plays_eff",
     "air_yards_share","attempts","carries","completions","dakota","def_fumble_recovery_opp",
     "def_fumble_recovery_own","def_fumble_recovery_yards_opp","def_fumble_recovery_yards_own",
     "def_fumbles","def_fumbles_forced","def_interception_yards","def_interceptions",
@@ -348,7 +349,7 @@ def build_team_metric_options(include_next_gen: bool = True) -> list[dict]:
         "points_scored","points_allowed","point_diff","wins_entering","losses_entering","ties_entering",
         "n_players","weekly_injuries","injuries"
     ] if k in s]
-    advanced = [k for k in ["pacr","dakota","racr","wopr"] if k in s]
+    advanced = [k for k in ["pacr","dakota","racr","wopr", "sos", "rating_net", "net_epa_smooth", "n_plays_eff"] if k in s]
 
     # Deduplicate and sort each bucket by pretty label
     def _uniq_sorted(keys):
