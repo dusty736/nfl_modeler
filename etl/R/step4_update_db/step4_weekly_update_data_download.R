@@ -35,6 +35,7 @@ source(here("etl", "R", "step2_process", "step2_contracts_process_functions.R"))
 source(here("etl", "R", "step2_process", "step2_schedule_process_functions.R"))
 source(here("etl", "R", "step3_sql", "step3_long_player_format_functions.R"))
 source(here("etl", "R", "step3_sql", "step3_long_team_format_functions.R"))
+source(here("etl", "R", "step2_process", "step2_team_strength_process_functions.R"))
 
 ################################################################################
 # Play-by-play data (nflfastR)
@@ -64,6 +65,38 @@ game_team_feats <- pbp_clean %>%
 
 write_parquet(pbp_feats, "data/staging/pbp.parquet")
 write_parquet(game_team_feats, "data/staging/pbp_games.parquet")
+
+################################################################################
+# Team Strength
+################################################################################
+
+games <- arrow::read_parquet(here("data", "processed", "games.parquet"))
+
+games <- games %>%
+  dplyr::mutate(
+    game_type   = toupper(game_type),
+    season_type = dplyr::if_else(game_type == "REG", "REG", "POST", missing = "POST"),
+    game_type = dplyr::if_else(game_type == "REG", "REG", "POST", missing = "POST"),
+    home_team = dplyr::recode(home_team, OAK = "LV", STL = "LA", SD = "LAC", .default = home_team),
+    away_team = dplyr::recode(away_team, OAK = "LV", STL = "LA", SD = "LAC", .default = away_team)
+  )
+
+pbp_ratings <- pbp  %>% 
+  left_join(., games %>% dplyr::select(game_id, season, week), by='game_id')
+
+ratings <- build_team_strength_v01(
+  pbp   = pbp,
+  games = games,        # optional but recommended for bye-week rows
+  w_min = 0.25,
+  H     = 4,
+  beta  = 0.7,
+  min_eff_plays = 20,
+  keep_components = FALSE
+)
+
+arrow::write_parquet(ratings %>% 
+                       mutate_if(is.numeric, round, 3) %>% 
+                       filter(week %in% weeks) %>% filter(season %in% seasons), "data/staging/team_strength_tbl.parquet")
 
 ################################################################################
 # Rosters (nflreadr)

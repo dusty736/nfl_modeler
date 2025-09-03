@@ -5,6 +5,7 @@
 library(arrow)
 library(here)
 library(dplyr)
+library(tidyr)
 
 source(here("etl", "R", "step2_process", "step2_pbp_process_functions.R"))
 

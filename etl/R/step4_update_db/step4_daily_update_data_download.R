@@ -25,6 +25,7 @@ source(here("etl", "R", "step3_sql", "step3_long_team_format_functions.R"))
 source(here("etl", "R", "utils.R"))
 source(here("etl", "R", "step4_update_db", "step4_update_prod_functions.R"))
 source(here("etl", "R", "step2_process", "step2_schedule_process_functions.R"))
+source(here("etl", "R", "step2_process", "step2_team_strength_process_functions.R"))
 
 ################################################################################
 # Play-by-play data (nflfastR)

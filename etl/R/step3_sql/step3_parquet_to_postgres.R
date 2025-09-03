@@ -204,5 +204,8 @@ create_index(con = con, schema = 'prod', table = 'team_season_tbl', id_cols = c(
 load_parquet_to_postgres(file.path(base_path, "team_career_tbl.parquet"), schema = 'prod', "team_career_tbl")
 create_index(con = con, schema = 'prod', table = 'team_career_tbl', id_cols = c("team","season_type","stat_name", "stat_type"), unique = TRUE)
 
+load_parquet_to_postgres(file.path(base_path, "team_strength_tbl.parquet"), schema = 'prod', "team_strength_tbl")
+create_index(con = con, schema = 'prod', table = 'team_strength_tbl', id_cols = c("team", "season", "week"), unique = TRUE)
+
 #source(file.path("etl", "R", "step3_sql", "step3_createIDx.R"))
 source(file.path("etl", "R", "step3_sql", "step3_create_mv.R"))

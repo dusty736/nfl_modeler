@@ -380,7 +380,8 @@ aggregate_team_season_stats <- function(weekly_df) {
     # --- NEW: team-game volumes you’ll want totals AND per-game means for ---
     "drives","plays_total","red_zone_trips","red_zone_scores","td_drives",
     "quality_drives","three_and_outs","short_turnovers_leq3",
-    "three_and_out_or_short_turnover","early_plays","early_successes"
+    "three_and_out_or_short_turnover","early_plays","early_successes", "rating_net",
+    "net_epa_smooth", "sos", "n_plays_eff"
   )
   
   sum_only <- c(
@@ -556,7 +557,8 @@ aggregate_team_alltime_stats <- function(weekly_df) {
     # NEW (totals + per-game means both useful)
     "drives","plays_total","red_zone_trips","red_zone_scores","td_drives",
     "quality_drives","three_and_outs","short_turnovers_leq3",
-    "three_and_out_or_short_turnover","early_plays","early_successes"
+    "three_and_out_or_short_turnover","early_plays","early_successes", "rating_net",
+    "net_epa_smooth", "sos", "n_plays_eff"
   )
   
   sum_only <- c(

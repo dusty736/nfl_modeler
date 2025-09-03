@@ -429,3 +429,7 @@ create_index(con = con, schema = 'stage', table = 'player_season_tbl', id_cols =
 # Player total long
 load_parquet_to_postgres(file.path(base_path, "player_career_tbl.parquet"), schema = 'stage', "player_career_tbl")
 create_index(con = con, schema = 'stage', table = 'player_career_tbl', id_cols = c("player_id","season_type","position","name","stat_name", "agg_type"), unique = TRUE)
+
+# Team stregnth
+load_parquet_to_postgres(file.path(base_path, "team_strength_tbl.parquet"), schema = 'stage', "team_strength_tbl")
+create_index(con = con, schema = 'stage', table = 'team_strength_tbl', id_cols = c("team", "season", "week"), unique = TRUE)

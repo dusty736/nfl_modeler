@@ -35,12 +35,18 @@ weekly_game_stats <- pivot_game_results_long(here("data", "processed", "weekly_r
 weekly_st_stats <- pivot_special_teams_long(here("data", "processed", "st_player_stats_weekly.parquet")) %>% 
   left_join(., team_schedule, by=c('team', 'season', 'week', 'season_type'))
 
+weekly_team_strength <- arrow::read_parquet("data/for_database/team_strength_tbl.parquet") %>% 
+  pivot_longer(., -c(season, week, team), names_to = 'stat_name', values_to = 'value') %>% 
+  mutate(stat_type = 'base') %>% 
+  left_join(., team_schedule, by=c('team', 'season', 'week'))
+
 weekly_total <- rbind(weekly_off %>% left_join(., game_id_map, by=c('team', 'season', 'week')),
                       weekly_def %>% left_join(., game_id_map, by=c('team', 'season', 'week')),
                       weekly_st_stats %>% left_join(., game_id_map, by=c('team', 'season', 'week')),
                       weekly_inj %>% left_join(., game_id_map, by=c('team', 'season', 'week')),
                       weekly_game_stats,
-                      weekly_pbp %>% left_join(., game_id_map, by=c('team', 'season', 'week'))) %>% 
+                      weekly_pbp %>% left_join(., game_id_map, by=c('team', 'season', 'week')),
+                      weekly_team_strength %>% left_join(., game_id_map, by=c('team', 'season', 'week'))) %>% 
   distinct()
 
 ################################################################################
