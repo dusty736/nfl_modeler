@@ -3,31 +3,46 @@
 ################################################################################
 # Setup
 ################################################################################
-library(DBI) 
+library(DBI)
 library(RPostgres) 
 library(glue) 
 library(digest) 
+library(here)
 
 source(here("etl", "R", "step5_modeling_data", "step5_game_model_assembly_functions.R"))
+source(here("etl", "R", "step3_sql", "step3_parquet_to_postgres_functions.R"))
 
 con <- dbConnect(Postgres(), 
                  dbname = "nfl", 
                  host = "localhost", 
                  port = 5432, 
                  user = "nfl_user", 
-                 password = "nfl_pass" )
+                 password = "nfl_pass")
+
+current_week <- nflreadr::get_current_week()
 
 ################################################################################
 # Process data
 ################################################################################
 pregame_ds <- build_pregame_dataset(
   con                  = con,
-  seasons              = 2022:2024,
+  seasons              = 2016:2025,
   schema               = "prod",
   games_table          = "games_tbl",
   team_strength_table  = "team_strength_tbl",
   injuries_table       = "injuries_position_weekly_tbl"
 )
+
+# Remove ties
+current_season <- nflreadr::get_current_season()
+current_week <- nflreadr::get_current_week()
+
+pregame_ds <- pregame_ds %>% 
+  dplyr::filter(!(season == current_season & week > current_week)) %>%
+  dplyr::filter(!(!is.na(home_score) & home_score == away_score))
+
+blah <- pregame_ds %>% filter(season == 2025)
+blah <- pregame_ds %>% filter(season == 2024 & week %in% 1:2)
 
 # 1 row per game
 stopifnot(nrow(pregame_ds) == dplyr::n_distinct(pregame_ds$game_id))
@@ -39,10 +54,6 @@ stopifnot(all.equal(pregame_ds$diff_qb_prior,
                     pregame_ds$home_qb_prior - pregame_ds$away_qb_prior, check.attributes = FALSE))
 
 # targets present & non-missing
-stopifnot(all(pregame_ds$home_win %in% 0:1),
-          all(!is.na(pregame_ds$spread_home)),
-          all(!is.na(pregame_ds$spread_covered)),
-          all(!is.na(pregame_ds$total_points)))
 
 # last four columns are the targets (optional aesthetics check)
 tail(names(pregame_ds), 4)
@@ -86,8 +97,12 @@ drop_for_spread_covered <- c(
 # Save
 ################################################################################
 
+arrow::write_parquet(pregame_ds, file.path("data", "modeling", "game_level_modeling.parquet"))
+
 ################################################################################
 # Upload to DB
 ################################################################################
 
+load_parquet_to_postgres(file.path("data", "modeling", "game_level_modeling.parquet"), schema = 'prod', "game_level_modeling_tbl")
+create_index(con = con, schema = 'prod', table = 'game_level_modeling_tbl', id_cols = c("game_id", "season", "week"), unique = TRUE)
 

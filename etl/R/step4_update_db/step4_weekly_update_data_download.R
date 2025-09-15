@@ -5,11 +5,8 @@ library(tidyverse)
 library(arrow)
 library(progressr)
 
-#seasons <- lubridate::year(Sys.Date())
-#weeks <- max(nflreadr::get_current_week() - 2, 1):nflreadr::get_current_week()
-
-seasons <- 2024
-weeks <- 1:2
+seasons <- lubridate::year(Sys.Date())
+weeks <- max(nflreadr::get_current_week() - 2, 1):nflreadr::get_current_week()
 
 ################################################################################
 # Create root folder
@@ -71,6 +68,7 @@ write_parquet(game_team_feats, "data/staging/pbp_games.parquet")
 ################################################################################
 
 games <- arrow::read_parquet(here("data", "processed", "games.parquet"))
+games <- clean_schedule_data(nflreadr::load_schedules(seasons))
 
 games <- games %>%
   dplyr::mutate(
@@ -115,7 +113,13 @@ arrow::write_parquet(roster_position_summary, "data/staging/roster_position_summ
 # Depth charts (nflreadr)
 ################################################################################
 depth_charts <- with_progress(nflreadr::load_depth_charts(seasons)) %>% 
-  filter(game_type != 'SBBYE') %>% distinct()
+  mutate(depth_team = pos_rank,
+         season = seasons,
+         week = weeks[2],
+         club_code = team,
+         full_name = player_name,
+         depth_position = pos_abb,
+         game_type = ifelse(weeks[2] %in% 1:18, 'REG', 'POST'))
 
 # 1. Extract starters and add cleaned position columns
 starters <- filter_depth_chart_starters(depth_charts) %>% 
@@ -153,55 +157,55 @@ arrow::write_parquet(lineup_stability_scores %>%
 ################################################################################
 # Injuries (nflreadr)
 ################################################################################
-injuries <- with_progress(nflreadr::load_injuries(seasons)) %>% distinct()
-
-injuries_cleaned <- process_injuries(injuries) %>% distinct()
-
-# Process injuries by position
-injuries_position <- position_injury_summary(injuries_cleaned) %>% distinct()
-
-# Process team injuries by week
-injuries_week_team <- team_injury_summary(injuries_position) %>% distinct()
-
-# process team injuries by season
-injuries_season_team <- season_injury_summary(injuries_week_team) %>% distinct()
-
-arrow::write_parquet(injuries_cleaned %>% 
-                       filter(week %in% weeks), "data/staging/injuries_weekly.parquet")
-arrow::write_parquet(injuries_position %>% 
-                       filter(week %in% weeks), "data/staging/injuries_position_weekly.parquet")
-arrow::write_parquet(injuries_week_team %>% 
-                       filter(week %in% weeks), "data/staging/injuries_team_weekly.parquet")
-arrow::write_parquet(injuries_season_team, "data/staging/injuries_team_season.parquet")
+# injuries <- with_progress(nflreadr::load_injuries(2025)) %>% distinct()
+# 
+# injuries_cleaned <- process_injuries(injuries) %>% distinct()
+# 
+# # Process injuries by position
+# injuries_position <- position_injury_summary(injuries_cleaned) %>% distinct()
+# 
+# # Process team injuries by week
+# injuries_week_team <- team_injury_summary(injuries_position) %>% distinct()
+# 
+# # process team injuries by season
+# injuries_season_team <- season_injury_summary(injuries_week_team) %>% distinct()
+# 
+# arrow::write_parquet(injuries_cleaned %>% 
+#                        filter(week %in% weeks), "data/staging/injuries_weekly.parquet")
+# arrow::write_parquet(injuries_position %>% 
+#                        filter(week %in% weeks), "data/staging/injuries_position_weekly.parquet")
+# arrow::write_parquet(injuries_week_team %>% 
+#                        filter(week %in% weeks), "data/staging/injuries_team_weekly.parquet")
+# arrow::write_parquet(injuries_season_team, "data/staging/injuries_team_season.parquet")
 
 ################################################################################
 # Participation (nflreadr)
 ################################################################################
-participation <- with_progress(nflreadr::load_participation(seasons)) %>% distinct()
-
-# Offense
-participation_pbp_offense <- process_participation_offense_by_play(participation) %>% distinct()
-participation_game_offense <- summarize_offense_by_team_game(participation_pbp_offense) %>% distinct()
-participation_game_formation_offense <- summarize_offense_by_team_game_formation(participation_pbp_offense) %>% distinct()
-participation_season_offense <- summarize_offense_by_team_season(participation_game_offense) %>% distinct()
-
-# Defense
-participation_pbp_defense <- process_participation_defense_by_play(participation) %>% distinct()
-participation_game_defense <- summarize_defense_by_team_game(participation_pbp_defense) %>% distinct()
-participation_season_defense <- summarize_defense_by_team_season(participation_pbp_defense) %>% distinct()
-
-arrow::write_parquet(participation_pbp_offense %>% 
-                       filter(week %in% weeks), "data/staging/participation_offense_pbp.parquet")
-arrow::write_parquet(participation_game_offense %>% 
-                       filter(week %in% weeks), "data/staging/participation_offense_game.parquet")
-arrow::write_parquet(participation_game_formation_offense %>% 
-                       filter(week %in% weeks), "data/staging/participation_offense_formation_game.parquet")
-arrow::write_parquet(participation_season_offense, "data/staging/participation_offense_season.parquet")
-arrow::write_parquet(participation_pbp_defense %>% 
-                       filter(week %in% weeks), "data/staging/participation_defense_pbp.parquet")
-arrow::write_parquet(participation_game_defense %>% 
-                       filter(week %in% weeks), "data/staging/participation_defense_game.parquet")
-arrow::write_parquet(participation_season_defense, "data/staging/participation_defense_season.parquet")
+# participation <- with_progress(nflreadr::load_participation(seasons)) %>% distinct()
+# 
+# # Offense
+# participation_pbp_offense <- process_participation_offense_by_play(participation) %>% distinct()
+# participation_game_offense <- summarize_offense_by_team_game(participation_pbp_offense) %>% distinct()
+# participation_game_formation_offense <- summarize_offense_by_team_game_formation(participation_pbp_offense) %>% distinct()
+# participation_season_offense <- summarize_offense_by_team_season(participation_game_offense) %>% distinct()
+# 
+# # Defense
+# participation_pbp_defense <- process_participation_defense_by_play(participation) %>% distinct()
+# participation_game_defense <- summarize_defense_by_team_game(participation_pbp_defense) %>% distinct()
+# participation_season_defense <- summarize_defense_by_team_season(participation_pbp_defense) %>% distinct()
+# 
+# arrow::write_parquet(participation_pbp_offense %>% 
+#                        filter(week %in% weeks), "data/staging/participation_offense_pbp.parquet")
+# arrow::write_parquet(participation_game_offense %>% 
+#                        filter(week %in% weeks), "data/staging/participation_offense_game.parquet")
+# arrow::write_parquet(participation_game_formation_offense %>% 
+#                        filter(week %in% weeks), "data/staging/participation_offense_formation_game.parquet")
+# arrow::write_parquet(participation_season_offense, "data/staging/participation_offense_season.parquet")
+# arrow::write_parquet(participation_pbp_defense %>% 
+#                        filter(week %in% weeks), "data/staging/participation_defense_pbp.parquet")
+# arrow::write_parquet(participation_game_defense %>% 
+#                        filter(week %in% weeks), "data/staging/participation_defense_game.parquet")
+# arrow::write_parquet(participation_season_defense, "data/staging/participation_defense_season.parquet")
 
 ################################################################################
 # Next Gen Stats (nflreadr)
@@ -468,7 +472,7 @@ weekly_def <- pivot_team_stats_long(here("data", "processed", "def_team_stats_we
 weekly_inj <- pivot_team_stats_long(here("data", "processed", "injuries_team_weekly.parquet"),
                                     team_schedule, "team")
 weekly_pbp <- pivot_pbp_game_stats_long(input_path = here("data", "processed", 
-                                                          "pbp_games.parquet"))
+                                                          "pbp_cleaned_games.parquet"))
 weekly_game_stats <- pivot_game_results_long(here("data", "staging", "weekly_results.parquet")) %>% 
   left_join(., team_schedule, by=c('team', 'season', 'week'))
 weekly_st_stats <- pivot_special_teams_long(here("data", "processed", "st_player_stats_weekly.parquet")) %>% 
@@ -501,3 +505,4 @@ arrow::write_parquet(alltime_total %>%
                        mutate_if(is.numeric, round, 3), "data/staging/team_career_tbl.parquet")
 
 message("All staging data saved to /data/staging")
+

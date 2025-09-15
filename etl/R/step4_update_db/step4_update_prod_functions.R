@@ -60,7 +60,7 @@ upsert_table <- function(con,
                          analyze = TRUE) {
   stopifnot(length(key_cols) >= 1)
   
-  # Discover column list from DEST (prod) to enforce exact column ordering
+  # Discover column list from DEST (prod) to enforce exact cdbQuoteIdentifierolumn ordering
   all_cols <- get_cols(con, dest_schema, table)
   if (length(all_cols) == 0) stop(glue("No columns found for {dest_schema}.{table}"))
   
@@ -115,15 +115,14 @@ upsert_table <- function(con,
   } else {
     # Fallback: no unique constraint on keys in prod — replace matching key groups
     # 1) DELETE target rows that match any staged key tuple
-    key_join <- paste(
-      sprintf("%s.%s = %s.%s",
-              q_dest, DBI::dbQuoteIdentifier(con, k),
-              "s",    DBI::dbQuoteIdentifier(con, k)),
-      collapse = " AND "
+    q_keys_vec <- as.character(DBI::dbQuoteIdentifier(con, key_cols))
+    key_join <- paste(sprintf("t.%s = s.%s", q_keys_vec, q_keys_vec), collapse = " AND ")
+    
+    del_sql <- glue(
+      "DELETE FROM {q_dest} t
+         USING (SELECT DISTINCT {qcsv(con, key_cols)} FROM {q_src}{where_src}) s
+         WHERE {key_join};"
     )
-    del_sql <- glue("DELETE FROM {q_dest} t
-                      USING (SELECT DISTINCT {qcsv(con, key_cols)} FROM {q_src}{where_src}) s
-                      WHERE {key_join};")
     
     # 2) INSERT fresh rows from stage
     ins_sql <- glue("{insert_select};")
@@ -148,7 +147,7 @@ upsert_all <- function(con, key_map, src_schema = "stage", dest_schema = "prod",
       key_cols     = key_map[[tbl]],
       src_schema   = src_schema,
       dest_schema  = dest_schema,
-      stage_filter = stage_filters[[tbl]],
+      #stage_filter = stage_filters[[tbl]],
       analyze      = analyze_each
     )
   }

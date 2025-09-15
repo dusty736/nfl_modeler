@@ -97,7 +97,32 @@ key_map <- list(
   player_career_tbl                    = c("player_id","season_type","position","name","stat_name","agg_type")
 )
 
-DBI::dbExecute(con, "SET lock_timeout = '5s'; SET statement_timeout = '0';")
+key_map <- list(
+  games_tbl                            = c("game_id"),
+  season_results_tbl                   = c("season","team_id"),
+  weekly_results_tbl                   = c("game_id","team_id"),
+  rosters_tbl                          = c("season","week","team_id","player_id"),
+  roster_summary_tbl                   = c("season","team"),
+  roster_position_summary_tbl          = c("season","team","position"),
+  
+  # injuries_weekly_tbl                  = c("season","week","team","gsis_id"),
+  # injuries_team_weekly_tbl             = c("season","week","team"),
+  # injuries_team_season_tbl             = c("season","team"),
+  # injuries_position_weekly_tbl         = c("season","week","team","position"),
+  
+  contracts_qb_tbl                     = c("gsis_id","team","year_signed"),
+  contracts_position_cap_pct_tbl       = c("position","year_signed","team"),
+  
+  depth_charts_player_starts_tbl       = c("team","season","position","gsis_id"),
+  depth_charts_position_stability_tbl  = c("season","team","week","position"),
+  depth_charts_qb_team_tbl             = c("season","week","team"),
+  depth_charts_starters_tbl            = c("season","week","team","gsis_id"),
+  
+  id_map_tbl                           = c("gsis_id","espn_id","full_name")
+)
+
+DBI::dbExecute(con, "SET lock_timeout = '5s';")
+DBI::dbExecute(con, "SET statement_timeout = '0';")
 
 upsert_all(con, key_map, src_schema = "stage", dest_schema = "prod")
 
@@ -116,8 +141,6 @@ mvs <- c(
 )
 
 # Optional: be polite with locks / timeouts
-dbExecute(con, "SET lock_timeout = '5s'; SET statement_timeout = '0';")
-
 for (mv in mvs) {
   message("Refreshing ", mv, " CONCURRENTLY…")
   tryCatch({

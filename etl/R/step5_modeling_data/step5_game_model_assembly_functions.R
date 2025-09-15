@@ -1,57 +1,37 @@
-#' Build pregame, game-level modelling dataset (2022–2024) with as-of features
+#' Build pregame, game-level modelling dataset (2016–present) with as-of features
 #'
 #' @description
 #' Creates a **one-row-per-game** matrix for pre-game win modelling. Features include:
-#' - team strength (as-of): `rating_net`, `sos`, reliability (`n_plays_eff`) for home/away + `diff_*`
-#' - injuries (T−30m): position-weighted indices for OL/WRTE/RB/DL/LB/DB, home/away + diffs
-#' - weather/context: `temp`, `wind`, `weather_text`, `roof`, `surface`, `dome_flag`, wind/temp buckets, `precip_flag`
-#' - target: `home_win` (historical only, if scores available)
-#' - minimal Week-1 **QB priors** (if tables present), with `used_prior_*` flags
+#' - team strength (as-of): `rating_net`, `net_epa_smooth` for home/away + `diff_*`
+#' - injuries (T−30m): position-weighted indices for OL/WR/TE/RB/DL/LB/DB, home/away + diffs
+#' - weather/context: `temp`, `wind`, buckets, `roof`, `surface`, `dome_flag`
+#' - minimal Week-1 **QB priors** (last-season avg), with `used_prior_*` flags (Week 1 only)
 #'
 #' All season-to-date team features are computed **as of kickoff** via week fences
 #' (REG: use games through week N−1; POST: uses all REG weeks).
 #'
 #' @param con DBI connection to Postgres.
-#' @param seasons integer vector of seasons to include. Default: 2022:2024.
+#' @param seasons integer vector of seasons to include (e.g., 2016:2025).
 #' @param schema character schema name. Default: "prod".
 #' @param games_table character table name for schedules/games. Default: "games_tbl".
-#'   Expected columns (any subset): `game_id`, `season`, `week`, `game_type` or `season_type`,
-#'   `home_team`, `away_team`, `start_time_utc` (or `kickoff_utc` or `gameday`+`gametime`),
-#'   `stadium_id`, `roof`, `surface`, `temp`, `wind`, `weather`, `spread_line`,
-#'   and optionally `home_score`, `away_score`.
 #' @param team_strength_table character table with weekly team ratings. Default: "team_strength_weekly_tbl".
-#'   Expected: `season`, `week`, `team`, `rating_net`, `sos`, `n_plays_eff`.
 #' @param injuries_table character table with T−30m injuries. Default: "injuries_tbl".
-#'   Expected minimally: `game_id`, `team`, `position_group`, `status` and optionally `snapshot_at`.
 #' @param injury_weights named numeric of status weights. Default: c(Out=1.0, Doubtful=0.7, Questionable=0.3).
-#' @param depth_charts_qb_table optional table for starters. Default: "depth_charts_qb_team_tbl".
-#'   Expected: `season`, `week`, `team`, `player_id`, `is_starter` (or similar boolean/flag).
-#' @param career_stats_qb_table optional table for QB career stats. Default: "career_stats_qb_tbl".
-#'   Expected (any subset): `player_id`, `attempts`, `passing_yards`, `passing_tds`, `interceptions`,
-#'   `sacks`, `sack_yards`. Used to compute ANY/A prior.
+#' @param depth_charts_qb_table optional table for starters. Default: "depth_charts_starters_tbl".
+#' @param career_stats_qb_table table for QB stats (seasonal if available). Default: "career_stats_qb_tbl".
 #' @return A tibble with one row per game and engineered features suitable for LR / RF / XGB.
 #' @export
-#'
-#' @examples
-#' \dontrun{
-#' ds <- build_pregame_dataset(
-#'   con = con,
-#'   seasons = 2022:2024,
-#'   schema = "prod"
-#' )
-#' }
 build_pregame_dataset <- function(
     con,
-    seasons = 2022:2024,
+    seasons = 2016:2025,
     schema  = "prod",
     games_table = "games_tbl",
     team_strength_table = "team_strength_weekly_tbl",
     injuries_table = "injuries_tbl",
     injury_weights = c(Out = 1.0, Doubtful = 0.7, Questionable = 0.3),
-    depth_charts_qb_table = "depth_charts_qb_team_tbl",
+    depth_charts_qb_table = "depth_charts_starters_tbl",
     career_stats_qb_table = "career_stats_qb_tbl"
 ) {
-  # deps
   requireNamespace("dplyr", quietly = TRUE)
   requireNamespace("dbplyr", quietly = TRUE)
   requireNamespace("tidyr", quietly = TRUE)
@@ -63,11 +43,11 @@ build_pregame_dataset <- function(
   tbl_exists <- function(tbl) DBI::dbExistsTable(con, DBI::Id(schema = schema, table = tbl))
   
   # ---- TABLE NAMES ----
-  pbp_off_tbl_name   <- "participation_offense_pbp_tbl"
-  pbp_def_tbl_name   <- "participation_defense_pbp_tbl"
+  pbp_off_tbl_name   <- "participation_offense_pbp_tbl" # (unused, keep for compatibility)
+  pbp_def_tbl_name   <- "participation_defense_pbp_tbl" # (unused, keep for compatibility)
   snap_week_tbl_name <- "snapcount_weekly_tbl"
   contracts_qb_tbl_name <- "contracts_qb_tbl"
-  starters_tbl_name  <- "depth_charts_starters_tbl"
+  starters_tbl_name  <- depth_charts_qb_table
   pos_stability_tbl_name <- "depth_charts_position_stability_tbl"
   off_team_stats_week_tbl_name <- "off_team_stats_week_tbl"
   def_team_stats_week_tbl_name <- "def_team_stats_week_tbl"
@@ -84,46 +64,44 @@ build_pregame_dataset <- function(
   # ---- helpers ----
   impute_weather <- function(df) {
     df0 <- df %>%
-      dplyr::mutate(
-        stid   = dplyr::coalesce(as.character(.data$stadium_id), as.character(.data$stadium)),
-        mo     = lubridate::month(.data$kickoff),
-        is_dome = tolower(dplyr::coalesce(.data$roof, "")) %in% c("dome","closed"),
+      mutate(
+        stid    = coalesce(as.character(.data$stadium_id), as.character(.data$stadium)),
+        mo      = lubridate::month(.data$kickoff),
+        is_dome = tolower(coalesce(.data$roof, "")) %in% c("dome","closed"),
         temp_num = suppressWarnings(as.numeric(.data$temp)),
         wind_num = suppressWarnings(as.numeric(.data$wind))
       )
     
     ref <- df0 %>%
-      dplyr::group_by(.data$stid, .data$roof, .data$mo) %>%
-      dplyr::summarise(
+      group_by(.data$stid, .data$roof, .data$mo) %>%
+      summarise(
         temp_med = stats::median(.data$temp_num, na.rm = TRUE),
         wind_med = stats::median(.data$wind_num, na.rm = TRUE),
         .groups = "drop"
       )
     
     df1 <- df0 %>%
-      dplyr::left_join(ref, by = c("stid","roof","mo")) %>%
-      dplyr::mutate(
+      left_join(ref, by = c("stid","roof","mo")) %>%
+      mutate(
         temp_miss = as.integer(is.na(.data$temp_num)),
         wind_miss = as.integer(is.na(.data$wind_num)),
-        temp_num  = dplyr::case_when(
+        temp_num  = case_when(
           .data$is_dome ~ 70,
           is.na(.data$temp_num) ~ temp_med,
           TRUE ~ .data$temp_num
         ),
-        wind_num  = dplyr::case_when(
+        wind_num  = case_when(
           .data$is_dome ~ 0,
           is.na(.data$wind_num) ~ wind_med,
           TRUE ~ .data$wind_num
-        )
-      ) %>%
-      dplyr::mutate(
+        ),
         temp = temp_num,
         wind = wind_num
       ) %>%
-      dplyr::select(-stid,-mo,-temp_num,-wind_num,-temp_med,-wind_med)
+      select(-stid,-mo,-temp_num,-wind_num,-temp_med,-wind_med)
     
     df1 %>%
-      dplyr::mutate(
+      mutate(
         wind_bucket = cut(as.numeric(.data$wind),
                           breaks = c(-Inf,5,10,15,20,Inf),
                           labels = c("0-5","6-10","11-15","16-20","21+")),
@@ -133,29 +111,10 @@ build_pregame_dataset <- function(
       )
   }
   
-  pick_first_col <- function(df, candidates) {
-    cols <- intersect(candidates, names(df))
-    if (!length(cols)) return(rep(NA_character_, nrow(df)))
-    out <- df[[cols[1]]]
-    if (length(cols) > 1) for (nm in cols[-1]) out <- dplyr::coalesce(out, df[[nm]])
-    out
-  }
-  
-  parse_kickoff_est <- function(x) {
-    if (inherits(x, "POSIXt")) return(x)
-    suppressWarnings(
-      lubridate::parse_date_time(
-        x,
-        orders = c("Y-m-d H:M:S","Y-m-d H:M","m/d/Y H:M","Ymd HMS","Ymd HM"),
-        tz = "America/New_York"
-      )
-    )
-  }
-  
   # --- S1. Base games/schedules ---
-  games_raw <- tbl(con, dbplyr::in_schema(schema, games_table)) %>%
-    dplyr::filter(.data$season %in% !!seasons) %>%
-    dplyr::select(dplyr::any_of(c(
+  games_raw <- tbl(con, in_sch(games_table)) %>%
+    filter(.data$season %in% !!seasons) %>%
+    select(any_of(c(
       "game_id","season","week","game_type","season_type",
       "home_team","away_team",
       "kickoff",
@@ -163,17 +122,17 @@ build_pregame_dataset <- function(
       "home_score","away_score",
       "spread_line"
     ))) %>%
-    dplyr::collect()
+    collect()
   
   if (!"season_type" %in% names(games_raw) && "game_type" %in% names(games_raw)) {
     games_raw <- games_raw %>%
-      dplyr::mutate(season_type = ifelse(toupper(.data$game_type) == "REG", "REG", "POST"))
+      mutate(season_type = ifelse(toupper(.data$game_type) == "REG", "REG", "POST"))
   }
   
   retractable_ids <- c("IND00","ATL97","PHO00","DAL00","HOU00")
   
   games_base <- games_raw %>%
-    dplyr::mutate(
+    mutate(
       season_type = if (!"season_type" %in% names(.)) ifelse(toupper(game_type)=="REG","REG","POST") else season_type,
       kickoff = if (inherits(kickoff, "POSIXt")) kickoff else
         suppressWarnings(lubridate::parse_date_time(
@@ -181,18 +140,16 @@ build_pregame_dataset <- function(
           orders = c("Y-m-d H:M:S","Y-m-d H:M","m/d/Y H:M","Ymd HMS","Ymd HM"),
           tz = "America/New_York"
         )),
-      roof_clean = tolower(dplyr::coalesce(roof, "")),
-      roof_state = dplyr::case_when(
+      roof_clean = tolower(coalesce(roof, "")),
+      roof_state = case_when(
         roof_clean %in% c("dome","closed") ~ "indoors",
         roof_clean == "open" & stadium_id %in% retractable_ids ~ "retractable_open",
         roof_clean %in% c("open","outdoors") ~ "outdoors",
         TRUE ~ "unknown"
       ),
       dome_flag = roof_state == "indoors"
-    )
-  
-  games_base <- games_base %>%
-    dplyr::mutate(
+    ) %>%
+    mutate(
       temp_num = suppressWarnings(as.numeric(gsub("[^0-9.-]","", as.character(temp)))),
       wind_num = suppressWarnings(as.numeric(gsub("[^0-9.-]","", as.character(wind)))),
       temp_miss = as.integer(is.na(temp_num)),
@@ -201,36 +158,36 @@ build_pregame_dataset <- function(
     )
   
   ref_stad_mo <- games_base %>%
-    dplyr::group_by(stadium_id, roof_state, mo) %>%
-    dplyr::summarise(
+    group_by(stadium_id, roof_state, mo) %>%
+    summarise(
       temp_med = stats::median(temp_num, na.rm = TRUE),
       wind_med = stats::median(wind_num, na.rm = TRUE),
       .groups = "drop"
     )
   ref_roof_mo <- games_base %>%
-    dplyr::group_by(roof_state, mo) %>%
-    dplyr::summarise(
+    group_by(roof_state, mo) %>%
+    summarise(
       temp_med = stats::median(temp_num, na.rm = TRUE),
       wind_med = stats::median(wind_num, na.rm = TRUE),
       .groups = "drop"
     )
   ref_mo <- games_base %>%
-    dplyr::group_by(mo) %>%
-    dplyr::summarise(
+    group_by(mo) %>%
+    summarise(
       temp_med = stats::median(temp_num, na.rm = TRUE),
       wind_med = stats::median(wind_num, na.rm = TRUE),
       .groups = "drop"
     )
   
   games_base <- games_base %>%
-    dplyr::left_join(ref_stad_mo, by = c("stadium_id","roof_state","mo")) %>%
-    dplyr::rename(temp_med_stad = temp_med, wind_med_stad = wind_med) %>%
-    dplyr::left_join(ref_roof_mo, by = c("roof_state","mo")) %>%
-    dplyr::rename(temp_med_roof = temp_med, wind_med_roof = wind_med) %>%
-    dplyr::left_join(ref_mo, by = "mo") %>%
-    dplyr::rename(temp_med_mo = temp_med, wind_med_mo = wind_med) %>%
-    dplyr::mutate(
-      temp = dplyr::case_when(
+    left_join(ref_stad_mo, by = c("stadium_id","roof_state","mo")) %>%
+    rename(temp_med_stad = temp_med, wind_med_stad = wind_med) %>%
+    left_join(ref_roof_mo, by = c("roof_state","mo")) %>%
+    rename(temp_med_roof = temp_med, wind_med_roof = wind_med) %>%
+    left_join(ref_mo, by = "mo") %>%
+    rename(temp_med_mo = temp_med, wind_med_mo = wind_med) %>%
+    mutate(
+      temp = case_when(
         roof_state == "indoors" ~ 70,
         !is.na(temp_num) ~ temp_num,
         !is.na(temp_med_stad) ~ temp_med_stad,
@@ -238,7 +195,7 @@ build_pregame_dataset <- function(
         !is.na(temp_med_mo) ~ temp_med_mo,
         TRUE ~ 70
       ),
-      wind = dplyr::case_when(
+      wind = case_when(
         roof_state == "indoors" ~ 0,
         !is.na(wind_num) ~ wind_num,
         !is.na(wind_med_stad) ~ wind_med_stad,
@@ -247,22 +204,22 @@ build_pregame_dataset <- function(
         TRUE ~ 0
       )
     ) %>%
-    dplyr::mutate(
+    mutate(
       wind_bucket = cut(as.numeric(wind), breaks = c(-Inf,5,10,15,20,Inf),
                         labels = c("0-5","6-10","11-15","16-20","21+")),
       temp_bucket = cut(as.numeric(temp), breaks = c(-Inf,32,49,79,Inf),
                         labels = c("≤32","33-49","50-79","80+"))
     ) %>%
-    dplyr::select(-temp_num, -wind_num, -temp_med_stad, -wind_med_stad,
-                  -temp_med_roof, -wind_med_roof, -temp_med_mo, -wind_med_mo, -mo, -roof_clean)
+    select(-temp_num, -wind_num, -temp_med_stad, -wind_med_stad,
+           -temp_med_roof, -wind_med_roof, -temp_med_mo, -wind_med_mo, -mo, -roof_clean)
   
   games_base <- games_base %>% impute_weather()
   
-  # Compute REG-season last week (for POST fences)
+  # REG-season last week (for POST fences and prior-season picks)
   reg_last_week_by_season <- games_base %>%
-    dplyr::filter(.data$season_type == "REG") %>%
-    dplyr::group_by(.data$season) %>%
-    dplyr::summarise(reg_last_week = max(.data$week, na.rm = TRUE), .groups = "drop")
+    filter(.data$season_type == "REG") %>%
+    group_by(.data$season) %>%
+    summarise(reg_last_week = max(.data$week, na.rm = TRUE), .groups = "drop")
   
   #---------------------------------------
   # S2. Team strength (as-of) home & away
@@ -285,11 +242,11 @@ build_pregame_dataset <- function(
         by = dplyr::join_by(season == season, !!rlang::sym(key_team) == team),
         relationship = "many-to-many"
       ) %>%
-      dplyr::filter(if_else(season_type == "REG", ts_week < week, TRUE)) %>%
-      dplyr::group_by(game_id) %>%
-      dplyr::slice_max(order_by = ts_week, n = 1, with_ties = FALSE) %>%
-      dplyr::ungroup() %>%
-      dplyr::transmute(
+      filter(if_else(season_type == "REG", ts_week < week, TRUE)) %>%
+      group_by(game_id) %>%
+      slice_max(order_by = ts_week, n = 1, with_ties = FALSE) %>%
+      ungroup() %>%
+      transmute(
         game_id,
         !!paste0(side, "_rating_net")      := rating_net,
         !!paste0(side, "_net_epa_smooth")  := net_epa_smooth
@@ -301,26 +258,54 @@ build_pregame_dataset <- function(
   
   games_ts <- games_base %>%
     left_join(ts_home, by = "game_id") %>%
-    left_join(ts_away, by = "game_id") %>%
-    mutate(
-      diff_rating_net      = home_rating_net - away_rating_net,
-      diff_net_epa_smooth  = home_net_epa_smooth - away_net_epa_smooth
-    )
+    left_join(ts_away, by = "game_id")
+  
+  # Week 1 ONLY: backfill prior-season REG last-week team strength (no shrinkage by HC/QB)
+  prior_ts_last <- ts_wk %>%
+    left_join(reg_last_week_by_season, by = "season") %>%
+    filter(!is.na(reg_last_week), ts_week <= reg_last_week) %>%
+    group_by(season, team) %>%
+    slice_max(ts_week, n = 1, with_ties = FALSE) %>%
+    ungroup() %>%
+    transmute(season_next = season + 1L, team,
+              rating_net_prev = rating_net,
+              net_epa_smooth_prev = net_epa_smooth)
   
   games_ts <- games_ts %>%
-    dplyr::mutate(
+    # attach prior-season values keyed to next season (for Week 1)
+    left_join(prior_ts_last %>% rename(home_team_prev = team,
+                                       home_rating_prev = rating_net_prev,
+                                       home_epa_prev    = net_epa_smooth_prev),
+              by = c("season" = "season_next", "home_team" = "home_team_prev")) %>%
+    left_join(prior_ts_last %>% rename(away_team_prev = team,
+                                       away_rating_prev = rating_net_prev,
+                                       away_epa_prev    = net_epa_smooth_prev),
+              by = c("season" = "season_next", "away_team" = "away_team_prev")) %>%
+    mutate(
+      home_rating_net     = if_else(season_type=="REG" & week==1 & is.na(home_rating_net), home_rating_prev, home_rating_net),
+      home_net_epa_smooth = if_else(season_type=="REG" & week==1 & is.na(home_net_epa_smooth), home_epa_prev, home_net_epa_smooth),
+      away_rating_net     = if_else(season_type=="REG" & week==1 & is.na(away_rating_net), away_rating_prev, away_rating_net),
+      away_net_epa_smooth = if_else(season_type=="REG" & week==1 & is.na(away_net_epa_smooth), away_epa_prev, away_net_epa_smooth)
+    ) %>%
+    select(-home_rating_prev,-home_epa_prev,-away_rating_prev,-away_epa_prev) %>%
+    mutate(
+      diff_rating_net     = home_rating_net - away_rating_net,
+      diff_net_epa_smooth = home_net_epa_smooth - away_net_epa_smooth
+    ) %>%
+    # Flags & coalesce (unchanged behaviour elsewhere)
+    mutate(
       used_ts_prior_home = as.integer(is.na(.data$home_rating_net) | is.na(.data$home_net_epa_smooth)),
       used_ts_prior_away = as.integer(is.na(.data$away_rating_net) | is.na(.data$away_net_epa_smooth)),
-      home_rating_net     = dplyr::coalesce(.data$home_rating_net, 0),
-      away_rating_net     = dplyr::coalesce(.data$away_rating_net, 0),
-      home_net_epa_smooth = dplyr::coalesce(.data$home_net_epa_smooth, 0),
-      away_net_epa_smooth = dplyr::coalesce(.data$away_net_epa_smooth, 0),
+      home_rating_net     = coalesce(.data$home_rating_net, 0),
+      away_rating_net     = coalesce(.data$away_rating_net, 0),
+      home_net_epa_smooth = coalesce(.data$home_net_epa_smooth, 0),
+      away_net_epa_smooth = coalesce(.data$away_net_epa_smooth, 0),
       diff_rating_net     = .data$home_rating_net - .data$away_rating_net,
       diff_net_epa_smooth = .data$home_net_epa_smooth - .data$away_net_epa_smooth
     )
   
   #-----------------------------
-  # S3. Injuries (weekly, by position) — counts (status-weighted optional)
+  # S3. Injuries (weekly, by position) — within-season only
   #-----------------------------
   add_injury_indices <- function(df) {
     if (!tbl_exists(injuries_table)) {
@@ -329,31 +314,29 @@ build_pregame_dataset <- function(
     }
     
     inj_raw <- tbl(con, in_sch(injuries_table)) %>%
-      dplyr::filter(.data$season %in% !!seasons) %>%
-      dplyr::select(dplyr::any_of(c(
+      filter(.data$season %in% !!seasons) %>%
+      select(any_of(c(
         "season","week","team",
         "position","position_group","status",
-        "position_injuries"   # optional legacy count column
+        "position_injuries"
       ))) %>%
-      dplyr::collect() %>%
-      dplyr::mutate(
+      collect() %>%
+      mutate(
         season   = as.integer(.data$season),
         week     = as.integer(.data$week),
         team     = as.character(.data$team)
       )
     
-    # Ensure position_group exists even if the source table doesn't have it
     if (!"position_group" %in% names(inj_raw)) {
-      inj_raw <- inj_raw %>% dplyr::mutate(position_group = NA_character_)
+      inj_raw <- inj_raw %>% mutate(position_group = NA_character_)
     }
     
-    # Normalise to a single pos_group column
     inj_norm <- inj_raw %>%
-      dplyr::mutate(
-        position = toupper(dplyr::coalesce(.data$position, "")),
-        pos_group = dplyr::coalesce(
+      mutate(
+        position = toupper(coalesce(.data$position, "")),
+        pos_group = coalesce(
           toupper(.data$position_group),
-          dplyr::case_when(
+          case_when(
             position %in% c("T","G","C","OT","OG","OC") ~ "OL",
             position %in% c("WR")                       ~ "WR",
             position %in% c("TE")                       ~ "TE",
@@ -365,28 +348,26 @@ build_pregame_dataset <- function(
           )
         )
       ) %>%
-      dplyr::filter(!is.na(.data$pos_group))
+      filter(!is.na(.data$pos_group))
     
     has_status <- "status" %in% names(inj_norm)
     
     if (has_status) {
-      # Map statuses → weights using the injury_weights vector; unknown statuses → 0
       status_key <- tibble::tibble(
         status = names(injury_weights),
         w = as.numeric(injury_weights)
       )
       inj_w <- inj_norm %>%
-        dplyr::mutate(status = as.character(.data$status)) %>%
-        dplyr::left_join(status_key, by = "status") %>%
-        dplyr::mutate(w = dplyr::coalesce(.data$w, 0)) %>%
-        dplyr::group_by(.data$season, .data$week, .data$team, .data$pos_group) %>%
-        dplyr::summarise(inj_val = sum(.data$w, na.rm = TRUE), .groups = "drop")
+        mutate(status = as.character(.data$status)) %>%
+        left_join(status_key, by = "status") %>%
+        mutate(w = coalesce(.data$w, 0)) %>%
+        group_by(.data$season, .data$week, .data$team, .data$pos_group) %>%
+        summarise(inj_val = sum(.data$w, na.rm = TRUE), .groups = "drop")
     } else {
-      # Fallback: use provided counts
       inj_w <- inj_norm %>%
-        dplyr::mutate(position_injuries = as.numeric(.data$position_injuries)) %>%
-        dplyr::group_by(.data$season, .data$week, .data$team, .data$pos_group) %>%
-        dplyr::summarise(inj_val = sum(.data$position_injuries, na.rm = TRUE), .groups = "drop")
+        mutate(position_injuries = as.numeric(.data$position_injuries)) %>%
+        group_by(.data$season, .data$week, .data$team, .data$pos_group) %>%
+        summarise(inj_val = sum(.data$position_injuries, na.rm = TRUE), .groups = "drop")
     }
     
     ipw <- inj_w %>%
@@ -394,19 +375,19 @@ build_pregame_dataset <- function(
         id_cols    = c(.data$season, .data$week, .data$team),
         names_from = .data$pos_group,
         values_from = .data$inj_val,
-        names_glue = "inj_{pos_group}_count",  # keep original column names
+        names_glue = "inj_{pos_group}_count",
         values_fill = 0
       )
     
     out <- df %>%
-      dplyr::mutate(week = as.integer(.data$week)) %>%
-      dplyr::left_join(ipw, by = dplyr::join_by(season == season, week == week, home_team == team)) %>%
-      dplyr::rename_with(~ paste0("home_", .x), dplyr::starts_with("inj_")) %>%
-      dplyr::left_join(ipw, by = dplyr::join_by(season == season, week == week, away_team == team)) %>%
-      dplyr::rename_with(~ paste0("away_", .x), dplyr::starts_with("inj_")) %>%
-      dplyr::mutate(
-        dplyr::across(dplyr::starts_with("home_inj_"), ~ dplyr::coalesce(.x, 0)),
-        dplyr::across(dplyr::starts_with("away_inj_"), ~ dplyr::coalesce(.x, 0))
+      mutate(week = as.integer(.data$week)) %>%
+      left_join(ipw, by = dplyr::join_by(season == season, week == week, home_team == team)) %>%
+      rename_with(~ paste0("home_", .x), starts_with("inj_")) %>%
+      left_join(ipw, by = dplyr::join_by(season == season, week == week, away_team == team)) %>%
+      rename_with(~ paste0("away_", .x), starts_with("inj_")) %>%
+      mutate(
+        across(starts_with("home_inj_"), ~ coalesce(.x, 0)),
+        across(starts_with("away_inj_"), ~ coalesce(.x, 0))
       )
     
     for (g in c("OL","WR","TE","RB","DL","LB","DB")) {
@@ -432,33 +413,33 @@ build_pregame_dataset <- function(
     }
     
     snwk <- snwk_tbl %>%
-      dplyr::filter(.data$season %in% !!seasons) %>%
-      dplyr::select(dplyr::any_of(c("season","week","team","offense_snaps","defense_snaps"))) %>%
-      dplyr::mutate(
+      filter(.data$season %in% !!seasons) %>%
+      select(any_of(c("season","week","team","offense_snaps","defense_snaps"))) %>%
+      mutate(
         week          = as.integer(.data$week),
         offense_snaps = as.numeric(.data$offense_snaps),
         defense_snaps = as.numeric(.data$defense_snaps)
       ) %>%
-      dplyr::group_by(.data$season, .data$week, .data$team) %>%
-      dplyr::summarise(
+      group_by(.data$season, .data$week, .data$team) %>%
+      summarise(
         team_off_snaps = max(.data$offense_snaps, na.rm = TRUE),
         team_def_snaps = max(.data$defense_snaps, na.rm = TRUE),
         .groups = "drop"
       ) %>%
-      dplyr::collect()
+      collect()
     
     calc_side <- function(gdf, side = c("home","away")) {
       side <- match.arg(side)
       key_team <- rlang::sym(paste0(side, "_team"))
       
       gdf %>%
-        dplyr::left_join(
-          snwk %>% dplyr::rename(snap_week = week),
+        left_join(
+          snwk %>% rename(snap_week = week),
           by = dplyr::join_by(season == season, !!key_team == team),
           relationship = "many-to-many"
         ) %>%
-        dplyr::group_by(.data$game_id, .data$season, .data$week) %>%
-        dplyr::summarise(
+        group_by(.data$game_id, .data$season, .data$week) %>%
+        summarise(
           !!paste0(side, "_off_snaps_pg") := {
             idx <- snap_week < first(.data$week)
             if (sum(idx, na.rm = TRUE) == 0) 0 else mean(team_off_snaps[idx], na.rm = TRUE)
@@ -475,20 +456,20 @@ build_pregame_dataset <- function(
     away <- calc_side(df, "away")
     
     df %>%
-      dplyr::left_join(home, by = c("game_id","season","week")) %>%
-      dplyr::left_join(away, by = c("game_id","season","week")) %>%
-      dplyr::mutate(
-        dplyr::across(dplyr::all_of(c(
+      left_join(home, by = c("game_id","season","week")) %>%
+      left_join(away, by = c("game_id","season","week")) %>%
+      mutate(
+        across(all_of(c(
           "home_off_snaps_pg","home_def_snaps_pg",
           "away_off_snaps_pg","away_def_snaps_pg"
-        )), ~ dplyr::coalesce(.x, 0)),
+        )), ~ coalesce(.x, 0)),
         diff_off_snaps_pg = .data$home_off_snaps_pg - .data$away_off_snaps_pg,
         diff_def_snaps_pg = .data$home_def_snaps_pg - .data$away_def_snaps_pg
       )
   }
   
   #--------------------------------------
-  # S3c. QB APY % of Team Cap (contracts_qb_tbl)
+  # S3c. QB APY % of Team Cap
   #--------------------------------------
   add_qb_cap_pct <- function(df) {
     starters <- safe_tbl(starters_tbl_name)
@@ -500,31 +481,27 @@ build_pregame_dataset <- function(
     }
     
     qb_starters <- starters %>%
-      dplyr::filter(season %in% !!seasons) %>%
-      dplyr::select(season, week, team, position, gsis_id) %>%
-      dplyr::collect() %>%
-      dplyr::mutate(
+      filter(season %in% !!seasons) %>%
+      select(season, week, team, position, gsis_id) %>%
+      collect() %>%
+      mutate(
         season   = as.integer(season),
         week     = as.integer(week),
         position = toupper(position),
         gsis_id  = as.character(gsis_id)
       ) %>%
-      dplyr::filter(position == "QB") %>%
-      dplyr::distinct(season, week, team, gsis_id)
+      filter(position == "QB") %>%
+      distinct(season, week, team, gsis_id)
     
     qb_contracts_raw <- cq %>%
-      dplyr::select(
-        dplyr::any_of(c("gsis_id")),
-        dplyr::any_of(c("year_signed")),
-        dplyr::any_of(c("apy_cap_pct"))
-      ) %>%
-      dplyr::collect() %>%
-      dplyr::filter(!is.na(gsis_id))
+      select(any_of(c("gsis_id","year_signed","apy_cap_pct"))) %>%
+      collect() %>%
+      filter(!is.na(gsis_id))
     
     season_meds <- qb_contracts_raw %>%
-      dplyr::filter(!is.na(year_signed), !is.na(apy_cap_pct)) %>%
-      dplyr::group_by(year_signed) %>%
-      dplyr::summarise(season_median_apy = stats::median(apy_cap_pct), .groups = "drop")
+      filter(!is.na(year_signed), !is.na(apy_cap_pct)) %>%
+      group_by(year_signed) %>%
+      summarise(season_median_apy = stats::median(apy_cap_pct), .groups = "drop")
     
     overall_med <- stats::median(qb_contracts_raw$apy_cap_pct, na.rm = TRUE)
     
@@ -533,27 +510,24 @@ build_pregame_dataset <- function(
       key_team <- rlang::sym(paste0(side, "_team"))
       
       gdf %>%
-        dplyr::left_join(
+        left_join(
           qb_starters,
           by = dplyr::join_by(season == season, week == week, !!key_team == team),
           relationship = "many-to-many"
         ) %>%
-        dplyr::mutate(gsis_id = as.character(gsis_id)) %>%
-        dplyr::left_join(
-          qb_contracts_raw %>% dplyr::select(gsis_id, apy_cap_pct),
-          by = "gsis_id",
-          relationship = "many-to-many"
-        ) %>%
-        dplyr::left_join(season_meds, by = c(season = "year_signed")) %>%
-        dplyr::mutate(
-          apy_cap_pct_filled = dplyr::if_else(
+        mutate(gsis_id = as.character(gsis_id)) %>%
+        left_join(qb_contracts_raw %>% select(gsis_id, apy_cap_pct), by = "gsis_id",
+                  relationship = "many-to-many") %>%
+        left_join(season_meds, by = c(season = "year_signed")) %>%
+        mutate(
+          apy_cap_pct_filled = if_else(
             is.na(apy_cap_pct),
-            dplyr::coalesce(season_median_apy, overall_med),
+            coalesce(season_median_apy, overall_med),
             apy_cap_pct
           )
         ) %>%
-        dplyr::group_by(game_id) %>%
-        dplyr::summarise(
+        group_by(game_id) %>%
+        summarise(
           !!paste0(side, "_qb_apy_pct_cap") := {
             x <- suppressWarnings(max(apy_cap_pct_filled, na.rm = TRUE))
             if (!is.finite(x)) NA_real_ else x
@@ -566,29 +540,30 @@ build_pregame_dataset <- function(
     away <- attach_side(df, "away")
     
     df %>%
-      dplyr::left_join(home, by = "game_id") %>%
-      dplyr::left_join(away, by = "game_id") %>%
-      dplyr::mutate(diff_qb_apy_pct_cap = home_qb_apy_pct_cap - away_qb_apy_pct_cap)
+      left_join(home, by = "game_id") %>%
+      left_join(away, by = "game_id") %>%
+      mutate(diff_qb_apy_pct_cap = home_qb_apy_pct_cap - away_qb_apy_pct_cap)
   }
   
   #--------------------------------------
   # S3d. Position-group stability (as-of)
+  # Week 1 rule: set all group scores to 1.0 (diffs = 0)
   #--------------------------------------
   add_position_stability <- function(df) {
-    ps <- safe_tbl("depth_charts_position_stability_tbl")
+    ps <- safe_tbl(pos_stability_tbl_name)
     if (is.null(ps)) {
       message("Position stability table not found; skipping stability features.")
       return(df)
     }
     
     stab <- ps %>%
-      dplyr::select(season, week, team, position, position_group_score) %>%
-      dplyr::filter(season %in% !!seasons) %>%
-      dplyr::collect() %>%
-      dplyr::mutate(
+      select(season, week, team, position, position_group_score) %>%
+      filter(season %in% !!seasons) %>%
+      collect() %>%
+      mutate(
         week = as.integer(week),
         position = toupper(position),
-        pos_group = dplyr::case_when(
+        pos_group = case_when(
           position %in% c("T","G","C","OT","OG","OC") ~ "OL",
           position %in% c("WR")                       ~ "WR",
           position %in% c("TE")                       ~ "TE",
@@ -599,27 +574,27 @@ build_pregame_dataset <- function(
           TRUE ~ NA_character_
         )
       ) %>%
-      dplyr::filter(!is.na(pos_group)) %>%
-      dplyr::group_by(season, week, team, pos_group) %>%
-      dplyr::summarise(position_group_score = mean(position_group_score, na.rm = TRUE), .groups = "drop")
+      filter(!is.na(pos_group)) %>%
+      group_by(season, week, team, pos_group) %>%
+      summarise(position_group_score = mean(position_group_score, na.rm = TRUE), .groups = "drop")
     
     attach_side <- function(gdf, side = c("home","away")) {
       side <- match.arg(side)
       key_team <- rlang::sym(paste0(side, "_team"))
       
       joined <- gdf %>%
-        dplyr::left_join(
-          stab %>% dplyr::rename(stab_week = week),
+        left_join(
+          stab %>% rename(stab_week = week),
           by = dplyr::join_by(season == season, !!key_team == team),
           relationship = "many-to-many"
         )
       
       picked <- joined %>%
-        dplyr::filter(stab_week < week) %>%
-        dplyr::group_by(game_id, pos_group) %>%
-        dplyr::slice_max(order_by = stab_week, n = 1, with_ties = FALSE) %>%
-        dplyr::ungroup() %>%
-        dplyr::select(game_id, pos_group, position_group_score) %>%
+        filter(stab_week < week) %>%
+        group_by(game_id, pos_group) %>%
+        slice_max(order_by = stab_week, n = 1, with_ties = FALSE) %>%
+        ungroup() %>%
+        select(game_id, pos_group, position_group_score) %>%
         tidyr::pivot_wider(
           id_cols = game_id,
           names_from = pos_group,
@@ -633,21 +608,36 @@ build_pregame_dataset <- function(
     home <- attach_side(df, "home")
     away <- attach_side(df, "away")
     
-    out <- df %>%
-      dplyr::left_join(home, by = "game_id") %>%
-      dplyr::left_join(away, by = "game_id")
+    groups <- c("DB","DL","LB","RB","TE","WR","OL")
     
+    out <- df %>%
+      left_join(home, by = "game_id") %>%
+      left_join(away, by = "game_id")
+    
+    # Ensure all stab columns exist
+    for (g in groups) {
+      hc <- paste0("home_stab_", g); ac <- paste0("away_stab_", g)
+      if (!hc %in% names(out)) out[[hc]] <- NA_real_
+      if (!ac %in% names(out)) out[[ac]] <- NA_real_
+    }
+    
+    # Week 1 default = 1.0; otherwise keep as-is (NA allowed → will be coalesced below)
     out <- out %>%
-      dplyr::mutate(
-        across(dplyr::starts_with("home_stab_"), ~ dplyr::coalesce(.x, 0)),
-        across(dplyr::starts_with("away_stab_"), ~ dplyr::coalesce(.x, 0))
+      mutate(
+        across(starts_with("home_stab_"), ~ if_else(week==1L, 1.0, .x)),
+        across(starts_with("away_stab_"), ~ if_else(week==1L, 1.0, .x))
       ) %>%
-      dplyr::mutate(
-        used_stab_prior_home = as.integer(rowSums(dplyr::across(dplyr::starts_with("home_stab_"), ~ .x == 0)) > 0 & .data$week == 1),
-        used_stab_prior_away = as.integer(rowSums(dplyr::across(dplyr::starts_with("away_stab_"), ~ .x == 0)) > 0 & .data$week == 1)
+      mutate(
+        across(starts_with("home_stab_"), ~ coalesce(.x, 0)),
+        across(starts_with("away_stab_"), ~ coalesce(.x, 0))
+      ) %>%
+      mutate(
+        used_stab_prior_home = as.integer(rowSums(across(starts_with("home_stab_"), ~ .x == 0)) > 0 & .data$week == 1),
+        used_stab_prior_away = as.integer(rowSums(across(starts_with("away_stab_"), ~ .x == 0)) > 0 & .data$week == 1)
       )
     
-    for (g in c("OL","WR","TE","RB","DB","DL","LB")) {
+    # Diffs (Week 1 will be 0 due to both sides = 1.0)
+    for (g in groups) {
       h <- paste0("home_stab_", g)
       a <- paste0("away_stab_", g)
       d <- paste0("diff_stab_", g)
@@ -658,44 +648,44 @@ build_pregame_dataset <- function(
   }
   
   #-----------------------------------------
-  # S3e. Team S2D basics (win%, PPG for/against, point diff TOTAL, TO diff TOTAL)
+  # S3e. Team S2D basics (win%, PPG, point diff totals, etc.)
   #-----------------------------------------
   add_team_basics_s2d <- function(df) {
     g0 <- df %>%
-      dplyr::select(dplyr::any_of(c(
+      select(any_of(c(
         "season","week","season_type","game_id","kickoff",
         "home_team","away_team","home_score","away_score"
       )))
     
-    tg <- dplyr::bind_rows(
+    tg <- bind_rows(
       g0 %>%
-        dplyr::transmute(
+        transmute(
           season, tg_week = as.integer(week), tg_season_type = season_type, kickoff,
           team = home_team, opp_team = away_team,
           pts_for = as.numeric(home_score), pts_against = as.numeric(away_score)
         ),
       g0 %>%
-        dplyr::transmute(
+        transmute(
           season, tg_week = as.integer(week), tg_season_type = season_type, kickoff,
           team = away_team, opp_team = home_team,
           pts_for = as.numeric(away_score), pts_against = as.numeric(home_score)
         )
     ) %>%
-      dplyr::mutate(win = as.integer(pts_for > pts_against))
+      mutate(win = as.integer(pts_for > pts_against))
     
     attach_side <- function(gdf, side = c("home","away")) {
       side <- match.arg(side)
       key_team <- rlang::sym(paste0(side, "_team"))
       
       gdf %>%
-        dplyr::left_join(
+        left_join(
           tg,
           by = dplyr::join_by(season == season, !!key_team == team),
           relationship = "many-to-many"
         ) %>%
-        dplyr::left_join(reg_last_week_by_season, by = "season") %>%
-        dplyr::group_by(game_id, season, season_type, week, reg_last_week) %>%
-        dplyr::summarise(
+        left_join(reg_last_week_by_season, by = "season") %>%
+        group_by(game_id, season, season_type, week, reg_last_week) %>%
+        summarise(
           !!paste0(side, "_games_played_prior") := {
             idx <- if (first(season_type) == "REG") tg_week < first(week) else (tg_week <= first(reg_last_week))
             sum(idx, na.rm = TRUE)
@@ -712,7 +702,6 @@ build_pregame_dataset <- function(
             idx <- if (first(season_type) == "REG") tg_week < first(week) else (tg_week <= first(reg_last_week))
             n <- sum(idx, na.rm = TRUE); if (n == 0) 0 else sum(pts_against[idx], na.rm = TRUE) / n
           },
-          # TOTALS to date (prior to game):
           !!paste0(side, "_pt_diff_pg_prior") := {
             idx <- if (first(season_type) == "REG") tg_week < first(week) else (tg_week <= first(reg_last_week))
             sum(pts_for[idx], na.rm = TRUE) - sum(pts_against[idx], na.rm = TRUE)
@@ -725,9 +714,9 @@ build_pregame_dataset <- function(
     away <- attach_side(df, "away")
     
     df %>%
-      dplyr::left_join(home, by = c("game_id","season","season_type","week")) %>%
-      dplyr::left_join(away, by = c("game_id","season","season_type","week")) %>%
-      dplyr::mutate(
+      left_join(home, by = c("game_id","season","season_type","week")) %>%
+      left_join(away, by = c("game_id","season","season_type","week")) %>%
+      mutate(
         diff_win_pct_prior     = .data$home_win_pct_prior      - .data$away_win_pct_prior,
         diff_ppg_for_prior     = .data$home_ppg_for_prior      - .data$away_ppg_for_prior,
         diff_ppg_against_prior = .data$home_ppg_against_prior  - .data$away_ppg_against_prior,
@@ -736,7 +725,7 @@ build_pregame_dataset <- function(
   }
   
   #-----------------------------------------
-  # NEW: S3f. Defense & Offense S2D aggregates (prior to game)
+  # S3f. Offense & Defense S2D aggregates (prior to game)
   #-----------------------------------------
   add_def_off_stats_s2d <- function(df) {
     off_tbl <- safe_tbl(off_team_stats_week_tbl_name)
@@ -746,56 +735,54 @@ build_pregame_dataset <- function(
       return(df)
     }
     
-    # collect once
     off_wk <- if (!is.null(off_tbl)) {
       off_tbl %>%
-        dplyr::filter(season %in% !!seasons) %>%
-        dplyr::select(dplyr::any_of(c(
+        filter(season %in% !!seasons) %>%
+        select(any_of(c(
           "season","week","team",
           "completions","attempts","passing_yards","passing_tds","interceptions",
           "sacks","passing_first_downs","carries","rushing_yards","rushing_tds",
           "rushing_fumbles","receiving_fumbles"
         ))) %>%
-        dplyr::mutate(
+        mutate(
           week = as.integer(week),
           across(c(completions,attempts,passing_yards,passing_tds,interceptions,
                    sacks,passing_first_downs,carries,rushing_yards,rushing_tds,
                    rushing_fumbles,receiving_fumbles), ~ as.numeric(.x))
         ) %>%
-        dplyr::collect()
+        collect()
     } else NULL
     
     def_wk <- if (!is.null(def_tbl)) {
       def_tbl %>%
-        dplyr::filter(season %in% !!seasons) %>%
-        dplyr::select(dplyr::any_of(c(
+        filter(season %in% !!seasons) %>%
+        select(any_of(c(
           "season","week","team",
           "def_interceptions","def_fumble_recovery_opp",
           "def_penalty","def_penalty_yards",
           "def_sacks","def_qb_hits","def_tackles_for_loss"
         ))) %>%
-        dplyr::mutate(
+        mutate(
           week = as.integer(week),
           across(c(def_interceptions,def_fumble_recovery_opp,def_penalty,def_penalty_yards,
                    def_sacks,def_qb_hits,def_tackles_for_loss), ~ as.numeric(.x))
         ) %>%
-        dplyr::collect()
+        collect()
     } else NULL
     
     attach_side <- function(gdf, side = c("home","away")) {
       side <- match.arg(side)
       key_team <- rlang::sym(paste0(side, "_team"))
       
-      base <- gdf %>% dplyr::left_join(reg_last_week_by_season, by = "season")
+      base <- gdf %>% left_join(reg_last_week_by_season, by = "season")
       
-      # OFFENSE aggregates
       off_aggs <- if (!is.null(off_wk)) {
         base %>%
-          dplyr::left_join(off_wk %>% dplyr::rename(stat_week = week),
-                           by = dplyr::join_by(season == season, !!key_team == team),
-                           relationship = "many-to-many") %>%
-          dplyr::group_by(game_id, season, season_type, week, reg_last_week) %>%
-          dplyr::summarise(
+          left_join(off_wk %>% rename(stat_week = week),
+                    by = dplyr::join_by(season == season, !!key_team == team),
+                    relationship = "many-to-many") %>%
+          group_by(game_id, season, season_type, week, reg_last_week) %>%
+          summarise(
             n_prior = {
               idx <- if (first(season_type) == "REG") stat_week < first(week) else (stat_week <= first(reg_last_week))
               sum(idx, na.rm = TRUE)
@@ -803,7 +790,7 @@ build_pregame_dataset <- function(
             !!paste0(side, "_off_comp_pct_prior") := {
               idx <- if (first(season_type) == "REG") stat_week < first(week) else (stat_week <= first(reg_last_week))
               num <- sum(completions[idx], na.rm = TRUE)
-              den <- sum(attempts[idx], na.rm = TRUE)
+              den <- sum(attempts[idx],   na.rm = TRUE)
               ifelse(den > 0, num/den, 0)
             },
             !!paste0(side, "_off_pass_yards_pg_prior") := {
@@ -840,14 +827,13 @@ build_pregame_dataset <- function(
           )
       } else NULL
       
-      # DEFENSE aggregates
       def_aggs <- if (!is.null(def_wk)) {
         base %>%
-          dplyr::left_join(def_wk %>% dplyr::rename(stat_week = week),
-                           by = dplyr::join_by(season == season, !!key_team == team),
-                           relationship = "many-to-many") %>%
-          dplyr::group_by(game_id, season, season_type, week, reg_last_week) %>%
-          dplyr::summarise(
+          left_join(def_wk %>% rename(stat_week = week),
+                    by = dplyr::join_by(season == season, !!key_team == team),
+                    relationship = "many-to-many") %>%
+          group_by(game_id, season, season_type, week, reg_last_week) %>%
+          summarise(
             n_prior = {
               idx <- if (first(season_type) == "REG") stat_week < first(week) else (stat_week <= first(reg_last_week))
               sum(idx, na.rm = TRUE)
@@ -887,14 +873,12 @@ build_pregame_dataset <- function(
       } else NULL
       
       out <- gdf
-      if (!is.null(off_aggs)) out <- out %>% dplyr::left_join(off_aggs, by = c("game_id","season","season_type","week"))
-      if (!is.null(def_aggs)) out <- out %>% dplyr::left_join(def_aggs, by = c("game_id","season","season_type","week"))
+      if (!is.null(off_aggs)) out <- out %>% left_join(off_aggs, by = c("game_id","season","season_type","week"))
+      if (!is.null(def_aggs)) out <- out %>% left_join(def_aggs, by = c("game_id","season","season_type","week"))
       out
     }
     
     out <- df %>% attach_side("home") %>% attach_side("away")
-    
-    # simple diffs could be added later if desired (keeping it minimal per request)
     out
   }
   
@@ -906,12 +890,13 @@ build_pregame_dataset <- function(
     add_def_off_stats_s2d()
   
   #-----------------------------------------
-  # S4. Minimal Week-1 QB priors (no is_starter; uses starters table)
+  # S4. Minimal Week-1 QB priors (use LAST SEASON average; Week 1 only)
   #-----------------------------------------
+  # --- drop-in replacement ---
   add_qb_priors <- function(df) {
     starters <- safe_tbl(starters_tbl_name)
     if (is.null(starters) || !tbl_exists(career_stats_qb_table)) {
-      message("Starters or QB career stats table not found; skipping QB priors.")
+      message("Starters or QB stats table not found; skipping QB priors.")
       return(
         df %>%
           dplyr::mutate(
@@ -932,49 +917,136 @@ build_pregame_dataset <- function(
       ) %>%
       dplyr::distinct(season, week, team, gsis_id)
     
-    qb_career <- tbl(con, in_sch(career_stats_qb_table)) %>%
-      dplyr::select(player_id, passing_yards, passing_tds, interceptions, sacks, sack_yards, attempts) %>%
+    # Load QB stats; season may or may not exist on your table
+    qb_stats_raw <- tbl(con, in_sch(career_stats_qb_table)) %>%
+      dplyr::select(dplyr::any_of(c(
+        "player_id","gsis_id","season",
+        "attempts","passing_yards","passing_tds","interceptions","sacks","sack_yards"
+      ))) %>%
       dplyr::collect() %>%
       dplyr::mutate(
-        attempts = dplyr::coalesce(attempts, 0),
-        sacks    = dplyr::coalesce(sacks, 0),
-        denom    = pmax(attempts + sacks, 1),
-        qb_prior = dplyr::case_when(
-          all(c("passing_yards","passing_tds","interceptions","sack_yards") %in% names(.)) ~
-            (passing_yards + 20*passing_tds - 45*interceptions - dplyr::coalesce(sack_yards, 0)) / denom,
-          !is.na(passing_yards) ~ passing_yards / denom,
-          TRUE ~ NA_real_
-        )
-      ) %>%
-      dplyr::transmute(gsis_id = as.character(player_id), qb_prior)
+        attempts   = dplyr::coalesce(attempts, 0),
+        sacks      = dplyr::coalesce(sacks, 0),
+        sack_yards = dplyr::coalesce(sack_yards, 0)
+      )
     
-    overall_med_prior <- stats::median(qb_career$qb_prior, na.rm = TRUE)
+    # Normalize ID column name if your table uses gsis_id instead of player_id
+    if (!"player_id" %in% names(qb_stats_raw) && "gsis_id" %in% names(qb_stats_raw)) {
+      qb_stats_raw <- qb_stats_raw %>% dplyr::rename(player_id = gsis_id)
+    }
+    
+    # Only coerce season if present
+    if ("season" %in% names(qb_stats_raw)) {
+      qb_stats_raw <- qb_stats_raw %>%
+        dplyr::mutate(season = suppressWarnings(as.integer(season)))
+    }
+    
+    has_season <- ("season" %in% names(qb_stats_raw)) && any(!is.na(qb_stats_raw$season))
+    
+    if (has_season) {
+      qb_szn <- qb_stats_raw %>%
+        dplyr::group_by(season, player_id) %>%
+        dplyr::summarise(
+          attempts       = sum(attempts, na.rm = TRUE),
+          passing_yards  = sum(passing_yards, na.rm = TRUE),
+          passing_tds    = sum(passing_tds, na.rm = TRUE),
+          interceptions  = sum(interceptions, na.rm = TRUE),
+          sacks          = sum(sacks, na.rm = TRUE),
+          sack_yards     = sum(sack_yards, na.rm = TRUE),
+          .groups = "drop"
+        ) %>%
+        dplyr::mutate(
+          denom    = pmax(attempts + sacks, 1),
+          qb_prior = (passing_yards + 20*passing_tds - 45*interceptions - sack_yards) / denom
+        ) %>%
+        dplyr::transmute(season, gsis_id = as.character(player_id), qb_prior)
+      
+      szn_meds <- qb_szn %>%
+        dplyr::group_by(season) %>%
+        dplyr::summarise(season_median_prior = stats::median(qb_prior, na.rm = TRUE), .groups = "drop")
+      
+      overall_med_prior <- stats::median(qb_szn$qb_prior, na.rm = TRUE)
+    } else {
+      # No season column -> compute a single overall prior per QB and a global median
+      qb_szn <- qb_stats_raw %>%
+        dplyr::group_by(player_id) %>%
+        dplyr::summarise(
+          attempts       = sum(attempts, na.rm = TRUE),
+          passing_yards  = sum(passing_yards, na.rm = TRUE),
+          passing_tds    = sum(passing_tds, na.rm = TRUE),
+          interceptions  = sum(interceptions, na.rm = TRUE),
+          sacks          = sum(sacks, na.rm = TRUE),
+          sack_yards     = sum(sack_yards, na.rm = TRUE),
+          .groups = "drop"
+        ) %>%
+        dplyr::mutate(
+          denom    = pmax(attempts + sacks, 1),
+          qb_prior = (passing_yards + 20*passing_tds - 45*interceptions - sack_yards) / denom
+        ) %>%
+        dplyr::transmute(gsis_id = as.character(player_id), qb_prior)
+      
+      overall_med_prior <- stats::median(qb_szn$qb_prior, na.rm = TRUE)
+    }
     
     attach_side <- function(gdf, side = c("home","away")) {
       side <- match.arg(side)
       key_team <- rlang::sym(paste0(side, "_team"))
       
-      gdf %>%
+      base <- gdf %>%
         dplyr::left_join(
           starters_ids,
           by = dplyr::join_by(season == season, week == week, !!key_team == team),
           relationship = "many-to-many"
         ) %>%
-        dplyr::left_join(qb_career, by = "gsis_id", relationship = "many-to-many") %>%
-        dplyr::group_by(season) %>%
-        dplyr::mutate(season_median_prior = suppressWarnings(stats::median(qb_prior, na.rm = TRUE))) %>%
-        dplyr::ungroup() %>%
+        dplyr::mutate(gsis_id = as.character(gsis_id),
+                      prev_season = season - 1L)
+      
+      if (has_season) {
+        base <- base %>%
+          dplyr::left_join(qb_szn %>% dplyr::rename(prev_season = season),
+                           by = c("prev_season","gsis_id"),
+                           relationship = "many-to-many") %>%
+          dplyr::left_join(szn_meds %>% dplyr::rename(prev_season = season),
+                           by = "prev_season")
+      } else {
+        base <- base %>%
+          dplyr::left_join(qb_szn, by = "gsis_id", relationship = "many-to-many") %>%
+          dplyr::mutate(season_median_prior = overall_med_prior)
+      }
+      
+      # inside attach_side()
+      base %>%
         dplyr::group_by(game_id, season, season_type, week) %>%
         dplyr::summarise(
-          !!paste0(side, "_qb_prior") := {
-            v <- dplyr::coalesce(qb_prior, season_median_prior, overall_med_prior)
-            val <- suppressWarnings(max(v, na.rm = TRUE))
-            if (!is.finite(val)) overall_med_prior else val
+          # raw previous-season prior if available for the named starter
+          qb_prior_raw = {
+            v <- suppressWarnings(max(qb_prior, na.rm = TRUE))
+            if (!is.finite(v)) NA_real_ else v
           },
+          qb_prior_fill = dplyr::coalesce(first(season_median_prior), overall_med_prior),
           .groups = "drop"
         ) %>%
-        dplyr::mutate(!!paste0("used_prior_", side) := as.integer(season_type == "REG" & week == 1)) %>%
-        dplyr::select(game_id, dplyr::all_of(paste0(side, "_qb_prior")), dplyr::all_of(paste0("used_prior_", side)))
+        dplyr::mutate(
+          # Week 1 gets a prior; others = NA (model uses in-season only after W1)
+          !!paste0(side, "_qb_prior") := dplyr::if_else(
+            season_type == "REG" & week == 1L,
+            dplyr::coalesce(qb_prior_raw, qb_prior_fill),
+            NA_real_
+          ),
+          # flag if we imputed (no prev-season stats found for that starter)
+          !!paste0(side, "_qb_prior_imputed") := dplyr::if_else(
+            season_type == "REG" & week == 1L,
+            as.integer(is.na(qb_prior_raw)),
+            0L
+          ),
+          !!paste0("used_prior_", side) := as.integer(season_type == "REG" & week == 1L)
+        ) %>%
+        dplyr::select(
+          game_id,
+          dplyr::all_of(paste0(side, "_qb_prior")),
+          dplyr::all_of(paste0(side, "_qb_prior_imputed")),
+          dplyr::all_of(paste0("used_prior_", side))
+        )
     }
     
     home <- attach_side(df, "home")
@@ -985,16 +1057,15 @@ build_pregame_dataset <- function(
       dplyr::left_join(away, by = "game_id") %>%
       dplyr::mutate(diff_qb_prior = .data$home_qb_prior - .data$away_qb_prior)
   }
-  
+
   out <- games_ts_inj %>%
     add_qb_priors() %>%
     mutate(season_type = toupper(.data$season_type)) %>%
     relocate(.data$home_team, .data$away_team, .after = .data$week) %>%
     relocate(starts_with("diff_"), .after = dplyr::last_col()) %>%
-    dplyr::select(-is_dome) %>%
-    dplyr::mutate(surface = ifelse(surface == '', "a_turf", surface)) %>%
-    # Targets we can compute safely now (no spread yet):
-    dplyr::mutate(
+    select(-is_dome) %>%
+    mutate(surface = ifelse(surface == '', "a_turf", surface)) %>%
+    mutate(
       margin       = as.numeric(home_score) - as.numeric(away_score),
       total_points = as.numeric(home_score) + as.numeric(away_score),
       home_win = dplyr::case_when(
@@ -1002,18 +1073,15 @@ build_pregame_dataset <- function(
         home_score < away_score ~ 0L,
         TRUE ~ NA_integer_
       )
-    ) %>%
-    dplyr::filter(!is.na(home_win))
+    )
   
   out <- out %>%
-    # 3a) Rename point differential totals (they are totals, not per-game)
-    dplyr::rename(
+    rename(
       home_pt_diff_prior = home_pt_diff_pg_prior,
       away_pt_diff_prior = away_pt_diff_pg_prior,
       diff_pt_diff_prior = diff_pt_diff_pg_prior
     ) %>%
-    # 3b) Add turnover differential (TOTALS prior to game)
-    dplyr::mutate(
+    mutate(
       home_to_diff_prior = home_def_total_turnovers_prior - (home_off_total_int_prior + home_off_total_fumbles_prior),
       away_to_diff_prior = away_def_total_turnovers_prior - (away_off_total_int_prior + away_off_total_fumbles_prior),
       diff_to_diff_prior = home_to_diff_prior - away_to_diff_prior
@@ -1033,42 +1101,23 @@ build_pregame_dataset <- function(
 }
 
 # Clean join artefacts, standardize spread to "home perspective", and finalize targets.
-# - Drops helper columns: reg_last_week.*, n_prior.*, and any suffix-only .x/.y/.x.x etc.
-# - Infers spread sign via correlation with home margin:
-#     * If cor(spread_line, home_margin) >= 0  -> spread_home = spread_line (positive = home fav)
-#     * Else                                   -> spread_home = -spread_line
-# - Computes:
-#     margin         = home_score - away_score
-#     total_points   = home_score + away_score
-#     spread_covered = 1 if (margin - spread_home) >= 0 (push = met by default)
-# - Keeps the last four columns as targets: home_win, margin, spread_covered, total_points
-
 finalize_targets_and_clean <- function(df, push_as_met = TRUE) {
   stopifnot(all(c("home_score","away_score","spread_line") %in% names(df)))
-  suppressPackageStartupMessages({
-    library(dplyr)
-  })
+  suppressPackageStartupMessages({ library(dplyr) })
   
-  # 1) Drop join cruft
-  df0 <- df %>% 
-    select(
-      -matches("(^reg_last_week\\.|^n_prior\\.|\\.(x|y)(\\.(x|y))*$)")
-    )
+  df0 <- df %>%
+    select(-matches("(^reg_last_week\\.|^n_prior\\.|\\.(x|y)(\\.(x|y))*$)"))
   
-  # 2) Targets: margin & total points
   df0 <- df0 %>%
     mutate(
       margin       = home_score - away_score,
       total_points = home_score + away_score
     )
   
-  # 3) Infer spread sign -> standardize to "home perspective"
-  #    Positive spread_home means home was favored by that many points.
   co <- suppressWarnings(stats::cor(df0$spread_line, df0$margin, use = "complete.obs"))
   spread_home <- if (!is.na(co) && is.finite(co) && co >= 0) df0$spread_line else -df0$spread_line
   df0 <- mutate(df0, spread_home = spread_home)
   
-  # 4) Home cover flag (push handling configurable)
   df0 <- df0 %>%
     mutate(
       spread_covered = if (isTRUE(push_as_met)) {
@@ -1078,7 +1127,7 @@ finalize_targets_and_clean <- function(df, push_as_met = TRUE) {
       }
     )
   
-  # 5) Put the four targets at the very end
   df0 %>%
     relocate(home_win, margin, spread_covered, total_points, .after = dplyr::last_col())
 }
+

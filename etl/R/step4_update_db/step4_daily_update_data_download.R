@@ -4,12 +4,10 @@ library(nflreadr)
 library(tidyverse)
 library(arrow)
 library(progressr)
+library(here)
 
-#seasons <- nflreadr::get_current_season()
-#weeks <- nflreadr::get_current_week()
-
-seasons <- 2024
-weeks <- 1
+seasons <- nflreadr::get_current_season()
+weeks <- nflreadr::get_current_week()
 
 ################################################################################
 # Create root folder
@@ -67,8 +65,7 @@ season_results <- summarize_season_team_results(schedule)
 ################################################################################
 # Long Player Table
 ################################################################################
-id_map <- nflreadr::load_depth_charts(seasons) %>% 
-  filter((season %in% seasons & week %in% weeks))
+id_map <- nflreadr::load_depth_charts(seasons)
 
 # Offense
 weekly_wr <- pivot_player_stats_long(file_path = here("data", "processed",

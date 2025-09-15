@@ -286,53 +286,53 @@ format_career_nextgen_stats_for_sql(
 load_parquet_to_postgres(file.path(base_path, "nextgen_stats_player_career.parquet"), schema = 'stage', "nextgen_stats_player_career_tbl")
 create_index(con = con, schema = 'stage', table = 'nextgen_stats_player_career_tbl', id_cols = c("player_gsis_id"), unique = TRUE)
 
-# Participation Offense (participation_offense_pbp.parquet)
-format_participation_offense_pbp_for_sql(
-  file.path("data", "staging", "participation_offense_pbp.parquet"),
-  file.path("data", "staging", "participation_offense_pbp.parquet")
-)
-load_parquet_to_postgres(file.path(base_path, "participation_offense_pbp.parquet"), schema = 'stage', "participation_offense_pbp_tbl")
-create_index(con = con, schema = 'stage', table = 'participation_offense_pbp_tbl', id_cols = c("game_id","play_id","team"), unique = TRUE)
-
-# Participation Offense (participation_offense_game.parquet)
-format_participation_offense_game_for_sql(
-  file.path("data", "staging", "participation_offense_game.parquet"),
-  file.path("data", "staging", "participation_offense_game.parquet")
-)
-load_parquet_to_postgres(file.path(base_path, "participation_offense_game.parquet"), schema = 'stage', "participation_offense_game_tbl")
-create_index(con = con, schema = 'stage', table = 'participation_offense_game_tbl', id_cols = c("game_id","team"), unique = TRUE)
-
-# Participation Offense (participation_offense_season.parquet)
-format_participation_offense_season_for_sql(
-  file.path("data", "staging", "participation_offense_season.parquet"),
-  file.path("data", "staging", "participation_offense_season.parquet")
-)
-load_parquet_to_postgres(file.path(base_path, "participation_offense_season.parquet"), schema = 'stage', "participation_offense_season_tbl")
-create_index(con = con, schema = 'stage', table = 'participation_offense_season_tbl', id_cols = c("season","team"), unique = TRUE)
-
-# Participation Defense (participation_defense_pbp.parquet)
-format_participation_defense_pbp_for_sql(
-  file.path("data", "staging", "participation_defense_pbp.parquet"),
-  file.path("data", "staging", "participation_defense_pbp.parquet")
-)
-load_parquet_to_postgres(file.path(base_path, "participation_defense_pbp.parquet"), schema = 'stage', "participation_defense_pbp_tbl")
-create_index(con = con, schema = 'stage', table = 'participation_defense_pbp_tbl', id_cols = c("game_id","play_id","defense_team"), unique = TRUE)
-
-# Participation Defense (participation_defense_game.parquet)
-format_participation_defense_game_for_sql(
-  file.path("data", "staging", "participation_defense_game.parquet"),
-  file.path("data", "staging", "participation_defense_game.parquet")
-)
-load_parquet_to_postgres(file.path(base_path, "participation_defense_game.parquet"), schema = 'stage', "participation_defense_game_tbl")
-create_index(con = con, schema = 'stage', table = 'participation_defense_game_tbl', id_cols = c("game_id","defense_team"), unique = TRUE)
-
-# Participation Defense (participation_defense_season.parquet)
-format_participation_defense_season_for_sql(
-  file.path("data", "staging", "participation_defense_season.parquet"),
-  file.path("data", "staging", "participation_defense_season.parquet")
-)
-load_parquet_to_postgres(file.path(base_path, "participation_defense_season.parquet"), schema = 'stage', "participation_defense_season_tbl")
-create_index(con = con, schema = 'stage', table = 'participation_defense_season_tbl', id_cols = c("season","defense_team"), unique = TRUE)
+# # Participation Offense (participation_offense_pbp.parquet)
+# format_participation_offense_pbp_for_sql(
+#   file.path("data", "staging", "participation_offense_pbp.parquet"),
+#   file.path("data", "staging", "participation_offense_pbp.parquet")
+# )
+# load_parquet_to_postgres(file.path(base_path, "participation_offense_pbp.parquet"), schema = 'stage', "participation_offense_pbp_tbl")
+# create_index(con = con, schema = 'stage', table = 'participation_offense_pbp_tbl', id_cols = c("game_id","play_id","team"), unique = TRUE)
+# 
+# # Participation Offense (participation_offense_game.parquet)
+# format_participation_offense_game_for_sql(
+#   file.path("data", "staging", "participation_offense_game.parquet"),
+#   file.path("data", "staging", "participation_offense_game.parquet")
+# )
+# load_parquet_to_postgres(file.path(base_path, "participation_offense_game.parquet"), schema = 'stage', "participation_offense_game_tbl")
+# create_index(con = con, schema = 'stage', table = 'participation_offense_game_tbl', id_cols = c("game_id","team"), unique = TRUE)
+# 
+# # Participation Offense (participation_offense_season.parquet)
+# format_participation_offense_season_for_sql(
+#   file.path("data", "staging", "participation_offense_season.parquet"),
+#   file.path("data", "staging", "participation_offense_season.parquet")
+# )
+# load_parquet_to_postgres(file.path(base_path, "participation_offense_season.parquet"), schema = 'stage', "participation_offense_season_tbl")
+# create_index(con = con, schema = 'stage', table = 'participation_offense_season_tbl', id_cols = c("season","team"), unique = TRUE)
+# 
+# # Participation Defense (participation_defense_pbp.parquet)
+# format_participation_defense_pbp_for_sql(
+#   file.path("data", "staging", "participation_defense_pbp.parquet"),
+#   file.path("data", "staging", "participation_defense_pbp.parquet")
+# )
+# load_parquet_to_postgres(file.path(base_path, "participation_defense_pbp.parquet"), schema = 'stage', "participation_defense_pbp_tbl")
+# create_index(con = con, schema = 'stage', table = 'participation_defense_pbp_tbl', id_cols = c("game_id","play_id","defense_team"), unique = TRUE)
+# 
+# # Participation Defense (participation_defense_game.parquet)
+# format_participation_defense_game_for_sql(
+#   file.path("data", "staging", "participation_defense_game.parquet"),
+#   file.path("data", "staging", "participation_defense_game.parquet")
+# )
+# load_parquet_to_postgres(file.path(base_path, "participation_defense_game.parquet"), schema = 'stage', "participation_defense_game_tbl")
+# create_index(con = con, schema = 'stage', table = 'participation_defense_game_tbl', id_cols = c("game_id","defense_team"), unique = TRUE)
+# 
+# # Participation Defense (participation_defense_season.parquet)
+# format_participation_defense_season_for_sql(
+#   file.path("data", "staging", "participation_defense_season.parquet"),
+#   file.path("data", "staging", "participation_defense_season.parquet")
+# )
+# load_parquet_to_postgres(file.path(base_path, "participation_defense_season.parquet"), schema = 'stage', "participation_defense_season_tbl")
+# create_index(con = con, schema = 'stage', table = 'participation_defense_season_tbl', id_cols = c("season","defense_team"), unique = TRUE)
 
 # ID Map
 format_id_map_for_sql(
@@ -433,3 +433,4 @@ create_index(con = con, schema = 'stage', table = 'player_career_tbl', id_cols =
 # Team stregnth
 load_parquet_to_postgres(file.path(base_path, "team_strength_tbl.parquet"), schema = 'stage', "team_strength_tbl")
 create_index(con = con, schema = 'stage', table = 'team_strength_tbl', id_cols = c("team", "season", "week"), unique = TRUE)
+
