@@ -52,3 +52,10 @@ start-dashboard:
 update-dashboard:
 	docker-compose build dashboard
 	docker-compose up -d dashboard
+	
+train-pregame: up
+	python3 modeling/Python/pregame_modelfit.py
+	
+predict-pregame:
+	python3 modeling/Python/pregame_predgen.py --run-id latest --all --to-db
+

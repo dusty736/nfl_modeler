@@ -1,123 +1,109 @@
-if 'X_action' in locals() and X_action.shape[0] > 0:
-    # Probabilities / predictions (no dummy)
-    proba_action_lr   = best_lr.predict_proba(X_action)[:, 1]
-    proba_action_rf   = best_rf.predict_proba(X_action)[:, 1]
-    proba_action_xgb  = best_xgb.predict_proba(X_action)[:, 1]
-    proba_action_vote = (proba_action_lr + proba_action_rf + proba_action_xgb) / 3.0
+# STEP 1 — Load data from Postgres, define target/exclusions, make 80/20 split, and fit a baseline model
+# (Run this cell/script as-is. It will print baseline metrics and dataset shapes.)
 
-    pred_action_lr    = (proba_action_lr   >= 0.5).astype(int)
-    pred_action_rf    = (proba_action_rf   >= 0.5).astype(int)
-    pred_action_xgb   = (proba_action_xgb  >= 0.5).astype(int)
-    pred_action_vote  = (proba_action_vote >= 0.5).astype(int)
+import pandas as pd
+from sqlalchemy import create_engine, text
+import shap
+import matplotlib.pyplot as plt
+import numpy as np
+import re
 
-    # Schedule + Vegas columns
-    schedule_cols = [c for c in ["season", "week", "home_team", "away_team", "season_type", "game_type"] if c in df.columns]
-    extra_cols = ["spread_home"] if "spread_home" in df.columns else []
+pd.options.display.max_columns = 200
 
-    # Vegas picks (spread_home < 0 => away favored => home loses (0); >0 => home wins (1); 0 => push/NaN)
-    vegas_pred_action = None
-    if "spread_home" in df.columns:
-        sh = df.loc[X_action.index, "spread_home"]
-        vegas_pred_action = np.where(sh < 0, 0, np.where(sh > 0, 1, np.nan))
+from sklearn.model_selection import train_test_split
+from sklearn.pipeline import Pipeline
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.impute import SimpleImputer
+from sklearn.dummy import DummyClassifier
+from sklearn.calibration import CalibrationDisplay
+from sklearn.inspection import permutation_importance
+from sklearn.metrics import precision_recall_curve, average_precision_score
+from xgboost import XGBClassifier
+from sklearn.metrics import (
+    accuracy_score,
+    roc_auc_score,
+    average_precision_score,
+    log_loss,
+    brier_score_loss,
+)
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import GridSearchCV
+from sklearn.calibration import CalibratedClassifierCV
+from sklearn.metrics import (
+    accuracy_score,
+    roc_auc_score,
+    average_precision_score,
+    log_loss,
+    brier_score_loss,
+    confusion_matrix,
+    roc_curve,
+)
 
-    # Assemble action predictions table
-    action_preds = (
-        df.loc[X_action.index, schedule_cols + extra_cols]
-          .assign(
-              proba_lr   = proba_action_lr,
-              pred_lr    = pred_action_lr,
-              proba_rf   = proba_action_rf,
-              pred_rf    = pred_action_rf,
-              proba_xgb  = proba_action_xgb,
-              pred_xgb   = pred_action_xgb,
-              proba_vote = proba_action_vote,
-              pred_vote  = pred_action_vote,
-              vegas_pred_home_win = vegas_pred_action
-          )
-          .sort_values(["season", "week", "home_team", "away_team"])
-    )
+from sklearn.model_selection import StratifiedKFold, cross_validate
 
-    # Round probabilities for display
-    for c in ["proba_lr","proba_rf","proba_xgb","proba_vote"]:
-        action_preds[c] = action_preds[c].round(3)
+import os, sys, json, csv, joblib
+from pathlib import Path
+from datetime import datetime, timezone
+import subprocess
 
-    # Labeled vs unlabeled masks within 2025
-    has_label_mask = df.loc[X_action.index, TARGET].notna()
+SCRIPT_PATH = Path(__file__).resolve()
+ROOT_DIR    = SCRIPT_PATH.parent.parent                   # modeling/
+SAVE_ROOT   = ROOT_DIR / "models" / "pregame_outcome"     # modeling/models/pregame_outcome
+SAVE_ROOT.mkdir(parents=True, exist_ok=True)
 
-    # ---- 2025 labeled weeks: week-by-week summary + season total (add Vegas)
-    if has_label_mask.any():
-        labeled = action_preds.loc[has_label_mask].copy()
-        labeled["actual"] = df.loc[labeled.index, TARGET].astype(int)
+def _utc_now():
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-        labeled["ok_lr"]   = (labeled["pred_lr"]   == labeled["actual"]).astype(int)
-        labeled["ok_rf"]   = (labeled["pred_rf"]   == labeled["actual"]).astype(int)
-        labeled["ok_xgb"]  = (labeled["pred_xgb"]  == labeled["actual"]).astype(int)
-        labeled["ok_vote"] = (labeled["pred_vote"] == labeled["actual"]).astype(int)
+RUN_ID = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+try:
+    sha = subprocess.run(["git", "rev-parse", "--short", "HEAD"],
+                         capture_output=True, text=True, check=False)
+    if sha.returncode == 0 and sha.stdout.strip():
+        RUN_ID = f"{RUN_ID}_{sha.stdout.strip()}"
+except Exception:
+    pass
 
-        # Vegas correctness (ignore pushes/NaN)
-        if "vegas_pred_home_win" in labeled.columns:
-            valid_v = labeled["vegas_pred_home_win"].notna()
-            labeled["ok_vegas"] = np.where(
-                valid_v,
-                (labeled.loc[valid_v, "vegas_pred_home_win"].astype(int) ==
-                 labeled.loc[valid_v, "actual"]).astype(int),
-                np.nan
-            )
-        else:
-            labeled["ok_vegas"] = np.nan
+RUN_DIR = SAVE_ROOT / "runs" / RUN_ID
+for sub in ["logs", "metrics", "tables", "predictions", "models", "plots", "extras"]:
+    (RUN_DIR / sub).mkdir(parents=True, exist_ok=True)
 
-        weekly = (
-            labeled.groupby(["season","week"], as_index=False)
-                   .agg(
-                       n       = ("actual","size"),
-                       acc_lr  = ("ok_lr","mean"),
-                       acc_rf  = ("ok_rf","mean"),
-                       acc_xgb = ("ok_xgb","mean"),
-                       acc_vote= ("ok_vote","mean"),
-                       acc_vegas = ("ok_vegas","mean")
-                   )
-                   .sort_values(["season","week"])
-        )
-        for c in ["acc_lr","acc_rf","acc_xgb","acc_vote","acc_vegas"]:
-            weekly[c] = weekly[c].round(3)
+# ---- Tee stdout/stderr to file while keeping console prints ----
+class _Tee:
+    def __init__(self, *files): self.files = files
+    def write(self, obj):
+        for f in self.files:
+            f.write(obj); f.flush()
+    def flush(self):
+        for f in self.files: f.flush()
 
-        season_val = int(weekly["season"].iloc[0])
-        total = pd.DataFrame({
-            "season":   [season_val],
-            "week":     ["TOTAL"],
-            "n":        [int(labeled.shape[0])],
-            "acc_lr":   [round(labeled["ok_lr"].mean(),3)],
-            "acc_rf":   [round(labeled["ok_rf"].mean(),3)],
-            "acc_xgb":  [round(labeled["ok_xgb"].mean(),3)],
-            "acc_vote": [round(labeled["ok_vote"].mean(),3)],
-            "acc_vegas":[round(labeled["ok_vegas"].dropna().mean(),3) if labeled["ok_vegas"].notna().any() else np.nan],
-        })
+_log_f = open(RUN_DIR / "logs" / "run.log", "w", buffering=1)
+sys.stdout = _Tee(sys.stdout, _log_f)
+sys.stderr = _Tee(sys.stderr, _log_f)
 
-        action_weekly_summary_2025 = pd.concat([weekly, total], ignore_index=True)
-        print("\n=== 2025 Action — Week-by-Week Accuracy (last row = season total; includes Vegas) ===")
-        print(action_weekly_summary_2025.to_string(index=False))
-    else:
-        print("\n2025 Action — no labeled weeks to summarize.")
+RUN_STARTED_AT = _utc_now()
 
-    # ---- 2025 unlabeled: full prediction table (include Vegas + spread if available)
-    unlabeled = action_preds.loc[~has_label_mask].copy()
-    if unlabeled.shape[0] > 0:
-        cols_show = schedule_cols + extra_cols + [
-            "pred_lr","proba_lr",
-            "pred_rf","proba_rf",
-            "pred_xgb","proba_xgb",
-            "pred_vote","proba_vote",
-        ]
-        if "vegas_pred_home_win" in unlabeled.columns:
-            cols_show += ["vegas_pred_home_win"]
-        action_unlabeled_2025 = unlabeled[cols_show]
-        print(f"\n=== 2025 Action — Unlabeled Games (n={action_unlabeled_2025.shape[0]}) ===")
-        print(action_unlabeled_2025.to_string(index=False))
-    else:
-        print("\n2025 Action — no unlabeled games.")
-else:
-    print("No 2025 action set (X_action) available.")
+# ---- helpers ----
+def _write_json(path, obj):
+    with open(path, "w") as f:
+        json.dump(obj, f, indent=2, default=str)
 
+_REG_FIELDS = [
+    "run_id","started_at","script_path","data_range","target",
+    "model_name","is_calibrated","n_train","n_val","n_test",
+    "accuracy","roc_auc","pr_auc","logloss","brier","model_path"
+]
+
+def _append_registry(row_dict):
+    reg_path = SAVE_ROOT / "registry.csv"
+    file_exists = reg_path.exists()
+    with open(reg_path, "a", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=_REG_FIELDS)
+        if not file_exists:
+            w.writeheader()
+        w.writerow({k: row_dict.get(k, "") for k in _REG_FIELDS})
+        
 # -----------------------------
 # Config
 # -----------------------------
@@ -156,7 +142,7 @@ query = text(f"""
 """)
 
 df = pd.read_sql_query(query, engine, params={"smin": SEASON_MIN, "smax": SEASON_MAX})
-
+        
 # -----------------------------
 # Target & drops
 # -----------------------------
@@ -186,6 +172,31 @@ cat_explicit = [c for c in ["season", "week"] if c in X.columns]
 cat_features = sorted(set(cat_auto) | set(bool_cols) | set(cat_explicit))
 
 num_features = [c for c in X.columns if c not in cat_features]
+
+# Save a minimal run config (no passwords)
+_config = {
+    "seed": SEED,
+    "db": {
+        "name": DB_NAME, "host": DB_HOST, "port": DB_PORT, "user": DB_USER,
+        "table": SCHEMA_TABLE, "where": f"season BETWEEN {SEASON_MIN} AND {SEASON_MAX}"
+    },
+    "target": TARGET,
+    "season_min": SEASON_MIN,
+    "season_max": SEASON_MAX,
+    "drops": {
+        "for_target": sorted([c for c in drop_for_home_win if c in df.columns]),
+        "non_predictive": sorted([c for c in drop_non_predictive if c in df.columns]),
+        "injury_cols": sorted([c for c in injury_cols if c in df.columns]),
+    },
+    "features": {
+        "numeric": num_features,
+        "categorical": cat_features
+    },
+    "script_path": str(SCRIPT_PATH),
+    "run_id": RUN_ID,
+    "started_at": RUN_STARTED_AT
+}
+_write_json(RUN_DIR / "config.json", _config)
 
 # -----------------------------
 # Preprocessor (uniform for all models)
@@ -365,7 +376,7 @@ if X_action.shape[0] > 0:
     proba_action_lr = best_lr.predict_proba(X_action)[:, 1]
     pred_action_lr  = (proba_action_lr >= 0.5).astype(int)
     print(f"\nLR-EN — Action 2025 predictions made: n={X_action.shape[0]}")
-    
+        
 # ---------------------------------
 # Evaluate LR-EN on TEST (2024) + Vegas comparison + Action (2025) views
 # NOTE: Correct Vegas rule:
@@ -501,6 +512,38 @@ if 'X_action' in locals() and X_action.shape[0] > 0:
     else:
         print("\n2025 Action — no unlabeled rows to display.")
         
+# Save LR-EN pipeline
+_lr_path = RUN_DIR / "models" / "lr_en.joblib"
+joblib.dump(best_lr, _lr_path)
+
+# Registry row for LR-EN
+_append_registry({
+    "run_id": RUN_ID,
+    "started_at": RUN_STARTED_AT,
+    "script_path": str(SCRIPT_PATH),
+    "data_range": f"{SEASON_MIN}-{SEASON_MAX}",
+    "target": TARGET,
+    "model_name": "LR_EN",
+    "is_calibrated": 0,
+    "n_train": X_train.shape[0],
+    "n_val":   X_val.shape[0],
+    "n_test":  X_test.shape[0],
+    "accuracy": acc, "roc_auc": roc, "pr_auc": prauc, "logloss": ll, "brier": brier,
+    "model_path": str(_lr_path)
+})
+
+# Save encoder categories & schema snapshot once (from LR pipeline)
+try:
+    _pre = best_lr.named_steps["preprocess"]
+    _enc = _pre.named_transformers_["cat"].named_steps["onehot"]
+    _cats = {name: _enc.categories_[i].tolist() for i, name in enumerate(cat_features)}
+    _write_json(RUN_DIR / "extras" / "ohe_categories.json", _cats)
+except Exception as _e:
+    print("[Warn] Could not dump OHE categories:", repr(_e))
+
+_schema = {col: str(dtype) for col, dtype in X.dtypes.items()}
+_write_json(RUN_DIR / "extras" / "schema_snapshot.json", _schema)
+
 # ---------------------------------
 # Coefficient audit (top |beta| after OHE)
 # ---------------------------------
@@ -581,6 +624,7 @@ if 'X_action' in locals() and X_action.shape[0] > 0:
     proba_action_rf = best_rf.predict_proba(X_action)[:, 1]
     pred_action_rf  = (proba_action_rf >= 0.5).astype(int)
     print(f"\nRF — Action 2025 predictions made: n={X_action.shape[0]}")
+    
     
 # ---------------------------------
 # Evaluate tuned RF on TEST (2024) + Action (2025) views
@@ -721,6 +765,24 @@ if 'X_action' in locals() and X_action.shape[0] > 0:
     else:
         print("\n2025 Action — no unlabeled rows to display.")
         
+_rf_path = RUN_DIR / "models" / "rf.joblib"
+joblib.dump(best_rf, _rf_path)
+
+_append_registry({
+    "run_id": RUN_ID,
+    "started_at": RUN_STARTED_AT,
+    "script_path": str(SCRIPT_PATH),
+    "data_range": f"{SEASON_MIN}-{SEASON_MAX}",
+    "target": TARGET,
+    "model_name": "RF",
+    "is_calibrated": 0,
+    "n_train": X_train.shape[0],
+    "n_val":   X_val.shape[0],
+    "n_test":  X_test.shape[0],
+    "accuracy": acc, "roc_auc": roc, "pr_auc": prauc, "logloss": ll, "brier": brier,
+    "model_path": str(_rf_path)
+})
+
 # ---------------------------------
 # Feature importances from tuned (pre-calibration) RF
 # ---------------------------------
@@ -782,6 +844,24 @@ print("  Confusion Matrix [TN FP; FN TP]:")
 print(cm_c)
 
 print("\nStep 3 complete.")
+
+_rf_cal_path = RUN_DIR / "models" / "rf_isotonic.joblib"
+joblib.dump(pipe_rf_cal, _rf_cal_path)
+
+_append_registry({
+    "run_id": RUN_ID,
+    "started_at": RUN_STARTED_AT,
+    "script_path": str(SCRIPT_PATH),
+    "data_range": f"{SEASON_MIN}-{SEASON_MAX}",
+    "target": TARGET,
+    "model_name": "RF",
+    "is_calibrated": 1,
+    "n_train": X_train.shape[0],
+    "n_val":   X_val.shape[0],
+    "n_test":  X_test.shape[0],
+    "accuracy": acc_c, "roc_auc": roc_c, "pr_auc": prauc_c, "logloss": ll_c, "brier": brier_c,
+    "model_path": str(_rf_cal_path)
+})
 
 # ---------------------------------
 # Build XGB pipeline (train 2016–2023; eval on 2016–2023 val and 2024 test; make 2025 action preds)
@@ -853,6 +933,7 @@ if 'X_action' in locals() and X_action.shape[0] > 0:
 #   spread_home > 0 -> HOME favored -> vegas_pred_home_win = 1
 #   spread_home == 0 -> push (ignored)
 # ---------------------------------
+
 # TEST (2024)
 proba_test = best_xgb.predict_proba(X_test)[:, 1]
 pred_test  = (proba_test >= 0.5).astype(int)
@@ -976,6 +1057,24 @@ if 'X_action' in locals() and X_action.shape[0] > 0:
     else:
         print("\n2025 Action — no unlabeled rows to display.")
         
+_xgb_path = RUN_DIR / "models" / "xgb.joblib"
+joblib.dump(best_xgb, _xgb_path)
+
+_append_registry({
+    "run_id": RUN_ID,
+    "started_at": RUN_STARTED_AT,
+    "script_path": str(SCRIPT_PATH),
+    "data_range": f"{SEASON_MIN}-{SEASON_MAX}",
+    "target": TARGET,
+    "model_name": "XGB",
+    "is_calibrated": 0,
+    "n_train": X_train.shape[0],
+    "n_val":   X_val.shape[0],
+    "n_test":  X_test.shape[0],
+    "accuracy": acc, "roc_auc": roc, "pr_auc": prauc, "logloss": ll, "brier": brier,
+    "model_path": str(_xgb_path)
+})
+
 # ---------------------------------
 # Feature importances (gain) and names
 # ---------------------------------
@@ -1048,6 +1147,24 @@ print(f"  Brier Score  : {brier_c:.4f}")
 print("  Confusion Matrix [TN FP; FN TP]:")
 print(cm_c)
 
+_xgb_cal_path = RUN_DIR / "models" / "xgb_isotonic.joblib"
+joblib.dump(pipe_xgb_cal, _xgb_cal_path)
+
+_append_registry({
+    "run_id": RUN_ID,
+    "started_at": RUN_STARTED_AT,
+    "script_path": str(SCRIPT_PATH),
+    "data_range": f"{SEASON_MIN}-{SEASON_MAX}",
+    "target": TARGET,
+    "model_name": "XGB",
+    "is_calibrated": 1,
+    "n_train": X_train.shape[0],
+    "n_val":   X_val.shape[0],
+    "n_test":  X_test.shape[0],
+    "accuracy": acc_c, "roc_auc": roc_c, "pr_auc": prauc_c, "logloss": ll_c, "brier": brier_c,
+    "model_path": str(_xgb_cal_path)
+})
+
 # ---------------------------------
 # SHAP summary for tuned (pre-calibration) XGB
 # ---------------------------------
@@ -1073,7 +1190,11 @@ try:
     # SHAP summary plot
     shap.summary_plot(shap_values, X_shap, feature_names=feat_names, show=False)
     plt.title("XGBoost SHAP Summary (test sample)")
+    #plt.tight_layout()
+    #plt.show()
+    
     plt.tight_layout()
+    plt.savefig(RUN_DIR / "plots" / "xgb_shap_summary.png", dpi=200)
     plt.show()
 except ImportError:
     print("\n[Info] `shap` is not installed. Install with `pip install shap` to render SHAP summaries.")
@@ -1131,8 +1252,6 @@ if 'X_action' in locals() and X_action.shape[0] > 0:
 # Summarize models in single tables (VAL and TEST) + vote column at end
 # Now includes Dummy (prior) baseline
 # ---------------------------------
-import pandas as pd
-import numpy as np
 
 def get_metrics(y_true, proba):
     pred = (proba >= 0.5).astype(int)
@@ -1189,6 +1308,46 @@ test_summary = pd.DataFrame({
 print("\n=== Test Summary (2024) ===")
 print(test_summary.round(4).to_string())
 
+# Save the pretty summary tables
+try:
+    val_summary.round(6).to_csv(RUN_DIR / "tables" / "validation_summary.csv")
+    test_summary.round(6).to_csv(RUN_DIR / "tables" / "test_summary.csv")
+    # Also store compact JSON for quick inspection
+    _write_json(RUN_DIR / "metrics" / "val.json", val_summary.round(6).to_dict())
+    _write_json(RUN_DIR / "metrics" / "test.json", test_summary.round(6).to_dict())
+except Exception as _e:
+    print("[Warn] Could not save summary tables:", repr(_e))
+
+# Build a single TEST predictions table across models (2024)
+try:
+    if X_test.shape[0] > 0:
+        _sched_cols = [c for c in ["season","week","home_team","away_team","season_type","game_type"] if c in df.columns]
+        _extra = ["spread_home"] if "spread_home" in df.columns else []
+        _test = df.loc[X_test.index, _sched_cols + _extra + [TARGET]].copy()
+
+        # use the already-computed proba/pred vars
+        _test["proba_lr"]  = proba_test_lr
+        _test["pred_lr"]   = pred_test_lr
+        _test["proba_rf"]  = proba_test_rf
+        _test["pred_rf"]   = pred_test_rf
+        _test["proba_xgb"] = proba_test_xgb
+        _test["pred_xgb"]  = pred_test_xgb
+        _test["proba_vote"] = proba_test_vote
+        _test["pred_vote"]  = pred_test_vote
+
+        if "spread_home" in df.columns:
+            _sh = df.loc[X_test.index, "spread_home"]
+            _test["vegas_pred_home_win"] = np.where(_sh < 0, 0, np.where(_sh > 0, 1, np.nan))
+
+        for c in ["proba_lr","proba_rf","proba_xgb","proba_vote"]:
+            _test[c] = _test[c].round(3)
+
+        _test.sort_values(["season","week","home_team","away_team"]).to_csv(
+            RUN_DIR / "predictions" / "test_2024_predictions.csv", index=False
+        )
+except Exception as _e:
+    print("[Warn] Could not save combined TEST predictions:", repr(_e))
+    
 # ---------------------------------
 # 2025 Action Summary (no dummy) + Unlabeled Predictions Table
 # ---------------------------------
@@ -1231,6 +1390,16 @@ if 'X_action' in locals() and X_action.shape[0] > 0:
           )
           .sort_values(["season", "week", "home_team", "away_team"])
     )
+    
+    try:
+        if 'action_preds' in locals():
+            action_preds.to_csv(RUN_DIR / "predictions" / "action_2025_predictions.csv", index=False)
+        if 'action_weekly_summary_2025' in locals():
+            action_weekly_summary_2025.to_csv(RUN_DIR / "tables" / "action_2025_weekly_summary.csv", index=False)
+        if 'action_unlabeled_2025' in locals():
+            action_unlabeled_2025.to_csv(RUN_DIR / "predictions" / "action_2025_unlabeled.csv", index=False)
+    except Exception as _e:
+        print("[Warn] Could not save 2025 action outputs:", repr(_e))
 
     # Round probabilities for display
     for c in ["proba_lr","proba_rf","proba_xgb","proba_vote"]:
@@ -1313,6 +1482,95 @@ if 'X_action' in locals() and X_action.shape[0] > 0:
 else:
     print("No 2025 action set (X_action) available.")
     
+from sklearn.inspection import permutation_importance
+
+def _orig_from_processed(name: str, cat_features: list) -> str:
+    # Map ColumnTransformer feature names back to original columns
+    # Examples:
+    #   "num__off_epa"                  -> "off_epa"
+    #   "cat__onehot__home_team_SEA"    -> "home_team"
+    #   "cat__onehot__season_2024"      -> "season"
+    if name.startswith("num__"):
+        return name[5:]
+    if name.startswith("cat__"):
+        # strip "cat__onehot__"
+        s = name.split("__", 2)[-1]
+        # find longest categorical feature prefix followed by "_"
+        best = None
+        for f in cat_features:
+            pref = f + "_"
+            if s.startswith(pref) and (best is None or len(f) > len(best)):
+                best = f
+        return best if best is not None else s
+    return name
+
+def _lr_top10_aggregated(best_lr, cat_features, num_features, k=10):
+    pre = best_lr.named_steps["preprocess"]
+    feat_names = pre.get_feature_names_out()
+    coefs = best_lr.named_steps["model"].coef_.ravel()
+
+    agg = {}
+    for fname, coef in zip(feat_names, coefs):
+        orig = _orig_from_processed(fname, cat_features)
+        val = abs(float(coef))
+        # aggregate by MAX abs(coef) to avoid rewarding high-cardinality OHE
+        if orig in agg:
+            if val > agg[orig]:
+                agg[orig] = val
+        else:
+            agg[orig] = val
+    top = sorted(agg.items(), key=lambda x: x[1], reverse=True)[:k]
+    rows = [{"model": "LR_EN", "rank": i, "variable": v, "score": s,
+             "method": "abs(coef) aggregated (max)"} for i, (v, s) in enumerate(top, start=1)]
+    return rows
+
+def _perm_top10(estimator, X_val, y_val, model_label, k=10, repeats=10, seed=SEED):
+    r = permutation_importance(
+        estimator, X_val, y_val,
+        scoring="roc_auc", n_repeats=repeats, random_state=seed, n_jobs=-1
+    )
+    df_imp = pd.DataFrame({
+        "variable": X_val.columns,
+        "score": r.importances_mean
+    }).sort_values("score", ascending=False).head(k)
+    rows = [{"model": model_label, "rank": i, "variable": v, "score": float(s),
+             "method": f"permutation ROC-AUC (n_repeats={repeats})"}
+            for i, (v, s) in enumerate(zip(df_imp["variable"], df_imp["score"]), start=1)]
+    return rows
+
+# Build rows for LR (coef-based), RF (perm), XGB (perm)
+top_rows = []
+try:
+    top_rows += _lr_top10_aggregated(best_lr, cat_features, num_features, k=10)
+except Exception as e:
+    print("[Warn] LR_EN top-10 computation failed:", repr(e))
+
+try:
+    top_rows += _perm_top10(best_rf, X_val, y_val, model_label="RF", k=10, repeats=10, seed=SEED)
+except Exception as e:
+    print("[Warn] RF permutation-importance failed:", repr(e))
+
+try:
+    top_rows += _perm_top10(best_xgb, X_val, y_val, model_label="XGB", k=10, repeats=10, seed=SEED)
+except Exception as e:
+    print("[Warn] XGB permutation-importance failed:", repr(e))
+
+# Save a single CSV
+try:
+    top10_df = pd.DataFrame(top_rows, columns=["model","rank","variable","score","method"])
+    out_path = RUN_DIR / "tables" / "top10_variables.csv"
+    top10_df.to_csv(out_path, index=False)
+    print(f"\nSaved top-10 variables per model -> {out_path}")
+except Exception as e:
+    print("[Warn] Could not save top-10 variables CSV:", repr(e))
+    
+# === Calibration (Reliability) Diagrams — 2024 Test + 2025 Labeled (if any) ===
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.calibration import CalibrationDisplay
+from sklearn.metrics import brier_score_loss, roc_auc_score, log_loss, average_precision_score, accuracy_score
+
 # Helper: simple decile ECE
 def ece_decile(y_true, proba):
     df_ = pd.DataFrame({"y": np.asarray(y_true), "p": np.asarray(proba)})
@@ -1346,7 +1604,11 @@ for name, proba in models_2024.items():
 ax.set_title("Calibration — 2024 Test")
 ax.set_xlabel("Predicted probability")
 ax.set_ylabel("Observed frequency")
+#plt.tight_layout()
+#plt.show()
+
 plt.tight_layout()
+plt.savefig(RUN_DIR / "plots" / "calibration_diagram.png", dpi=200)
 plt.show()
 
 rows = []
@@ -1388,6 +1650,7 @@ ax.set_xlabel("False Positive Rate")
 ax.set_ylabel("True Positive Rate")
 ax.legend(loc="lower right")
 plt.tight_layout()
+plt.savefig(RUN_DIR / "plots" / "roc.png", dpi=200)
 plt.show()
 
 # --- 2025 ACTION (labeled only) ---
@@ -1453,7 +1716,10 @@ ax.set_title("Precision–Recall — 2024 Test")
 ax.set_xlabel("Recall")
 ax.set_ylabel("Precision")
 ax.legend(loc="lower left")
+#plt.tight_layout()
+#plt.show()
 plt.tight_layout()
+plt.savefig(RUN_DIR / "plots" / "precision_recall.png", dpi=200)
 plt.show()
 
 # 2025 (labeled only)
@@ -1507,7 +1773,9 @@ ax.set_title("Cumulative Gains — 2024 Test")
 ax.set_xlabel("Cumulative fraction of samples")
 ax.set_ylabel("Cumulative fraction of positives captured")
 ax.legend(loc="lower right")
-plt.tight_layout()
+#plt.tight_layout()
+#plt.show()
+plt.savefig(RUN_DIR / "plots" / "cumulative_fraction.png", dpi=200)
 plt.show()
 
 print("\nTop-decile positive capture (2024):")
@@ -1517,29 +1785,6 @@ for name, proba in models.items():
     top_decile = g.loc[g["cum_pct"]<=0.1, "cum_pos_rate"].max()
     rows.append({"Model": name, "TopDecileCapture": round(float(top_decile), 3)})
 print(pd.DataFrame(rows).sort_values("TopDecileCapture", ascending=False).to_string(index=False))
-
-thr = np.linspace(0.05, 0.95, 19)
-accs, briers, youdens = [], [], []
-
-for t in thr:
-    pred = (proba_test_vote >= t).astype(int)
-    tn, fp, fn, tp = confusion_matrix(y_test, pred).ravel()
-    tpr = tp / (tp + fn) if (tp+fn)>0 else 0.0
-    fpr = fp / (fp + tn) if (fp+tn)>0 else 0.0
-    accs.append((tp + tn) / (tp + tn + fp + fn))
-    briers.append(brier_score_loss(y_test, np.clip(proba_test_vote, 0, 1)))
-    youdens.append(tpr - fpr)
-
-fig, ax = plt.subplots(figsize=(7,4))
-ax.plot(thr, accs, label="Accuracy")
-ax.plot(thr, briers, label="Brier (lower better)")
-ax.plot(thr, youdens, label="Youden J")
-ax.set_title("Threshold Sweep — 2024 Test (VOTE_SOFT)")
-ax.set_xlabel("Threshold")
-ax.set_ylabel("Metric")
-ax.legend()
-plt.tight_layout()
-plt.show()
 
 # 2024
 pred_2024 = (proba_test_vote >= 0.5).astype(int)
@@ -1584,7 +1829,7 @@ ax.set_title("Week-by-Week Accuracy — VOTE_SOFT")
 ax.set_xlabel("Week")
 ax.set_ylabel("Accuracy")
 ax.legend()
-plt.tight_layout()
+plt.savefig(RUN_DIR / "plots" / "weekly_accuracy.png", dpi=200)
 plt.show()
 
 pos = proba_test_vote[y_test.values==1]
@@ -1597,7 +1842,7 @@ ax.set_title("Predicted Probability Distributions — VOTE_SOFT (2024 Test)")
 ax.set_xlabel("Predicted P(Home Win)")
 ax.set_ylabel("Count")
 ax.legend()
-plt.tight_layout()
+plt.savefig(RUN_DIR / "plots" / "outcome_probability_distributions.png", dpi=200)
 plt.show()
 
 # (Optional) Repeat for 2025 labeled if present
@@ -1620,3 +1865,18 @@ if 'X_action' in locals() and X_action.shape[0] > 0:
         ax2.legend()
         plt.tight_layout()
         plt.show()
+        
+try:
+    sys.stdout = sys.__stdout__
+    sys.stderr = sys.__stderr__
+finally:
+    try:
+        _log_f.close()
+    except Exception:
+        pass
+
+        
+        
+        
+        
+        
