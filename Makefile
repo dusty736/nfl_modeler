@@ -58,4 +58,12 @@ train-pregame: up
 	
 predict-pregame:
 	python3 modeling/Python/pregame_predgen.py --run-id latest --all --to-db
+	
+train-pregame-total: up
+	python3 modeling/Python/pregame_total_modelfit.py
+	
+predict-total:
+	python3 modeling/Python/pregame_total_predgen.py --run-id latest --all --with-pi --to-db
 
+predict-total-week:
+	python3 modeling/Python/pregame_total_predgen.py --run-id latest --season $(SEASON) --week $(WEEK) --with-pi --to-db
