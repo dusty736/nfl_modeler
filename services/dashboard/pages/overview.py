@@ -235,9 +235,10 @@ def layout():
                             html.Nav(
                                 className="topbar-actions",
                                 children=[
-                                    dcc.Link(html.Button("Home", className="btn"), href="/"),
-                                    dcc.Link(html.Button("Standings", className="btn primary"), href="/overview"),
+                                    dcc.Link(html.Button("Home", className="btn primary"), href="/"),
+                                    dcc.Link(html.Button("Standings", className="btn"), href="/overview"),
                                     dcc.Link(html.Button("Teams", className="btn"), href="/teams"),
+                                    dcc.Link(html.Button("Game Center", className="btn"), href="/games"),
                                     dcc.Link(html.Button("Analytics Nexus", className="btn"), href="/analytics_nexus")
                                 ],
                             ),

@@ -1140,3 +1140,88 @@ def fetch_team_rolling_percentiles(
                 "error": str(e),
             },
         }
+        
+def get_games_week(season: int, week: int, *, timeout: int = 20):
+    """
+    Fetch all games for a given season/week.
+
+    Calls: GET /games/{season}/{week}
+    Returns: list[dict] with fields:
+        game_id, season, week, home_team, away_team,
+        home_record, away_record, kickoff, stadium,
+        line, vegas_total, pred_total, pred_margin,
+        pred_winner_binary, pred_winner_team,
+        home_score, away_score
+    On error: returns [] (and prints a brief log line).
+    """
+    # Defensive casts (handles strings coming from Dash inputs)
+    try:
+        s = int(season)
+        w = int(week)
+    except Exception as e:
+        raise ValueError(f"Invalid season/week: {season}/{week}") from e
+
+    path = f"/games/{s}/{w}"
+
+    try:
+        # Prefer an existing shared JSON helper if your module has one.
+        if "_get_json" in globals():
+            return _get_json(path, timeout=timeout)
+
+        # Fallback: make a direct request using API_BASE_URL (same pattern as other helpers).
+        import os
+        import requests
+
+        base = os.environ.get("API_BASE_URL", "http://api:8000").rstrip("/")
+        url = f"{base}{path}"
+
+        resp = requests.get(url, timeout=timeout)
+        resp.raise_for_status()
+        return resp.json()
+
+    except Exception as e:
+        print(f"[api_client.get_games_week] GET {path} failed: {e}")
+        return []
+
+# helpers/api_client.py (ADD these helpers; keep your existing imports and api_get)
+
+# helpers/api_client.py — REPLACE these two functions
+
+def _get_json_resilient(path: str, *, timeout: int = 8):
+    """
+    Resolve the API base like get_games_week does, try bare and /api, and
+    fall back to localhost. Returns {} / [] on failure.
+    """
+    import os, requests
+    bases = [
+        os.environ.get("API_BASE_URL", "http://api:8000").rstrip("/"),
+        # final safety: your browser test host
+        "http://localhost:8000",
+    ]
+    paths = [path, f"/api{path}"]  # try bare, then /api
+    last_err = None
+    for base in bases:
+        for p in paths:
+            url = f"{base}{p}"
+            try:
+                r = requests.get(url, timeout=timeout)
+                r.raise_for_status()
+                return r.json()
+            except Exception as e:
+                last_err = f"{type(e).__name__}: {e}"
+                continue
+    print(f"[api_client] GET {path} failed across fallbacks: {last_err}")
+    # Keep UI stable
+    return {} if path.endswith("/stats") or "/games/" in path else []
+
+def get_game_detail(season: int, week: int, game_id: str):
+    """GET /games/{season}/{week}/{game_id} with resilient base resolution."""
+    path = f"/games/{int(season)}/{int(week)}/{game_id}"
+    return _get_json_resilient(path, timeout=8) or {}
+
+def get_game_stats(season: int, week: int, game_id: str):
+    """GET /games/{season}/{week}/{game_id}/stats with resilient base resolution."""
+    path = f"/games/{int(season)}/{int(week)}/{game_id}/stats"
+    return _get_json_resilient(path, timeout=10) or {}
+
+

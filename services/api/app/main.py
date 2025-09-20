@@ -53,6 +53,7 @@ def create_app() -> FastAPI:
         "team_rosters",
         "team_injuries",
         "analytics_nexus",
+        "games"
     ]:
         m = importlib.import_module(f"app.routers.{mod}")
         app.include_router(m.router)
