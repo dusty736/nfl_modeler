@@ -2124,6 +2124,75 @@ a.logo-link:visited {
   border-bottom: 1px solid rgba(255,255,255,0.06);
 }
 
+/* =========================================================
+   Brand Badge (square logo → premium squircle)
+   ========================================================= */
+
+.logo-link { display: inline-flex; align-items: center; }
+
+.brand-badge {
+  /* size */
+  --size: 68px;                 /* try 72–80px if you want it louder */
+  width: var(--size);
+  height: var(--size);
+  padding: 6px;
+
+  /* shape + surface */
+  border-radius: 22%;           /* squircle-ish */
+  background:
+    radial-gradient(140% 120% at 8% 0%, rgba(255,255,255,0.14), rgba(255,255,255,0) 45%),
+    linear-gradient(180deg, rgba(255,255,255,0.06), rgba(0,0,0,0.18));
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow:
+    0 8px 18px rgba(0,0,0,0.45),
+    inset 0 1px 0 rgba(255,255,255,0.10),
+    inset 0 -1px 0 rgba(0,0,0,0.25);
+  position: relative;
+  display: grid;
+  place-items: center;
+  transition: transform .18s ease, box-shadow .18s ease;
+}
+
+.brand-badge::before {
+  /* subtle gradient ring that feels “lit” on dark BGs */
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  background:
+    linear-gradient(#0B1620, #0B1620) padding-box,
+    linear-gradient(135deg, #2EC8FF, #00FFD2 60%, #2EC8FF) border-box;
+  -webkit-mask:
+    linear-gradient(#000 0 0) padding-box, 
+    linear-gradient(#000 0 0) border-box;
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  border: 2px solid transparent;   /* shows the gradient from background-clip */
+  opacity: .55;
+  pointer-events: none;
+}
+
+.brand-badge:hover {
+  transform: translateY(-1px) scale(1.03);
+  box-shadow:
+    0 14px 30px rgba(0,0,0,0.55),
+    inset 0 1px 0 rgba(255,255,255,0.12);
+}
+
+.brand-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 18%;
+  background: #0E1A2A;                /* fallback canvas behind PNG */
+  box-shadow: inset 0 1px 2px rgba(255,255,255,0.06);
+}
+
+/* Respect users who prefer less motion */
+@media (prefers-reduced-motion: reduce) {
+  .brand-badge { transition: none; }
+  .brand-badge:hover { transform: none; }
+}
 
 /* =========================================================
    11) Responsive tweaks

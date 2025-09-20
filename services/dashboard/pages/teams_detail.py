@@ -254,19 +254,19 @@ def layout(team_abbr=None):
             html.Div(
                 className="topbar-inner",
                 children=[
-                    html.Div(
-                        className="topbar-left",
-                        children=[
-                            dcc.Link(
+                    dcc.Link(
+                        html.Div(
+                            className="brand-badge",
+                            children=[
                                 html.Img(
                                     src=dash.get_asset_url("logos/dashboard_emblem.png"),
                                     alt="Dashboard emblem",
-                                    className="topbar-logo",
-                                ),
-                                href="/",
-                                className="logo-link",
-                            )
-                        ],
+                                    className="brand-img",
+                                )
+                            ],
+                        ),
+                        href="/",
+                        className="logo-link",
                     ),
                     html.Div(
                         className="topbar-center",
@@ -275,9 +275,9 @@ def layout(team_abbr=None):
                             html.Nav(
                                 className="topbar-actions",
                                 children=[
-                                    dcc.Link(html.Button("Home", className="btn primary"), href="/"),
+                                    dcc.Link(html.Button("Home", className="btn"), href="/"),
                                     dcc.Link(html.Button("Standings", className="btn"), href="/overview"),
-                                    dcc.Link(html.Button("Teams", className="btn"), href="/teams"),
+                                    dcc.Link(html.Button("Teams", className="btn primary"), href="/teams"),
                                     dcc.Link(html.Button("Game Center", className="btn"), href="/games"),
                                     dcc.Link(html.Button("Analytics Nexus", className="btn"), href="/analytics_nexus")
                                 ],

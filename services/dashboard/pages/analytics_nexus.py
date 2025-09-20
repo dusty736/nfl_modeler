@@ -454,19 +454,19 @@ layout = html.Div(
                     className="topbar-inner",
                     children=[
                         # Left: logo
-                        html.Div(
-                            className="topbar-left",
-                            children=[
-                                dcc.Link(
+                        dcc.Link(
+                            html.Div(
+                                className="brand-badge",
+                                children=[
                                     html.Img(
                                         src=dash.get_asset_url("logos/dashboard_emblem.png"),
                                         alt="Dashboard emblem",
-                                        className="topbar-logo"
-                                    ),
-                                    href="/",
-                                    className="logo-link"
-                                ),
-                            ],
+                                        className="brand-img",
+                                    )
+                                ],
+                            ),
+                            href="/",
+                            className="logo-link",
                         ),
                         # Center: title + nav buttons
                         html.Div(
