@@ -189,7 +189,8 @@ summarize_season_team_results <- function(schedule_raw) {
         result = dplyr::case_when(
           away_score > home_score ~ "W",
           away_score < home_score ~ "L",
-          TRUE ~ "T"
+          away_score == home_score ~ "T",
+          TRUE ~ NA
         )
       )
   )
@@ -198,9 +199,9 @@ summarize_season_team_results <- function(schedule_raw) {
   reg_summary <- reg_long %>%
     dplyr::group_by(season, team_id) %>%
     dplyr::summarise(
-      wins = sum(result == "W"),
-      losses = sum(result == "L"),
-      ties = sum(result == "T"),
+      wins = sum(result == "W", na.rm=TRUE),
+      losses = sum(result == "L", na.rm=TRUE),
+      ties = sum(result == "T", na.rm=TRUE),
       points_for = sum(points_for, na.rm = TRUE),
       points_against = sum(points_against, na.rm = TRUE),
       .groups = "drop"

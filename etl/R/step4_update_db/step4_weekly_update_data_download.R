@@ -426,6 +426,8 @@ arrow::write_parquet(
   here("data", "staging", "season_results.parquet")
 )
 
+
+
 ################################################################################
 # Long Player Table
 ################################################################################
@@ -501,6 +503,31 @@ game_id_map <- weekly_results %>%
   dplyr::select(team = team_id, game_id, season, week) %>% 
   distinct()
 
+games_cleaned <- games %>%
+  dplyr::mutate(
+    game_type   = toupper(game_type),
+    season_type = dplyr::if_else(game_type == "REG", "REG", "POST", missing = "POST"),
+    game_type = dplyr::if_else(game_type == "REG", "REG", "POST", missing = "POST"),
+    home_team = dplyr::recode(home_team, OAK = "LV", STL = "LA", SD = "LAC", .default = home_team),
+    away_team = dplyr::recode(away_team, OAK = "LV", STL = "LA", SD = "LAC", .default = away_team)
+  )
+
+ratings <- build_team_strength_v01(
+  pbp   = pbp,
+  games = games %>% filter(week %in% weeks),        # optional but recommended for bye-week rows
+  w_min = 0.25,
+  H     = 4,
+  beta  = 0.7,
+  min_eff_plays = 20,
+  keep_components = FALSE
+) %>% 
+  dplyr::select(-params_version, -run_timestamp)
+
+weekly_team_strength <- ratings %>% 
+  pivot_longer(., -c(season, week, team), names_to = 'stat_name', values_to = 'value') %>% 
+  mutate(stat_type = 'base') %>% 
+  left_join(., team_schedule, by=c('team', 'season', 'week'))
+
 weekly_off <- pivot_team_stats_long(here("data", "staging", "off_team_stats_week.parquet"),
                                     team_schedule, "recent_team") %>% filter(stat_name != 'games_played')
 weekly_def <- pivot_team_stats_long(here("data", "staging", "def_team_stats_week.parquet"),
@@ -523,6 +550,7 @@ weekly_total <- rbind(weekly_off %>% left_join(., game_id_map, by=c('team', 'sea
                       weekly_inj %>% left_join(., game_id_map, by=c('team', 'season', 'week')),
                       weekly_game_stats,
                       weekly_pbp %>% left_join(., game_id_map, by=c('team', 'season', 'week')),
+                      weekly_team_strength %>% left_join(., game_id_map, by=c('team', 'season', 'week')),
                       historic_team_long) %>% 
   distinct() %>% arrange(team, season, week)
 
