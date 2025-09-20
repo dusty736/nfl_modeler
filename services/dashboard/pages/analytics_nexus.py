@@ -22,10 +22,10 @@ dash.register_page(__name__, path="/analytics_nexus", name="Analytics Nexus")
 season, week = fetch_current_season_week()
 
 # If current season hasn't started (week < 1), show last season by default.
-DEFAULT_SEASON = 2024
+DEFAULT_SEASON = season
 
 # Use current completed week if valid; otherwise a safe display default.
-DEFAULT_WEEK_END = 18
+DEFAULT_WEEK_END = week
 
 # Personal details (footer)
 YOUR_NAME = "Dustin Burnham"

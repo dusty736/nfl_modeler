@@ -118,6 +118,14 @@ key_map <- list(
   depth_charts_qb_team_tbl             = c("season","week","team"),
   depth_charts_starters_tbl            = c("season","week","team","gsis_id"),
   
+  team_weekly_tbl                      = c("season","season_type","week","team","stat_name","stat_type"),
+  team_season_tbl                      = c("season","season_type","team","stat_name","stat_type"),
+  team_career_tbl                      = c("team","season_type","stat_name","stat_type"),
+  
+  player_weekly_tbl                    = c("season","season_type","week","player_id","stat_name","stat_type"),
+  player_season_tbl                    = c("season","season_type","player_id","name","stat_name","agg_type"),
+  player_career_tbl                    = c("player_id","season_type","position","name","stat_name","agg_type"),
+  
   id_map_tbl                           = c("gsis_id","espn_id","full_name")
 )
 
