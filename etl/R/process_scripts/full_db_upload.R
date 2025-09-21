@@ -1,6 +1,8 @@
 ################################################################################
-# step2_process_all.R
+# full_db_upload.R
 ################################################################################
+
+source(here::here("etl", "R", "step1_download", "step1_data_download.R"))
 
 source(here::here("etl", "R", "step2_process", "step2_contracts_process.R"))
 source(here::here("etl", "R", "step2_process", "step2_def_player_stats_process.R"))
@@ -18,3 +20,13 @@ source(here::here("etl", "R", "step2_process", "step2_idmap_process.R"))
 source(here::here("etl", "R", "step2_process", "step2_team_metadata_process.R"))
 source(here::here("etl", "R", "step2_process", "step2_snapcount_process.R"))
 source(here::here("etl", "R", "step2_process", "step2_team_strength_process.R"))
+
+source(here::here("etl", "R", "step3_sql", "step3_long_player_format.R"))
+source(here::here("etl", "R", "step3_sql", "step3_long_team_format.R"))
+source(here::here("etl", "R", "step3_sql", "step3_team_rankings_long.R"))
+source(here::here("etl", "R", "step3_sql", "step3_database_file_prep.R"))
+source(here::here("etl", "R", "step3_sql", "step3_parquet_to_postgres.R"))
+
+source(here::here("etl", "R", "step5_modeling_data", "step5_game_model_assebly.R"))
+
+testthat::test_dir("tests/testthat")

@@ -1,3 +1,178 @@
+#' Add weekly team ranking features with robust team alias mapping
+#' (SD→LAC, STL/LAR→LA, OAK→LV, etc.), wide home/away, diffs, and matchup diffs.
+#' @export
+add_team_rankings_features <- function(
+    con,
+    df,
+    seasons,
+    schema = "prod",
+    rankings_table = "team_weekly_rankings_tbl",
+    ranking_stats = c(
+      'passing_yards','passing_tds','interceptions','sacks',
+      'passing_first_downs','passing_epa','avg_drive_depth_into_opp',
+      'avg_start_yardline_100','drives','early_epa_per_play',
+      'carries','rushing_yards','rushing_tds','rushing_fumbles',
+      'rushing_first_downs','rushing_epa','points_scored',
+      'def_tackles','def_tackles_for_loss','def_fumbles_forced',
+      'def_sacks','def_qb_hits','def_interceptions','def_fumbles',
+      'def_penalty','points_allowed','fg_pct',
+      'def_passing_yards_allowed','def_passing_tds_allowed','def_passing_first_downs_allowed',
+      'def_pass_epa_allowed','def_avg_drive_depth_allow','def_drives_allowed','def_carries_allowed',
+      'def_rushing_yards_allowed','def_rushing_tds_allowed','def_rushing_first_downs_allowed',
+      'def_rushing_epa_allowed'
+    ),
+    offense_allowed_map = c(
+      passing_yards        = "def_passing_yards_allowed",
+      passing_tds          = "def_passing_tds_allowed",
+      passing_first_downs  = "def_passing_first_downs_allowed",
+      passing_epa          = "def_pass_epa_allowed",
+      rushing_yards        = "def_rushing_yards_allowed",
+      rushing_tds          = "def_rushing_tds_allowed",
+      rushing_first_downs  = "def_rushing_first_downs_allowed",
+      rushing_epa          = "def_rushing_epa_allowed",
+      avg_drive_depth_into_opp = "def_avg_drive_depth_allow",
+      drives               = "def_drives_allowed",   # optional pace
+      carries              = "def_carries_allowed",  # optional pace
+      points_scored        = "points_allowed"
+    ),
+    include_pace_pairs = FALSE,
+    verbose = TRUE
+) {
+  stopifnot(all(c("game_id","season","week","home_team","away_team") %in% names(df)))
+  
+  # ---- Canonical team codes (target set = your “exact names” list) ----
+  canonicalize_team <- function(x) {
+    x <- toupper(trimws(as.character(x)))
+    alias <- c(
+      # Legacy -> Modern canonical
+      "SD"="LAC","S.D."="LAC","SDG"="LAC","SDC"="LAC","SD CHARGERS"="LAC",
+      "OAK"="LV","RAI"="LV","OAK RAIDERS"="LV",
+      "STL"="LA","ST.L"="LA","ST LOUIS"="LA","LAR"="LA","L.A. RAMS"="LA","LA RAMS"="LA",
+      # Other common variants to canonical
+      "JAC"="JAX","NOR"="NO","N.O."="NO","GNB"="GB","WSH"="WAS","WDC"="WAS",
+      # Already-canonical passthroughs
+      "ARI"="ARI","ATL"="ATL","BAL"="BAL","BUF"="BUF","CAR"="CAR","CHI"="CHI",
+      "CIN"="CIN","CLE"="CLE","DAL"="DAL","DEN"="DEN","DET"="DET","GB"="GB","HOU"="HOU",
+      "IND"="IND","JAX"="JAX","KC"="KC","LA"="LA","LAC"="LAC","LV"="LV","MIA"="MIA",
+      "MIN"="MIN","NE"="NE","NO"="NO","NYG"="NYG","NYJ"="NYJ","PHI"="PHI","PIT"="PIT",
+      "SD "="LAC","SEA"="SEA","SF"="SF","TB"="TB","TEN"="TEN","WAS"="WAS"
+    )
+    y <- ifelse(x %in% names(alias), unname(alias[x]), x)
+    as.character(y)
+  }
+  
+  # Trim map (drop pace pairs if requested)
+  if (!is.null(offense_allowed_map) && !include_pace_pairs) {
+    offense_allowed_map <- offense_allowed_map[!names(offense_allowed_map) %in% c("drives","carries")]
+  }
+  
+  # ---- Load and canonicalize rankings ----
+  ranks_tbl <- dplyr::tbl(con, dbplyr::in_schema(schema, rankings_table)) %>%
+    dplyr::filter(.data$season %in% !!seasons) %>%
+    dplyr::select(dplyr::any_of(c("season","week","team","stat_name","rank"))) %>%
+    dplyr::collect() %>%
+    dplyr::mutate(
+      season    = as.integer(.data$season),
+      week      = as.integer(.data$week),
+      team_raw  = as.character(.data$team),
+      team      = canonicalize_team(.data$team),
+      stat_name = as.character(.data$stat_name),
+      rank      = as.numeric(.data$rank)
+    ) %>%
+    dplyr::filter(.data$stat_name %in% ranking_stats) %>%
+    dplyr::group_by(.data$season, .data$week, .data$team, .data$stat_name) %>%
+    dplyr::summarise(rank = dplyr::first(.data$rank), .groups = "drop")
+  
+  # ---- Canonicalize games team codes ----
+  games_can <- df %>%
+    dplyr::mutate(
+      home_team_can = canonicalize_team(.data$home_team),
+      away_team_can = canonicalize_team(.data$away_team)
+    )
+  
+  # ---- HOME wide ----
+  home_wide <- games_can %>%
+    dplyr::select(.data$game_id, .data$season, .data$week, home_team_can) %>%
+    dplyr::left_join(
+      ranks_tbl %>% dplyr::rename(home_team_can = .data$team),
+      by = c("season","week","home_team_can")
+    ) %>%
+    tidyr::pivot_wider(
+      id_cols = c(.data$game_id),
+      names_from  = .data$stat_name,
+      values_from = .data$rank,
+      names_glue  = "home_{stat_name}_rank"
+    )
+  
+  # ---- AWAY wide ----
+  away_wide <- games_can %>%
+    dplyr::select(.data$game_id, .data$season, .data$week, away_team_can) %>%
+    dplyr::left_join(
+      ranks_tbl %>% dplyr::rename(away_team_can = .data$team),
+      by = c("season","week","away_team_can")
+    ) %>%
+    tidyr::pivot_wider(
+      id_cols = c(.data$game_id),
+      names_from  = .data$stat_name,
+      values_from = .data$rank,
+      names_glue  = "away_{stat_name}_rank"
+    )
+  
+  # ---- Attach to games ----
+  out <- games_can %>%
+    dplyr::select(-home_team_can, -away_team_can) %>%
+    dplyr::left_join(home_wide, by = "game_id") %>%
+    dplyr::left_join(away_wide, by = "game_id")
+  
+  # ---- Generic diffs ----
+  for (s in unique(ranking_stats)) {
+    h <- paste0("home_", s, "_rank")
+    a <- paste0("away_", s, "_rank")
+    d <- paste0("diff_", s, "_rank")
+    if (h %in% names(out) && a %in% names(out)) out[[d]] <- out[[h]] - out[[a]]
+  }
+  
+  # ---- Matchup diffs (home offense − away defense-allowed) ----
+  if (!is.null(offense_allowed_map) && length(offense_allowed_map) > 0) {
+    valid_pairs <- offense_allowed_map[
+      names(offense_allowed_map) %in% ranking_stats &
+        offense_allowed_map %in% ranking_stats
+    ]
+    for (off_s in names(valid_pairs)) {
+      def_s <- valid_pairs[[off_s]]
+      h_off <- paste0("home_", off_s, "_rank")
+      a_def <- paste0("away_", def_s, "_rank")
+      d_nm  <- paste0("diff_", off_s, "_vs_", def_s, "_rank")
+      if (h_off %in% names(out) && a_def %in% names(out)) {
+        out[[d_nm]] <- out[[h_off]] - out[[a_def]]
+      }
+    }
+  }
+  
+  # ---- Diagnostics: any remaining missing joins? ----
+  if (isTRUE(verbose)) {
+    probe <- paste0("home_", ranking_stats[1], "_rank")
+    if (probe %in% names(out)) {
+      miss_home <- sum(is.na(out[[probe]]))
+    } else miss_home <- NA_integer_
+    probe2 <- paste0("away_", ranking_stats[1], "_rank")
+    if (probe2 %in% names(out)) {
+      miss_away <- sum(is.na(out[[probe2]]))
+    } else miss_away <- NA_integer_
+    
+    if (is.finite(miss_home) && is.finite(miss_away) && (miss_home + miss_away) > 0) {
+      message("Rank join NA after aliasing — home: ", miss_home, ", away: ", miss_away,
+              ". Check for unseen aliases in schedules or rankings.")
+    }
+  }
+  
+  # Put diffs at the end
+  diff_cols <- grep("^diff_.*_rank$", names(out), value = TRUE)
+  out <- dplyr::relocate(out, dplyr::all_of(diff_cols), .after = dplyr::last_col())
+  
+  out
+}
+
 #' Build pregame, game-level modelling dataset (2016–present) with as-of features
 #'
 #' @description
@@ -62,6 +237,22 @@ build_pregame_dataset <- function(
   }
   
   # ---- helpers ----
+  normalize_abbr <- function(x) {
+    x <- toupper(trimws(as.character(x)))
+    dplyr::recode(
+      x,
+      "SD"  = "LAC",
+      "STL" = "LA",
+      "LAR" = "LA",   # unify to your schema's "LA"
+      "OAK" = "LV",
+      "JAC" = "JAX",
+      "NOR" = "NO",
+      "WSH" = "WAS",
+      "GNB" = "GB",
+      .default = x
+    )
+  }
+  
   impute_weather <- function(df) {
     df0 <- df %>%
       mutate(
@@ -155,6 +346,12 @@ build_pregame_dataset <- function(
       temp_miss = as.integer(is.na(temp_num)),
       wind_miss = as.integer(is.na(wind_num)),
       mo = lubridate::month(kickoff)
+    )
+  
+  games_base <- games_base %>%
+    mutate(
+      home_team = normalize_abbr(home_team),
+      away_team = normalize_abbr(away_team)
     )
   
   ref_stad_mo <- games_base %>%
@@ -556,21 +753,22 @@ build_pregame_dataset <- function(
       return(df)
     }
     
+    # 1) Normalize to your coarse groups
     stab <- ps %>%
       select(season, week, team, position, position_group_score) %>%
       filter(season %in% !!seasons) %>%
       collect() %>%
       mutate(
         week = as.integer(week),
-        position = toupper(position),
+        position = toupper(trimws(as.character(position))),
         pos_group = case_when(
-          position %in% c("T","G","C","OT","OG","OC") ~ "OL",
-          position %in% c("WR")                       ~ "WR",
-          position %in% c("TE")                       ~ "TE",
-          position %in% c("RB","FB")                  ~ "RB",
-          position %in% c("CB","S","FS","SS","DB")    ~ "DB",
-          position %in% c("DE","DT","NT","DL")        ~ "DL",
-          position %in% c("LB","ILB","OLB")           ~ "LB",
+          position %in% c("OL") ~ "OL",
+          position %in% c("RB") ~ "RB",
+          position %in% c("QB") ~ "QB",
+          position %in% c("REC") ~ "REC",   # pass catchers
+          position %in% c("DEF") ~ "DEF",   # entire defense
+          position %in% c("K", "PK") ~ "K",
+          position %in% c("ST", "SPECIAL", "SPECIAL TEAMS", "SPT") ~ "ST",
           TRUE ~ NA_character_
         )
       ) %>%
@@ -578,19 +776,24 @@ build_pregame_dataset <- function(
       group_by(season, week, team, pos_group) %>%
       summarise(position_group_score = mean(position_group_score, na.rm = TRUE), .groups = "drop")
     
+    # Expected set of groups in your DB
+    groups <- c("OL","RB","QB","REC","DEF","K","ST")
+    
     attach_side <- function(gdf, side = c("home","away")) {
       side <- match.arg(side)
       key_team <- rlang::sym(paste0(side, "_team"))
       
-      joined <- gdf %>%
+      base <- gdf %>%
+        left_join(reg_last_week_by_season, by = "season") %>%
         left_join(
           stab %>% rename(stab_week = week),
           by = dplyr::join_by(season == season, !!key_team == team),
           relationship = "many-to-many"
-        )
+        ) %>%
+        mutate(use_week = if_else(season_type == "REG", week, reg_last_week))
       
-      picked <- joined %>%
-        filter(stab_week < week) %>%
+      picked <- base %>%
+        filter(stab_week < use_week) %>%
         group_by(game_id, pos_group) %>%
         slice_max(order_by = stab_week, n = 1, with_ties = FALSE) %>%
         ungroup() %>%
@@ -602,41 +805,43 @@ build_pregame_dataset <- function(
           names_prefix = paste0(tolower(side), "_stab_")
         )
       
+      # Ensure all expected columns exist
+      for (g in groups) {
+        nm <- paste0(tolower(side), "_stab_", g)
+        if (!nm %in% names(picked)) picked[[nm]] <- NA_real_
+      }
+      
       picked
     }
     
     home <- attach_side(df, "home")
     away <- attach_side(df, "away")
     
-    groups <- c("DB","DL","LB","RB","TE","WR","OL")
-    
     out <- df %>%
       left_join(home, by = "game_id") %>%
-      left_join(away, by = "game_id")
-    
-    # Ensure all stab columns exist
-    for (g in groups) {
-      hc <- paste0("home_stab_", g); ac <- paste0("away_stab_", g)
-      if (!hc %in% names(out)) out[[hc]] <- NA_real_
-      if (!ac %in% names(out)) out[[ac]] <- NA_real_
-    }
-    
-    # Week 1 default = 1.0; otherwise keep as-is (NA allowed → will be coalesced below)
-    out <- out %>%
+      left_join(away, by = "game_id") %>%
+      # Week 1 default = 1.0 for all groups (REG Week 1 only)
       mutate(
-        across(starts_with("home_stab_"), ~ if_else(week==1L, 1.0, .x)),
-        across(starts_with("away_stab_"), ~ if_else(week==1L, 1.0, .x))
+        across(matches("^home_stab_|^away_stab_"),
+               ~ if_else(season_type == "REG" & week == 1L, 1.0, .x))
       ) %>%
+      # Coalesce any still-missing to 0 (means we truly had no history)
       mutate(
-        across(starts_with("home_stab_"), ~ coalesce(.x, 0)),
-        across(starts_with("away_stab_"), ~ coalesce(.x, 0))
+        across(matches("^home_stab_|^away_stab_"), ~ coalesce(.x, 0))
       ) %>%
+      # Flags (true only if Week 1 and something would have been missing)
       mutate(
-        used_stab_prior_home = as.integer(rowSums(across(starts_with("home_stab_"), ~ .x == 0)) > 0 & .data$week == 1),
-        used_stab_prior_away = as.integer(rowSums(across(starts_with("away_stab_"), ~ .x == 0)) > 0 & .data$week == 1)
+        used_stab_prior_home = as.integer(
+          (season_type == "REG" & week == 1L) &
+            rowSums(across(starts_with("home_stab_"), ~ .x == 0)) > 0
+        ),
+        used_stab_prior_away = as.integer(
+          (season_type == "REG" & week == 1L) &
+            rowSums(across(starts_with("away_stab_"), ~ .x == 0)) > 0
+        )
       )
     
-    # Diffs (Week 1 will be 0 due to both sides = 1.0)
+    # Diffs for all stability groups (including QB/K/ST if you want those signals)
     for (g in groups) {
       h <- paste0("home_stab_", g)
       a <- paste0("away_stab_", g)
@@ -704,7 +909,8 @@ build_pregame_dataset <- function(
           },
           !!paste0(side, "_pt_diff_pg_prior") := {
             idx <- if (first(season_type) == "REG") tg_week < first(week) else (tg_week <= first(reg_last_week))
-            sum(pts_for[idx], na.rm = TRUE) - sum(pts_against[idx], na.rm = TRUE)
+            n <- sum(idx, na.rm = TRUE)
+            if (n == 0) 0 else (sum(pts_for[idx], na.rm = TRUE) - sum(pts_against[idx], na.rm = TRUE)) / n
           },
           .groups = "drop"
         )
@@ -887,7 +1093,13 @@ build_pregame_dataset <- function(
     add_qb_cap_pct() %>%
     add_position_stability() %>%
     add_team_basics_s2d() %>%
-    add_def_off_stats_s2d()
+    add_def_off_stats_s2d() %>% 
+    add_team_rankings_features(
+      con      = con,
+      seasons  = seasons,
+      schema   = schema,
+      rankings_table = "team_weekly_rankings_tbl",
+    )
   
   #-----------------------------------------
   # S4. Minimal Week-1 QB priors (use LAST SEASON average; Week 1 only)
@@ -1027,19 +1239,18 @@ build_pregame_dataset <- function(
           .groups = "drop"
         ) %>%
         dplyr::mutate(
-          # Week 1 gets a prior; others = NA (model uses in-season only after W1)
+          is_prior_game = (season_type != "REG") | (season_type == "REG" & week == 1L),
           !!paste0(side, "_qb_prior") := dplyr::if_else(
-            season_type == "REG" & week == 1L,
+            is_prior_game,
             dplyr::coalesce(qb_prior_raw, qb_prior_fill),
             NA_real_
           ),
-          # flag if we imputed (no prev-season stats found for that starter)
           !!paste0(side, "_qb_prior_imputed") := dplyr::if_else(
-            season_type == "REG" & week == 1L,
+            is_prior_game,
             as.integer(is.na(qb_prior_raw)),
             0L
           ),
-          !!paste0("used_prior_", side) := as.integer(season_type == "REG" & week == 1L)
+          !!paste0("used_prior_", side) := as.integer(is_prior_game)
         ) %>%
         dplyr::select(
           game_id,

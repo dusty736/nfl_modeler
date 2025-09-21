@@ -329,9 +329,6 @@ form_off_team_season_for_sql(
 #   file.path("data", "for_database", "off_team_stats_season_tbl.parquet")
 # )
 
-source(file.path("etl", "R", "step3_sql", "step3_long_player_format.R"))
-source(file.path("etl", "R", "step3_sql", "step3_long_team_format.R"))
-
 ################################################################################
 # Summarize Data
 ################################################################################

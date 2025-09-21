@@ -1,4 +1,4 @@
-# etl/R/download_raw_nfl_data.R
+# etl/R/step1_download/step1_data_download.R
 
 library(nflreadr)
 library(tidyverse)
@@ -85,9 +85,12 @@ write_parquet(id_map, "data/raw/id_map.parquet")
 ################################################################################
 # Player Stats: offense + kicking (nflreadr)
 ################################################################################
-offense_stats <- with_progress(nflreadr::load_player_stats(seasons=TRUE, stat_type = "offense"))
-defense_stats <- with_progress(nflreadr::load_player_stats(seasons=TRUE, stat_type = "defense"))
-kicking_stats <- with_progress(nflreadr::load_player_stats(seasons=TRUE, stat_type = "kicking"))
+offense_stats <- with_progress(nflreadr::load_player_stats(seasons=TRUE)) %>% 
+  filter(position %in% c('QB', 'RB', 'WR', 'TE'))
+defense_stats <- with_progress(nflreadr::load_player_stats(seasons=TRUE)) %>% 
+  filter(position_group %in% c('DL', 'LB', 'DB'))
+kicking_stats <- with_progress(nflreadr::load_player_stats(seasons=TRUE)) %>% 
+  filter(position == 'K')
 write_parquet(offense_stats, "data/raw/off_player_stats.parquet")
 write_parquet(defense_stats, "data/raw/def_player_stats.parquet")
 write_parquet(kicking_stats, "data/raw/st_player_stats.parquet")

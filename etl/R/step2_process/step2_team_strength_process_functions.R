@@ -134,8 +134,8 @@ build_team_strength_v01 <- function(
   
   pbp %>%
     dplyr::left_join(sw, by = "game_id") %>%
-    dplyr::filter(.data$game_type %in% c("REG","POST")) %>%
-    dplyr::select(-.data$game_type)
+    dplyr::filter(game_type %in% c("REG","POST")) %>%
+    dplyr::select(-game_type)
 }
 
 
@@ -151,64 +151,64 @@ build_team_strength_v01 <- function(
   # reconstruct pre-snap home WP and competitiveness weight
   pbp <- pbp %>%
     dplyr::mutate(
-      home_wp_pre_raw = .data$home_wp_post - .data$wpa,
+      home_wp_pre_raw = home_wp_post - wpa,
       home_wp_pre = pmin(pmax(home_wp_pre_raw, 0), 1),
-      w_comp = pmax(w_min, 1 - 2 * abs(.data$home_wp_pre - 0.5))
+      w_comp = pmax(w_min, 1 - 2 * abs(home_wp_pre - 0.5))
     )
   
   pbp %>%
     dplyr::filter(
-      is.finite(.data$epa),
-      !.data$qb_kneel, !.data$qb_spike,
-      !.data$penalty,  !.data$no_play,
-      is.finite(.data$home_wp_post), is.finite(.data$wpa)
+      is.finite(epa),
+      !qb_kneel, !qb_spike,
+      !penalty,  !no_play,
+      is.finite(home_wp_post), is.finite(wpa)
     ) %>%
-    dplyr::mutate(w = .data$w_comp)
+    dplyr::mutate(w = w_comp)
 }
 
 #' @keywords internal
 .ts_v01_team_game_aggregates <- function(pbp_w, min_eff_plays = 20, keep_components = FALSE) {
   # opponent mapping from offense perspective
   opp_map <- pbp_w %>%
-    dplyr::filter(!is.na(.data$defteam), !is.na(.data$posteam)) %>%
-    dplyr::group_by(.data$game_id, team = .data$posteam) %>%
-    dplyr::summarise(opponent = dplyr::first(.data$defteam), .groups = "drop")
+    dplyr::filter(!is.na(defteam), !is.na(posteam)) %>%
+    dplyr::group_by(game_id, team = posteam) %>%
+    dplyr::summarise(opponent = dplyr::first(defteam), .groups = "drop")
   
   off <- pbp_w %>%
-    dplyr::group_by(.data$season, .data$week, .data$game_id, team = .data$posteam) %>%
+    dplyr::group_by(season, week, game_id, team = posteam) %>%
     dplyr::summarise(
-      off_epa_game = stats::weighted.mean(.data$epa, .data$w),
-      w_off = sum(.data$w),
+      off_epa_game = stats::weighted.mean(epa, w),
+      w_off = sum(w),
       .groups = "drop"
     )
   
   def_allowed <- pbp_w %>%
-    dplyr::group_by(.data$season, .data$week, .data$game_id, team = .data$defteam) %>%
+    dplyr::group_by(season, week, game_id, team = defteam) %>%
     dplyr::summarise(
-      opp_off_epa_game = stats::weighted.mean(.data$epa, .data$w),
-      w_def = sum(.data$w),
+      opp_off_epa_game = stats::weighted.mean(epa, w),
+      w_def = sum(w),
       .groups = "drop"
     ) %>%
-    dplyr::mutate(def_epa_game = - .data$opp_off_epa_game)
+    dplyr::mutate(def_epa_game = - opp_off_epa_game)
   
   tg <- off %>%
     dplyr::full_join(def_allowed, by = c("season","week","game_id","team")) %>%
     dplyr::left_join(opp_map, by = c("game_id","team")) %>%
     dplyr::mutate(
-      w_off = dplyr::coalesce(.data$w_off, 0),
-      w_def = dplyr::coalesce(.data$w_def, 0),
-      n_plays_eff_game = .data$w_off + .data$w_def
+      w_off = dplyr::coalesce(w_off, 0),
+      w_def = dplyr::coalesce(w_def, 0),
+      n_plays_eff_game = w_off + w_def
     ) %>%
-    dplyr::filter(.data$n_plays_eff_game >= min_eff_plays)
+    dplyr::filter(n_plays_eff_game >= min_eff_plays)
   
   tg <- tg %>%
     dplyr::mutate(
-      net_game = .data$off_epa_game + .data$def_epa_game
+      net_game = off_epa_game + def_epa_game
     )
   
   if (!keep_components) {
-    tg <- dplyr::select(tg, .data$season, .data$week, .data$game_id, .data$team, .data$opponent,
-                        .data$net_game, .data$n_plays_eff_game)
+    tg <- dplyr::select(tg, season, week, game_id, team, opponent,
+                        net_game, n_plays_eff_game)
   }
   tg
 }
@@ -218,14 +218,14 @@ build_team_strength_v01 <- function(
   # Base weekly grid from games to include byes
   if (!is.null(games)) {
     grid <- games %>%
-      dplyr::filter(.data$game_type %in% c("REG","POST")) %>%
-      dplyr::select(.data$season, .data$week, home = .data$home_team, away = .data$away_team) %>%
+      dplyr::filter(game_type %in% c("REG","POST")) %>%
+      dplyr::select(season, week, home = home_team, away = away_team) %>%
       tidyr::pivot_longer(c("home","away"), values_to = "team", names_to = "side") %>%
-      dplyr::select(.data$season, .data$week, .data$team) %>%
+      dplyr::select(season, week, team) %>%
       dplyr::distinct()
   } else {
     grid <- tg %>%
-      dplyr::select(.data$season, .data$week, .data$team) %>%
+      dplyr::select(season, week, team) %>%
       dplyr::distinct()
   }
   
@@ -239,22 +239,22 @@ build_team_strength_v01 <- function(
   }
   
   if (keep_components) {
-    tg_local <- tg %>% dplyr::mutate(wts = .data$n_plays_eff_game)
+    tg_local <- tg %>% dplyr::mutate(wts = n_plays_eff_game)
     tw <- tg_local %>%
-      dplyr::group_by(.data$season, .data$week, .data$team) %>%
+      dplyr::group_by(season, week, team) %>%
       dplyr::summarise(
-        net_week = stats::weighted.mean(.data$net_game, .data$wts),
-        off_week = stats::weighted.mean(.data$off_epa_game, .data$wts),
-        def_week = stats::weighted.mean(.data$def_epa_game, .data$wts),
-        n_plays_eff_week = sum(.data$n_plays_eff_game),
+        net_week = stats::weighted.mean(net_game, wts),
+        off_week = stats::weighted.mean(off_epa_game, wts),
+        def_week = stats::weighted.mean(def_epa_game, wts),
+        n_plays_eff_week = sum(n_plays_eff_game),
         .groups = "drop"
       )
   } else {
     tw <- tg %>%
-      dplyr::group_by(.data$season, .data$week, .data$team) %>%
+      dplyr::group_by(season, week, team) %>%
       dplyr::summarise(
-        net_week = stats::weighted.mean(.data$net_game, .data$n_plays_eff_game),
-        n_plays_eff_week = sum(.data$n_plays_eff_game),
+        net_week = stats::weighted.mean(net_game, n_plays_eff_game),
+        n_plays_eff_week = sum(n_plays_eff_game),
         .groups = "drop"
       )
   }
@@ -262,12 +262,12 @@ build_team_strength_v01 <- function(
   # Join to full grid (so byes appear with NA net_week)
   grid %>%
     dplyr::left_join(tw, by = c("season","week","team")) %>%
-    dplyr::arrange(.data$season, .data$team, .data$week)
+    dplyr::arrange(season, team, week)
 }
 
 #' @keywords internal
 .ts_v01_ewma_by_team_week <- function(tw, alpha, keep_components = FALSE) {
-  by_team <- dplyr::group_by(tw, .data$season, .data$team)
+  by_team <- dplyr::group_by(tw, season, team)
   smooth_one <- function(x) {
     if (length(x) == 0) return(x)
     out <- rep(NA_real_, length(x))
@@ -289,17 +289,17 @@ build_team_strength_v01 <- function(
   if (keep_components) {
     by_team %>%
       dplyr::mutate(
-        net_epa_smooth = smooth_one(.data$net_week),
-        off_epa_smooth = smooth_one(.data$off_week),
-        def_epa_smooth = smooth_one(.data$def_week),
-        n_plays_eff = cumsum(replace_na(.data$n_plays_eff_week, 0))
+        net_epa_smooth = smooth_one(net_week),
+        off_epa_smooth = smooth_one(off_week),
+        def_epa_smooth = smooth_one(def_week),
+        n_plays_eff = cumsum(replace_na(n_plays_eff_week, 0))
       ) %>%
       dplyr::ungroup()
   } else {
     by_team %>%
       dplyr::mutate(
-        net_epa_smooth = smooth_one(.data$net_week),
-        n_plays_eff = cumsum(replace_na(.data$n_plays_eff_week, 0))
+        net_epa_smooth = smooth_one(net_week),
+        n_plays_eff = cumsum(replace_na(n_plays_eff_week, 0))
       ) %>%
       dplyr::ungroup()
   }
@@ -309,53 +309,53 @@ build_team_strength_v01 <- function(
 .ts_v01_schedule_adjust <- function(tw_sm, tg, beta = 0.7, keep_components = FALSE) {
   # (season, week, team, opponent) for each INCLUDED team-game
   sched <- tg %>%
-    dplyr::select(.data$season, .data$week, .data$team, .data$opponent) %>%
-    dplyr::arrange(.data$season, .data$team, .data$week)
+    dplyr::select(season, week, team, opponent) %>%
+    dplyr::arrange(season, team, week)
   
   # Opponent's smoothed NET, lagged by one week relative to the game week
   opp_sm <- tw_sm %>%
-    dplyr::select(.data$season, .data$week, team = .data$team,
-                  opp_net_smooth = .data$net_epa_smooth) %>%
-    dplyr::mutate(week = .data$week + 1L)
+    dplyr::select(season, week, team = team,
+                  opp_net_smooth = net_epa_smooth) %>%
+    dplyr::mutate(week = week + 1L)
   
   sched <- sched %>%
     dplyr::left_join(opp_sm, by = c("season","week","opponent" = "team")) %>%
     # Week-1 neutral prior: if lagged opp strength is missing, use 0 (EPA/play)
-    dplyr::mutate(opp_net_smooth_lag = dplyr::coalesce(.data$opp_net_smooth, 0))
+    dplyr::mutate(opp_net_smooth_lag = dplyr::coalesce(opp_net_smooth, 0))
   
   # Cumulative mean across *played* games; counts week 1 as a 0-prior observation
   sos_by_game <- sched %>%
-    dplyr::group_by(.data$season, .data$team) %>%
-    dplyr::arrange(.data$week, .by_group = TRUE) %>%
+    dplyr::group_by(season, team) %>%
+    dplyr::arrange(week, .by_group = TRUE) %>%
     dplyr::mutate(
-      cum_sum = cumsum(.data$opp_net_smooth_lag),
+      cum_sum = cumsum(opp_net_smooth_lag),
       cum_n   = cumsum(1L),
-      sos_game_cum = .data$cum_sum / .data$cum_n
+      sos_game_cum = cum_sum / cum_n
     ) %>%
-    dplyr::select(.data$season, .data$team, .data$week, .data$sos_game_cum) %>%
+    dplyr::select(season, team, week, sos_game_cum) %>%
     dplyr::ungroup()
   
   # Join back to full weekly table and carry forward over byes
   tw <- tw_sm %>%
     dplyr::left_join(sos_by_game, by = c("season","team","week")) %>%
-    dplyr::group_by(.data$season, .data$team) %>%
-    dplyr::arrange(.data$week, .by_group = TRUE) %>%
+    dplyr::group_by(season, team) %>%
+    dplyr::arrange(week, .by_group = TRUE) %>%
     dplyr::mutate(
       sos = {
-        s <- .data$sos_game_cum
+        s <- sos_game_cum
         for (i in seq_along(s)) if (i > 1 && !is.finite(s[i])) s[i] <- s[i-1]
         # If the very first rated week were somehow NA, make it 0 (paranoia guard)
         if (!is.finite(s[1])) s[1] <- 0
         s
       },
-      adj_net = .data$net_epa_smooth - beta * .data$sos
+      adj_net = net_epa_smooth - beta * sos
     )
   
   if (keep_components) {
     tw <- tw %>%
       dplyr::mutate(
-        adj_off = .data$off_epa_smooth - beta * .data$sos,
-        adj_def = .data$def_epa_smooth - beta * .data$sos
+        adj_off = off_epa_smooth - beta * sos,
+        adj_def = def_epa_smooth - beta * sos
       )
   }
   
@@ -372,18 +372,18 @@ build_team_strength_v01 <- function(
   }
   
   out <- tw_adj %>%
-    dplyr::group_by(.data$season, .data$week) %>%
+    dplyr::group_by(season, week) %>%
     dplyr::mutate(
-      rating_net = scale_fun(.data$adj_net)
+      rating_net = scale_fun(adj_net)
     ) %>%
     dplyr::ungroup()
   
   if (keep_components) {
     out <- out %>%
-      dplyr::group_by(.data$season, .data$week) %>%
+      dplyr::group_by(season, week) %>%
       dplyr::mutate(
-        rating_off = scale_fun(.data$adj_off),
-        rating_def = scale_fun(.data$adj_def)
+        rating_off = scale_fun(adj_off),
+        rating_def = scale_fun(adj_def)
       ) %>%
       dplyr::ungroup()
   }

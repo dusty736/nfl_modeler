@@ -73,76 +73,175 @@ get_starter_switches <- function(df) {
 #' Identify players who became new starters (were not starters the previous week)
 #' @param starters_df Cleaned starters-only dataframe
 #' @return DataFrame of promotions with week flagged
+#' Identify players promoted to starters relative to the *previous week*
+#' (no Week 1 flags; compares week t starters to week t-1 starters)
 get_inseason_promotions <- function(starters_df) {
   starters_df %>%
-    arrange(season, team, position, week) %>%
-    group_by(season, team, position) %>%
-    mutate(
-      was_starter_last_week = lag(player),
-      promoted_to_starter = player != was_starter_last_week
+    # one row per player per week per slot
+    dplyr::distinct(season, team, position, week, player, .keep_all = TRUE) %>%
+    dplyr::arrange(season, team, position, week) %>%
+    # build weekly starter sets
+    dplyr::group_by(season, team, position, week) %>%
+    dplyr::summarise(starters = list(unique(player)), .groups = "drop_last") %>%
+    dplyr::arrange(season, team, position, week) %>%
+    dplyr::group_by(season, team, position) %>%
+    dplyr::mutate(
+      prev_starters = dplyr::lag(starters),
+      is_first_week = dplyr::row_number() == 1L
     ) %>%
-    ungroup() %>%
-    filter(promoted_to_starter)
+    dplyr::ungroup() %>%
+    # only compare weeks that have a previous week
+    dplyr::filter(!is_first_week) %>%
+    dplyr::mutate(
+      promoted_players = purrr::map2(
+        starters, prev_starters,
+        ~ setdiff(.x, if (is.null(.y)) character(0) else .y)
+      )
+    ) %>%
+    tidyr::unnest_longer(promoted_players, values_to = "player") %>%
+    dplyr::filter(!is.na(player)) %>%
+    dplyr::transmute(
+      season, team, position, week,
+      player,
+      promoted_to_starter = TRUE
+    ) %>%
+    dplyr::arrange(season, team, position, week, player)
 }
 
-clean_position <- function(pos) {
-  pos_clean <- stringr::str_trim(pos) |> stringr::str_to_upper()
+library(dplyr)
+library(stringr)
+
+clean_position <- function(x,
+                           de_to   = c("EDGE", "DL"),   # where to send DE/LE/RE/etc.
+                           h_as    = c("WR", "TE"),     # where to send H / H-back
+                           s_generic_to = c("FS","SS")  # where to send bare "S"
+) {
+  de_to        <- match.arg(de_to)
+  h_as         <- match.arg(h_as)
+  s_generic_to <- match.arg(s_generic_to)
   
-  dplyr::case_when(
-    # Offensive Line
-    pos_clean %in% c("LT", "LG", "C", "RG", "RT", "OL", "LOT", "ROT", "OC", "T", "G") ~ "OL",
+  x0 <- toupper(trimws(as.character(x)))
+  x0 <- str_replace_all(x0, "\\s+", "")
+  x0 <- str_replace_all(x0, "\\\\", "/")
+  x0 <- str_replace_all(x0, "\\n", "")
+  
+  case_when(
+    # Offense skill
+    str_detect(x0, "^QB$") ~ "QB",
+    str_detect(x0, "^(RB|HB|RB/TE|HB/TE|HB-TE|RB\\d+|RBC)$") ~ "RB",
+    str_detect(x0, "^(FB|FB/TE|H-B)$") ~ "FB",
+    str_detect(x0, "^(WR|LWR|RWR|WR1|WR2|WRE|WE|SE|FL|SL|WR/\\d+|WR\\d+)$") ~ "WR",
+    str_detect(x0, "^(H)$") ~ h_as,  # H-back → WR (or TE if you set h_as="TE")
+    str_detect(x0, "^(TE|TE/FB|TE/HB|LTE|RTE|TE/LS|LS/TE)$") ~ "TE",
     
-    # Wide Receiver
-    pos_clean %in% c("WR", "WR1", "WR2", "WR\\8", "LWR", "RWR", "WRE") ~ "WR",
+    # Offensive line
+    str_detect(x0, "^(LT|LOT)$") ~ "LT",
+    str_detect(x0, "^RT$") ~ "RT",
+    str_detect(x0, "^LG$") ~ "LG",
+    str_detect(x0, "^RG$") ~ "RG",
+    str_detect(x0, "^(C|OC)$") ~ "C",
+    str_detect(x0, "^(OL|OLB?|OT|G|T|LS)$") ~ "OL",  # generic/ambiguous OL
     
-    # Tight End
-    pos_clean %in% c("TE", "TE\\N", "LTE", "RTE", "HB-TE") ~ "TE",
+    # Interior DL
+    str_detect(x0, "^(DT|NT|NG|NDT|NOSE|UT)$") ~ "DT",
     
-    # Quarterback
-    pos_clean %in% c("QB", "JACK") ~ "QB",
+    # Edge / Ends (choice: EDGE or DL)
+    str_detect(x0, "^(EDGE|DE/LB|LEO|DPR|RUSH|JACK)$") ~ "EDGE",
+    str_detect(x0, "^(DE|LDE|RDE|LE|RE|END|OE|DDE)$") ~ ifelse(de_to=="EDGE","EDGE","DL"),
     
-    # Running Back & Fullback
-    pos_clean %in% c("RB", "FB", "HB", "H-B", "RB86", "F", "H") ~ "RB",
-    
-    # Defensive Line
-    pos_clean %in% c(
-      "DL", "DE", "DT", "NT", "LDE", "RDE", "RDT", "LDT", "DL44",
-      "LE", "RE", "EDGE", "DPR", "NDT", "RUSH"
-    ) ~ "DL",
+    # Generic DL
+    str_detect(x0, "^(DL|DL44|DL/OL)$") ~ "DL",
     
     # Linebackers
-    pos_clean %in% c(
-      "LB", "ILB", "OLB", "MLB", "WILL", "SAM", "MIKE", "SLB", "WLB",
-      "ROLB", "LOLB", "LILB", "RILB", "0LB", "$LB", "MIL", "\nMLB", "WIL", "LEO",
-      "LILBI"
-    ) ~ "LB",
+    str_detect(x0, "^(MLB|MIKE|ILB|MILB|WILB|RILB|LILB|MO|ML|LB$)$") ~ "MLB",
+    str_detect(x0, "^(OLB|LOLB|ROLB|SAM|WILL|WLB|SLB|OTTO|BLB)$") ~ "OLB",
     
-    # Cornerbacks
-    pos_clean %in% c(
-      "CB", "LCB", "RCB", "NB", "NICKE", "NKL", "NICK", "NDB", "MCB", "NCB", "LCR"
-    ) ~ "CB",
+    # Secondary
+    str_detect(x0, "^(CB|LCB|RCB|NCB|MCB|NB|NICK|NICKE|NKL)$") ~ "CB",
+    str_detect(x0, "^(SS|WS)$") ~ "SS",
+    str_detect(x0, "^(FS)$") ~ "FS",
+    str_detect(x0, "^(S|DS|CS)$") ~ s_generic_to,   # bare S → FS (or SS)
     
-    # Safeties
-    pos_clean %in% c("S", "SS", "FS", "WS", "S47") ~ "S",
+    x0 == "K" ~ "K",
+    x0 == "P" ~ "P",
     
-    # Kickers & Punters & LS
-    pos_clean %in% c("K", "P", "PK", "KO", "K/KO", "KOS", "P/H", "PH", "PF", "HLS", "LS") ~ "K",
+    str_detect(x0, "^(KO|KR|PR|HLS)") ~ "ST",
     
-    # Returners (map to ST)
-    pos_clean %in% c("KR", "KOR", "PR", "RS") ~ "ST",
-    
-    # Special Teams, Long Snappers, etc.
-    pos_clean %in% c("ST", "UT", "PK", "KOS", "P.", "OC") ~ "ST",
-    
-    # Unknown or ambiguous
-    pos_clean %in% c("", "\n", "19", "21", "6", "J", "N", "DL/OL", "OTTO", 
-                     "7") ~ "UNK",
-    
-    # Default: keep as is for manual follow-up
-    TRUE ~ pos_clean
+    TRUE ~ "OTHER"
   )
 }
 
+# Maps raw depth-chart positions to these exact labels (your set):
+# C FB FS H KR LCB LDE LDT LG LILB LS LT MLB NB NT P PK PR QB RB RCB RDE RDT RG RILB RT SLB SS TE WLB WR
+# Anything else -> "OTHER".
+# Notes:
+# - Bare "CB" -> NB (change default_cb if you prefer LCB/RCB).
+# - Bare "DE" -> default_de (RDE by default).
+# - Bare "DT" -> default_dt (NT by default).
+# - Bare "ILB" -> MLB; "LILB"/"RILB" map to those sides.
+# - Bare "OLB" -> default_olb (WLB by default).
+# - Bare "S"  -> s_generic_to (FS by default).
+# - "H" here is the holder (kept as "H"). If you use H-back, set h_as = "TE" or "WR".
+
+clean_position_update <- function(x,
+                           de_to   = c("EDGE", "DL"),   # where to send DE/LE/RE/etc.
+                           h_as    = c("WR", "TE"),     # where to send H / H-back
+                           s_generic_to = c("FS","SS")  # where to send bare "S"
+) {
+  de_to        <- match.arg(de_to)
+  h_as         <- match.arg(h_as)
+  s_generic_to <- match.arg(s_generic_to)
+  
+  x0 <- toupper(trimws(as.character(x)))
+  x0 <- str_replace_all(x0, "\\s+", "")
+  x0 <- str_replace_all(x0, "\\\\", "/")
+  x0 <- str_replace_all(x0, "\\n", "")
+  
+  dplyr::case_when(
+    # Offense skill
+    str_detect(x0, "^QB$") ~ "QB",
+    str_detect(x0, "^(RB|HB|RB/TE|HB/TE|HB-TE|RB\\d+|RBC)$") ~ "RB",
+    str_detect(x0, "^(FB|FB/TE|H-B)$") ~ "FB",
+    str_detect(x0, "^(WR|LWR|RWR|WR1|WR2|WRE|WE|SE|FL|SL|WR/\\d+|WR\\d+)$") ~ "WR",
+    str_detect(x0, "^(H)$") ~ h_as,  # H-back → WR (or TE)
+    str_detect(x0, "^(TE|TE/FB|TE/HB|LTE|RTE|TE/LS|LS/TE)$") ~ "TE",
+    
+    # Offensive line
+    str_detect(x0, "^(LT|LOT)$") ~ "LT",
+    str_detect(x0, "^RT$") ~ "RT",
+    str_detect(x0, "^LG$") ~ "LG",
+    str_detect(x0, "^RG$") ~ "RG",
+    str_detect(x0, "^(C|OC)$") ~ "C",
+    str_detect(x0, "^(OL|OLB?|OT|G|T|LS)$") ~ "OL",  # generic/ambiguous OL
+    
+    # Interior DL
+    str_detect(x0, "^(DT|NT|NG|NDT|NOSE|UT)$") ~ "DT",
+    
+    # Edge / Ends (choice: EDGE or DL)
+    str_detect(x0, "^(EDGE|DE/LB|LEO|DPR|RUSH|JACK)$") ~ "EDGE",
+    str_detect(x0, "^(DE|LDE|RDE|LE|RE|END|OE|DDE)$") ~ ifelse(de_to == "EDGE", "EDGE", "DL"),
+    
+    # Generic DL
+    str_detect(x0, "^(DL|DL44|DL/OL)$") ~ "DL",
+    
+    # Linebackers
+    str_detect(x0, "^(MLB|MIKE|ILB|MILB|WILB|RILB|LILB|MO|ML|LB$)$") ~ "MLB",
+    str_detect(x0, "^(OLB|LOLB|ROLB|SAM|WILL|WLB|SLB|OTTO|BLB)$") ~ "OLB",
+    
+    # Secondary
+    str_detect(x0, "^(CB|LCB|RCB|NCB|MCB|NB|NICK|NICKE|NKL)$") ~ "CB",
+    str_detect(x0, "^(SS|WS)$") ~ "SS",
+    str_detect(x0, "^(FS)$") ~ "FS",
+    str_detect(x0, "^(S|DS|CS)$") ~ s_generic_to,   # bare S → FS (or SS)
+    
+    x0 == "K" ~ "K",
+    x0 == "P" ~ "P",
+    
+    str_detect(x0, "^(KO|KR|PR|HLS)$") ~ "ST",
+    
+    TRUE ~ "OTHER"
+  )
+}
 
 #' Compute weekly depth chart stability by position/team
 #' @param starters_df Starter-only depth chart data (with position)
@@ -151,27 +250,27 @@ get_lineup_stability_by_week <- function(starters_df) {
   # 1. Summarize number of position entries per team-week
   position_games <- starters_df %>% 
     distinct() %>% 
-    group_by(season, week, team, position) %>% 
+    group_by(season, week, team, position_group) %>% 
     summarize(position_count = n()) %>% 
-    arrange(team, position, season, week) %>% 
-    group_by(season, team, position) %>% 
+    arrange(team, position_group, season, week) %>% 
+    group_by(season, team, position_group) %>% 
     mutate(running_position_count = cumsum(position_count))
   
   position_players <- starters_df %>% 
-    arrange(season, week, team, position, player) %>% 
+    arrange(season, week, team, position_group, player) %>% 
     distinct() %>% 
-    group_by(season, team, position, player) %>% 
+    group_by(season, team, position_group, player) %>% 
     mutate(start_count = row_number()) %>% 
-    arrange(team, position, player, season, week)
+    arrange(team, position_group, player, season, week)
   
   stability_by_week <- position_games %>% 
-    left_join(., position_players, by=c('team', 'position', 'season', 'week')) %>% 
-    filter(!position %in% c('K', 'ST')) %>% 
-    group_by(season, week, team, position, running_position_count) %>% 
+    left_join(., position_players, by=c('team', 'position_group', 'season', 'week')) %>% 
+    group_by(season, week, team, position_group, running_position_count) %>% 
     summarize(starts = sum(start_count)) %>% 
     ungroup(.) %>% 
     mutate(position_group_score = round(starts / running_position_count, 3)) %>% 
-    dplyr::select(season, week, team, position, position_group_score)
+    dplyr::select(season, week, team, position_group, position_group_score) %>% 
+    filter(position_group != "OTHER")
   
   return(stability_by_week)
 }

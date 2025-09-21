@@ -17,7 +17,7 @@ espn_qbr_raw <- arrow::read_parquet(here("data", "raw", "espn_qbr.parquet"))
 # Clean and normalize
 ################################################################################
 
-espn_qbr_season <- espn_qbr_raw
+espn_qbr_season <- prepare_espn_qbr_season_totals(espn_qbr_raw)
 espn_qbr_career <- espn_qbr_career_by_season_type(espn_qbr_raw)
 
 ################################################################################

@@ -691,4 +691,101 @@ aggregate_team_alltime_stats <- function(weekly_df) {
   final
 }
 
-
+#' Derive defensive "allowed" stats from opponent offense (use `opponent` column)
+#'
+#' @description
+#' For each offensive stat row, create a corresponding defensive-allowed row for
+#' the opponent (swap `team` and `opponent`, keep `value`), then append it to the
+#' original long table. Uses the provided `opponent` column (no `game_id` parsing).
+#' Duplicates are prevented via an anti-join on exact keys. Offense rows are never
+#' removed or overwritten.
+#'
+#' @param df Long tibble/data.frame with columns:
+#'   `team, season, season_type, week, opponent, stat_type, stat_name, value, game_id`.
+#' @param stat_type_keep Which `stat_type` to transform (default "base").
+#'
+#' @return A tibble with original rows **plus** derived defensive-allowed rows,
+#'   sorted by `season, week, team, stat_name`.
+#'
+#' @details
+#' Mapping (offense → defense-allowed):
+#' - `passing_yards`            → `def_passing_yards_allowed`
+#' - `passing_tds`              → `def_passing_tds_allowed`
+#' - `passing_first_downs`      → `def_passing_first_downs_allowed`
+#' - `passing_epa`              → `def_pass_epa_allowed`
+#' - `avg_drive_depth_into_opp` → `def_avg_drive_depth_allow`
+#' - `drives`                   → `def_drives_allowed`
+#' - `carries`                  → `def_carries_allowed`
+#' - `rushing_yards`            → `def_rushing_yards_allowed`
+#' - `rushing_tds`              → `def_rushing_tds_allowed`
+#' - `rushing_first_downs`      → `def_rushing_first_downs_allowed`
+#' - `rushing_epa`              → `def_rushing_epa_allowed`
+#'
+#' @importFrom dplyr filter transmute select distinct anti_join bind_rows arrange mutate
+#' @export
+derive_defense_allowed_stats <- function(
+    df,
+    stat_type_keep = "base"
+) {
+  # ---- Column checks ----
+  needed <- c("team","season","season_type","week","opponent",
+              "stat_type","stat_name","value","game_id")
+  miss <- setdiff(needed, names(df))
+  if (length(miss) > 0) stop(sprintf("Missing required columns: %s", paste(miss, collapse = ", ")))
+  
+  # ---- Offense → Defense-Allowed map ----
+  stat_map <- c(
+    "passing_yards"            = "def_passing_yards_allowed",
+    "passing_tds"              = "def_passing_tds_allowed",
+    "passing_first_downs"      = "def_passing_first_downs_allowed",
+    "passing_epa"              = "def_pass_epa_allowed",
+    "avg_drive_depth_into_opp" = "def_avg_drive_depth_allow",
+    "drives"                   = "def_drives_allowed",
+    "carries"                  = "def_carries_allowed",
+    "rushing_yards"            = "def_rushing_yards_allowed",
+    "rushing_tds"              = "def_rushing_tds_allowed",
+    "rushing_first_downs"      = "def_rushing_first_downs_allowed",
+    "rushing_epa"              = "def_rushing_epa_allowed"
+  )
+  
+  present_off <- intersect(names(stat_map), unique(df$stat_name))
+  if (length(present_off) == 0L) {
+    return(df |> dplyr::arrange(.data$season, .data$week, .data$team, .data$stat_name))
+  }
+  
+  # ---- Build mirrored rows using the opponent column ----
+  src <- df |>
+    dplyr::filter(
+      .data$stat_type == stat_type_keep,
+      .data$stat_name %in% present_off,
+      !is.na(.data$opponent), .data$opponent != "",
+      .data$team != .data$opponent
+    )
+  
+  def_allowed <- src |>
+    dplyr::transmute(
+      team        = .data$opponent,              # mirror to opponent
+      season      = .data$season,
+      season_type = .data$season_type,           # kept for lineage
+      week        = .data$week,
+      opponent    = .data$team,                  # original team becomes opponent
+      stat_type   = .data$stat_type,             # "base"
+      stat_name   = unname(stat_map[.data$stat_name]),
+      value       = .data$value,
+      game_id     = .data$game_id
+    )
+  
+  # ---- Prevent duplicates (exact key) ----
+  key_cols <- c("season","week","team","stat_type","stat_name","game_id")
+  existing_keys <- df |>
+    dplyr::select(dplyr::all_of(key_cols)) |>
+    dplyr::distinct()
+  
+  def_allowed_new <- def_allowed |>
+    dplyr::anti_join(existing_keys, by = key_cols) |>
+    dplyr::filter(.data$team != .data$opponent)   # final guardrail
+  
+  # ---- Append & sort ----
+  dplyr::bind_rows(df, def_allowed_new) |>
+    dplyr::arrange(.data$season, .data$week, .data$team, .data$stat_name)
+}

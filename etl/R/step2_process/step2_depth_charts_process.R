@@ -22,9 +22,13 @@ starters <- filter_depth_chart_starters(depth_charts_raw) %>%
   mutate(
     position = clean_position(position),
     position_group = dplyr::case_when(
-      position %in% c("OL", "WR", "TE", "QB", "RB") ~ "OFF",
-      position %in% c("DL", "LB", "CB", "S") ~ "DEF",
-      position %in% c("K", "LS") ~ "ST",
+      position %in% c("C", "LG", "LT", "OL", "RG", "RT") ~ "OL",
+      position %in% c("QB") ~ "QB",
+      position %in% c("WR", "TE") ~ "REC",
+      position %in% c("RB") ~ "RB",
+      position %in% c("CB", "DL", "DT", "EDGE", "FS", "MLB", "OLB", "SS") ~ "DEF",
+      position %in% c('K') ~ 'K',
+      position %in% c('ST', 'P') ~ 'ST',
       TRUE ~ "OTHER"
     )
   ) %>% 

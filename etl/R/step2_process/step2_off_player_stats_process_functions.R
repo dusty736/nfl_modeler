@@ -24,20 +24,17 @@ process_qb_stats <- function(off_stats) {
       season, week, season_type,
       player_id, full_name = player_display_name,
       position, recent_team, opponent_team,
-      
-      # Passing stats
+      # Passing
       completions, attempts, passing_yards, passing_tds,
       interceptions, sacks, sack_yards,
       sack_fumbles, sack_fumbles_lost,
       passing_air_yards, passing_yards_after_catch,
       passing_first_downs, passing_epa, passing_2pt_conversions,
       pacr, dakota,
-      
-      # Rushing stats
+      # Rushing
       carries, rushing_yards, rushing_tds,
       rushing_fumbles, rushing_fumbles_lost,
       rushing_first_downs, rushing_epa, rushing_2pt_conversions,
-      
       # Fantasy
       fantasy_points, fantasy_points_ppr
     ) %>%
@@ -45,18 +42,18 @@ process_qb_stats <- function(off_stats) {
     dplyr::group_by(season, player_id) %>%
     dplyr::arrange(week, .by_group = TRUE) %>%
     dplyr::mutate(
-      cumulative_completions = cumsum(coalesce(completions, 0)),
-      cumulative_attempts = cumsum(coalesce(attempts, 0)),
-      cumulative_passing_yards = cumsum(coalesce(passing_yards, 0)),
-      cumulative_passing_tds = cumsum(coalesce(passing_tds, 0)),
-      cumulative_interceptions = cumsum(coalesce(interceptions, 0)),
-      cumulative_sacks = cumsum(coalesce(sacks, 0)),
-      cumulative_sack_yards = cumsum(coalesce(sack_yards, 0)),
-      cumulative_passing_epa = cumsum(coalesce(passing_epa, 0)),
-      cumulative_rushing_yards = cumsum(coalesce(rushing_yards, 0)),
-      cumulative_rushing_tds = cumsum(coalesce(rushing_tds, 0)),
-      cumulative_rushing_epa = cumsum(coalesce(rushing_epa, 0)),
-      cumulative_fantasy_points = cumsum(coalesce(fantasy_points, 0)),
+      cumulative_completions        = cumsum(coalesce(completions, 0)),
+      cumulative_attempts           = cumsum(coalesce(attempts, 0)),
+      cumulative_passing_yards      = cumsum(coalesce(passing_yards, 0)),
+      cumulative_passing_tds        = cumsum(coalesce(passing_tds, 0)),
+      cumulative_interceptions      = cumsum(coalesce(interceptions, 0)),
+      cumulative_sacks              = cumsum(coalesce(sacks, 0)),
+      cumulative_sack_yards         = cumsum(coalesce(sack_yards, 0)),
+      cumulative_passing_epa        = cumsum(coalesce(passing_epa, 0)),
+      cumulative_rushing_yards      = cumsum(coalesce(rushing_yards, 0)),
+      cumulative_rushing_tds        = cumsum(coalesce(rushing_tds, 0)),
+      cumulative_rushing_epa        = cumsum(coalesce(rushing_epa, 0)),
+      cumulative_fantasy_points     = cumsum(coalesce(fantasy_points, 0)),
       cumulative_fantasy_points_ppr = cumsum(coalesce(fantasy_points_ppr, 0))
     ) %>%
     dplyr::ungroup()
@@ -82,49 +79,44 @@ process_qb_stats <- function(off_stats) {
 #' @export
 aggregate_qb_season_stats <- function(qb_stats) {
   qb_stats %>%
-    dplyr::select(
-      -dplyr::starts_with("cumulative_")
-    ) %>%
+    dplyr::select(-dplyr::starts_with("cumulative_")) %>%
     dplyr::group_by(season, player_id) %>%
     dplyr::summarize(
-      full_name = dplyr::first(full_name),
-      position = dplyr::first(position),
+      full_name   = dplyr::first(full_name),
+      position    = dplyr::first(position),
       recent_team = dplyr::last(recent_team),
       
       games_played = dplyr::n_distinct(week),
       
-      # Volume totals
-      completions = sum(completions, na.rm = TRUE),
-      attempts = sum(attempts, na.rm = TRUE),
+      completions   = sum(completions,   na.rm = TRUE),
+      attempts      = sum(attempts,      na.rm = TRUE),
       passing_yards = sum(passing_yards, na.rm = TRUE),
-      passing_tds = sum(passing_tds, na.rm = TRUE),
+      passing_tds   = sum(passing_tds,   na.rm = TRUE),
       interceptions = sum(interceptions, na.rm = TRUE),
-      sacks = sum(sacks, na.rm = TRUE),
-      sack_yards = sum(sack_yards, na.rm = TRUE),
-      sack_fumbles = sum(sack_fumbles, na.rm = TRUE),
-      sack_fumbles_lost = sum(sack_fumbles_lost, na.rm = TRUE),
-      passing_air_yards = sum(passing_air_yards, na.rm = TRUE),
-      passing_yards_after_catch = sum(passing_yards_after_catch, na.rm = TRUE),
-      passing_first_downs = sum(passing_first_downs, na.rm = TRUE),
-      passing_epa = sum(passing_epa, na.rm = TRUE),
-      passing_2pt_conversions = sum(passing_2pt_conversions, na.rm = TRUE),
+      sacks         = sum(sacks,         na.rm = TRUE),
+      sack_yards    = sum(sack_yards,    na.rm = TRUE),
+      sack_fumbles       = sum(sack_fumbles,       na.rm = TRUE),
+      sack_fumbles_lost  = sum(sack_fumbles_lost,  na.rm = TRUE),
+      passing_air_yards          = sum(passing_air_yards,          na.rm = TRUE),
+      passing_yards_after_catch  = sum(passing_yards_after_catch,  na.rm = TRUE),
+      passing_first_downs        = sum(passing_first_downs,        na.rm = TRUE),
+      passing_epa                = sum(passing_epa,                na.rm = TRUE),
+      passing_2pt_conversions    = sum(passing_2pt_conversions,    na.rm = TRUE),
       
-      carries = sum(carries, na.rm = TRUE),
-      rushing_yards = sum(rushing_yards, na.rm = TRUE),
-      rushing_tds = sum(rushing_tds, na.rm = TRUE),
-      rushing_fumbles = sum(rushing_fumbles, na.rm = TRUE),
+      carries              = sum(carries,              na.rm = TRUE),
+      rushing_yards        = sum(rushing_yards,        na.rm = TRUE),
+      rushing_tds          = sum(rushing_tds,          na.rm = TRUE),
+      rushing_fumbles      = sum(rushing_fumbles,      na.rm = TRUE),
       rushing_fumbles_lost = sum(rushing_fumbles_lost, na.rm = TRUE),
-      rushing_first_downs = sum(rushing_first_downs, na.rm = TRUE),
-      rushing_epa = sum(rushing_epa, na.rm = TRUE),
+      rushing_first_downs  = sum(rushing_first_downs,  na.rm = TRUE),
+      rushing_epa          = sum(rushing_epa,          na.rm = TRUE),
       rushing_2pt_conversions = sum(rushing_2pt_conversions, na.rm = TRUE),
       
-      fantasy_points = sum(fantasy_points, na.rm = TRUE),
+      fantasy_points     = sum(fantasy_points,     na.rm = TRUE),
       fantasy_points_ppr = sum(fantasy_points_ppr, na.rm = TRUE),
       
-      # Rate stats (averaged)
-      pacr = mean(pacr, na.rm = TRUE),
+      pacr   = mean(pacr,   na.rm = TRUE),
       dakota = mean(dakota, na.rm = TRUE),
-      
       .groups = "drop"
     )
 }
@@ -152,45 +144,42 @@ aggregate_qb_career_stats <- function(qb_stats) {
     dplyr::select(-dplyr::starts_with("cumulative_")) %>%
     dplyr::group_by(player_id) %>%
     dplyr::summarize(
-      full_name = dplyr::first(full_name),
-      position = dplyr::first(position),
+      full_name   = dplyr::first(full_name),
+      position    = dplyr::first(position),
       recent_team = dplyr::last(recent_team),
       
       seasons_played = dplyr::n_distinct(season),
-      games_played = dplyr::n_distinct(paste(season, week)),
+      games_played   = dplyr::n_distinct(season, week),
       
-      # Volume totals
-      completions = sum(completions, na.rm = TRUE),
-      attempts = sum(attempts, na.rm = TRUE),
+      completions   = sum(completions,   na.rm = TRUE),
+      attempts      = sum(attempts,      na.rm = TRUE),
       passing_yards = sum(passing_yards, na.rm = TRUE),
-      passing_tds = sum(passing_tds, na.rm = TRUE),
+      passing_tds   = sum(passing_tds,   na.rm = TRUE),
       interceptions = sum(interceptions, na.rm = TRUE),
-      sacks = sum(sacks, na.rm = TRUE),
-      sack_yards = sum(sack_yards, na.rm = TRUE),
-      sack_fumbles = sum(sack_fumbles, na.rm = TRUE),
-      sack_fumbles_lost = sum(sack_fumbles_lost, na.rm = TRUE),
-      passing_air_yards = sum(passing_air_yards, na.rm = TRUE),
-      passing_yards_after_catch = sum(passing_yards_after_catch, na.rm = TRUE),
-      passing_first_downs = sum(passing_first_downs, na.rm = TRUE),
-      passing_epa = sum(passing_epa, na.rm = TRUE),
-      passing_2pt_conversions = sum(passing_2pt_conversions, na.rm = TRUE),
+      sacks         = sum(sacks,         na.rm = TRUE),
+      sack_yards    = sum(sack_yards,    na.rm = TRUE),
+      sack_fumbles       = sum(sack_fumbles,       na.rm = TRUE),
+      sack_fumbles_lost  = sum(sack_fumbles_lost,  na.rm = TRUE),
+      passing_air_yards          = sum(passing_air_yards,          na.rm = TRUE),
+      passing_yards_after_catch  = sum(passing_yards_after_catch,  na.rm = TRUE),
+      passing_first_downs        = sum(passing_first_downs,        na.rm = TRUE),
+      passing_epa                = sum(passing_epa,                na.rm = TRUE),
+      passing_2pt_conversions    = sum(passing_2pt_conversions,    na.rm = TRUE),
       
-      carries = sum(carries, na.rm = TRUE),
-      rushing_yards = sum(rushing_yards, na.rm = TRUE),
-      rushing_tds = sum(rushing_tds, na.rm = TRUE),
-      rushing_fumbles = sum(rushing_fumbles, na.rm = TRUE),
+      carries              = sum(carries,              na.rm = TRUE),
+      rushing_yards        = sum(rushing_yards,        na.rm = TRUE),
+      rushing_tds          = sum(rushing_tds,          na.rm = TRUE),
+      rushing_fumbles      = sum(rushing_fumbles,      na.rm = TRUE),
       rushing_fumbles_lost = sum(rushing_fumbles_lost, na.rm = TRUE),
-      rushing_first_downs = sum(rushing_first_downs, na.rm = TRUE),
-      rushing_epa = sum(rushing_epa, na.rm = TRUE),
+      rushing_first_downs  = sum(rushing_first_downs,  na.rm = TRUE),
+      rushing_epa          = sum(rushing_epa,          na.rm = TRUE),
       rushing_2pt_conversions = sum(rushing_2pt_conversions, na.rm = TRUE),
       
-      fantasy_points = sum(fantasy_points, na.rm = TRUE),
+      fantasy_points     = sum(fantasy_points,     na.rm = TRUE),
       fantasy_points_ppr = sum(fantasy_points_ppr, na.rm = TRUE),
       
-      # Rate stats (averaged across games)
-      pacr = mean(pacr, na.rm = TRUE),
+      pacr   = mean(pacr,   na.rm = TRUE),
       dakota = mean(dakota, na.rm = TRUE),
-      
       .groups = "drop"
     )
 }
@@ -221,45 +210,33 @@ process_rb_stats <- function(off_stats) {
       season, week, season_type,
       player_id, full_name = player_display_name,
       position, recent_team, opponent_team,
-      
       # Rushing
       carries, rushing_yards, rushing_tds,
       rushing_fumbles, rushing_fumbles_lost,
       rushing_first_downs, rushing_epa, rushing_2pt_conversions,
-      
       # Receiving
       targets, receptions, receiving_yards, receiving_tds,
       receiving_fumbles, receiving_fumbles_lost,
       receiving_air_yards, receiving_yards_after_catch,
       receiving_first_downs, receiving_epa, receiving_2pt_conversions,
-      
-      # Advanced
+      # Advanced + Fantasy
       racr, target_share, air_yards_share, wopr,
-      
-      # Fantasy
       fantasy_points, fantasy_points_ppr
     ) %>%
-    dplyr::filter(
-      !is.na(carries) | !is.na(targets)
-    ) %>%
+    dplyr::filter(!is.na(carries) | !is.na(targets)) %>%
     dplyr::group_by(season, player_id) %>%
     dplyr::arrange(week, .by_group = TRUE) %>%
     dplyr::mutate(
-      # Cumulative rushing
-      cumulative_carries = cumsum(coalesce(carries, 0)),
-      cumulative_rushing_yards = cumsum(coalesce(rushing_yards, 0)),
-      cumulative_rushing_tds = cumsum(coalesce(rushing_tds, 0)),
-      cumulative_rushing_epa = cumsum(coalesce(rushing_epa, 0)),
-      
-      # Cumulative receiving
-      cumulative_targets = cumsum(coalesce(targets, 0)),
-      cumulative_receptions = cumsum(coalesce(receptions, 0)),
-      cumulative_receiving_yards = cumsum(coalesce(receiving_yards, 0)),
-      cumulative_receiving_tds = cumsum(coalesce(receiving_tds, 0)),
-      cumulative_receiving_epa = cumsum(coalesce(receiving_epa, 0)),
-      
-      # Cumulative fantasy
-      cumulative_fantasy_points = cumsum(coalesce(fantasy_points, 0)),
+      cumulative_carries            = cumsum(coalesce(carries, 0)),
+      cumulative_rushing_yards      = cumsum(coalesce(rushing_yards, 0)),
+      cumulative_rushing_tds        = cumsum(coalesce(rushing_tds, 0)),
+      cumulative_rushing_epa        = cumsum(coalesce(rushing_epa, 0)),
+      cumulative_targets            = cumsum(coalesce(targets, 0)),
+      cumulative_receptions         = cumsum(coalesce(receptions, 0)),
+      cumulative_receiving_yards    = cumsum(coalesce(receiving_yards, 0)),
+      cumulative_receiving_tds      = cumsum(coalesce(receiving_tds, 0)),
+      cumulative_receiving_epa      = cumsum(coalesce(receiving_epa, 0)),
+      cumulative_fantasy_points     = cumsum(coalesce(fantasy_points, 0)),
       cumulative_fantasy_points_ppr = cumsum(coalesce(fantasy_points_ppr, 0))
     ) %>%
     dplyr::ungroup()
@@ -283,6 +260,7 @@ process_rb_stats <- function(off_stats) {
 #'
 #' @import dplyr
 #' @export
+# --- RB season: count games across REG+POST (avoid Week 1 collisions) ---
 aggregate_rb_season_stats <- function(rb_stats) {
   rb_stats %>%
     dplyr::select(-dplyr::starts_with("cumulative_")) %>%
@@ -326,7 +304,6 @@ aggregate_rb_season_stats <- function(rb_stats) {
       target_share = mean(target_share, na.rm = TRUE),
       air_yards_share = mean(air_yards_share, na.rm = TRUE),
       wopr = mean(wopr, na.rm = TRUE),
-      
       .groups = "drop"
     )
 }
@@ -354,46 +331,44 @@ aggregate_rb_career_stats <- function(rb_stats) {
     dplyr::select(-dplyr::starts_with("cumulative_")) %>%
     dplyr::group_by(player_id) %>%
     dplyr::summarize(
-      full_name = dplyr::first(full_name),
-      position = dplyr::first(position),
+      full_name   = dplyr::first(full_name),
+      position    = dplyr::first(position),
       recent_team = dplyr::last(recent_team),
       
       seasons_played = dplyr::n_distinct(season),
-      games_played = dplyr::n_distinct(paste(season, week)),
+      games_played   = dplyr::n_distinct(season, week),
       
       # Rushing totals
-      carries = sum(carries, na.rm = TRUE),
-      rushing_yards = sum(rushing_yards, na.rm = TRUE),
-      rushing_tds = sum(rushing_tds, na.rm = TRUE),
-      rushing_epa = sum(rushing_epa, na.rm = TRUE),
-      rushing_fumbles = sum(rushing_fumbles, na.rm = TRUE),
+      carries              = sum(carries,              na.rm = TRUE),
+      rushing_yards        = sum(rushing_yards,        na.rm = TRUE),
+      rushing_tds          = sum(rushing_tds,          na.rm = TRUE),
+      rushing_epa          = sum(rushing_epa,          na.rm = TRUE),
+      rushing_fumbles      = sum(rushing_fumbles,      na.rm = TRUE),
       rushing_fumbles_lost = sum(rushing_fumbles_lost, na.rm = TRUE),
-      rushing_first_downs = sum(rushing_first_downs, na.rm = TRUE),
+      rushing_first_downs  = sum(rushing_first_downs,  na.rm = TRUE),
       rushing_2pt_conversions = sum(rushing_2pt_conversions, na.rm = TRUE),
       
       # Receiving totals
-      targets = sum(targets, na.rm = TRUE),
-      receptions = sum(receptions, na.rm = TRUE),
-      receiving_yards = sum(receiving_yards, na.rm = TRUE),
-      receiving_tds = sum(receiving_tds, na.rm = TRUE),
-      receiving_epa = sum(receiving_epa, na.rm = TRUE),
-      receiving_fumbles = sum(receiving_fumbles, na.rm = TRUE),
-      receiving_fumbles_lost = sum(receiving_fumbles_lost, na.rm = TRUE),
-      receiving_air_yards = sum(receiving_air_yards, na.rm = TRUE),
+      targets                     = sum(targets,                     na.rm = TRUE),
+      receptions                  = sum(receptions,                  na.rm = TRUE),
+      receiving_yards             = sum(receiving_yards,             na.rm = TRUE),
+      receiving_tds               = sum(receiving_tds,               na.rm = TRUE),
+      receiving_epa               = sum(receiving_epa,               na.rm = TRUE),
+      receiving_fumbles           = sum(receiving_fumbles,           na.rm = TRUE),
+      receiving_fumbles_lost      = sum(receiving_fumbles_lost,      na.rm = TRUE),
+      receiving_air_yards         = sum(receiving_air_yards,         na.rm = TRUE),
       receiving_yards_after_catch = sum(receiving_yards_after_catch, na.rm = TRUE),
-      receiving_first_downs = sum(receiving_first_downs, na.rm = TRUE),
-      receiving_2pt_conversions = sum(receiving_2pt_conversions, na.rm = TRUE),
+      receiving_first_downs       = sum(receiving_first_downs,       na.rm = TRUE),
+      receiving_2pt_conversions   = sum(receiving_2pt_conversions,   na.rm = TRUE),
       
       # Fantasy
-      fantasy_points = sum(fantasy_points, na.rm = TRUE),
+      fantasy_points     = sum(fantasy_points,     na.rm = TRUE),
       fantasy_points_ppr = sum(fantasy_points_ppr, na.rm = TRUE),
       
-      # Efficiency / rate stats (averaged)
-      racr = mean(racr, na.rm = TRUE),
-      target_share = mean(target_share, na.rm = TRUE),
+      racr          = mean(racr,          na.rm = TRUE),
+      target_share  = mean(target_share,  na.rm = TRUE),
       air_yards_share = mean(air_yards_share, na.rm = TRUE),
-      wopr = mean(wopr, na.rm = TRUE),
-      
+      wopr          = mean(wopr,          na.rm = TRUE),
       .groups = "drop"
     )
 }
@@ -417,59 +392,45 @@ aggregate_rb_career_stats <- function(rb_stats) {
 #'
 #' @import dplyr
 #' @export
-process_receiver_stats <- function(off_stats, position_group = c("WR", "TE")) {
+process_receiver_stats <- function(off_stats, position_group = c("WR","TE")) {
   position_group <- match.arg(position_group)
-  
   off_stats %>%
     dplyr::filter(position_group == !!position_group) %>%
     dplyr::select(
       season, week, season_type,
       player_id, full_name = player_display_name,
       position, recent_team, opponent_team,
-      
       # Rushing
       carries, rushing_yards, rushing_tds,
       rushing_fumbles, rushing_fumbles_lost,
       rushing_first_downs, rushing_epa, rushing_2pt_conversions,
-      
       # Receiving
       targets, receptions, receiving_yards, receiving_tds,
       receiving_fumbles, receiving_fumbles_lost,
       receiving_air_yards, receiving_yards_after_catch,
       receiving_first_downs, receiving_epa, receiving_2pt_conversions,
-      
-      # Advanced
+      # Advanced + Fantasy
       racr, target_share, air_yards_share, wopr,
-      
-      # Fantasy
       fantasy_points, fantasy_points_ppr
     ) %>%
-    dplyr::filter(
-      !is.na(carries) | !is.na(targets)
-    ) %>%
+    dplyr::filter(!is.na(carries) | !is.na(targets)) %>%
     dplyr::group_by(season, player_id) %>%
     dplyr::arrange(week, .by_group = TRUE) %>%
     dplyr::mutate(
-      # Cumulative rushing
-      cumulative_carries = cumsum(coalesce(carries, 0)),
-      cumulative_rushing_yards = cumsum(coalesce(rushing_yards, 0)),
-      cumulative_rushing_tds = cumsum(coalesce(rushing_tds, 0)),
-      cumulative_rushing_epa = cumsum(coalesce(rushing_epa, 0)),
-      
-      # Cumulative receiving
-      cumulative_targets = cumsum(coalesce(targets, 0)),
-      cumulative_receptions = cumsum(coalesce(receptions, 0)),
-      cumulative_receiving_yards = cumsum(coalesce(receiving_yards, 0)),
-      cumulative_receiving_tds = cumsum(coalesce(receiving_tds, 0)),
-      cumulative_receiving_epa = cumsum(coalesce(receiving_epa, 0)),
-      
-      # Cumulative fantasy
-      cumulative_fantasy_points = cumsum(coalesce(fantasy_points, 0)),
+      cumulative_carries            = cumsum(coalesce(carries, 0)),
+      cumulative_rushing_yards      = cumsum(coalesce(rushing_yards, 0)),
+      cumulative_rushing_tds        = cumsum(coalesce(rushing_tds, 0)),
+      cumulative_rushing_epa        = cumsum(coalesce(rushing_epa, 0)),
+      cumulative_targets            = cumsum(coalesce(targets, 0)),
+      cumulative_receptions         = cumsum(coalesce(receptions, 0)),
+      cumulative_receiving_yards    = cumsum(coalesce(receiving_yards, 0)),
+      cumulative_receiving_tds      = cumsum(coalesce(receiving_tds, 0)),
+      cumulative_receiving_epa      = cumsum(coalesce(receiving_epa, 0)),
+      cumulative_fantasy_points     = cumsum(coalesce(fantasy_points, 0)),
       cumulative_fantasy_points_ppr = cumsum(coalesce(fantasy_points_ppr, 0))
     ) %>%
     dplyr::ungroup()
 }
-
 
 #' Aggregate Receiver Stats to Player-Season Level (WR/TE)
 #'
@@ -494,44 +455,44 @@ aggregate_receiver_season_stats <- function(receiver_stats) {
     dplyr::group_by(player_id, season) %>%
     dplyr::summarize(
       full_name = dplyr::first(full_name),
-      position = dplyr::first(position),
+      position  = dplyr::first(position),
       recent_team = dplyr::last(recent_team),
       
-      seasons_played = dplyr::n_distinct(season),
-      games_played = dplyr::n_distinct(paste(season, week)),
+      # REG + POST totals; games_played counts distinct week numbers only
+      games_played = dplyr::n_distinct(week),
       
       # Rushing totals
-      carries = sum(carries, na.rm = TRUE),
-      rushing_yards = sum(rushing_yards, na.rm = TRUE),
-      rushing_tds = sum(rushing_tds, na.rm = TRUE),
-      rushing_epa = sum(rushing_epa, na.rm = TRUE),
-      rushing_fumbles = sum(rushing_fumbles, na.rm = TRUE),
+      carries              = sum(carries,              na.rm = TRUE),
+      rushing_yards        = sum(rushing_yards,        na.rm = TRUE),
+      rushing_tds          = sum(rushing_tds,          na.rm = TRUE),
+      rushing_epa          = sum(rushing_epa,          na.rm = TRUE),
+      rushing_fumbles      = sum(rushing_fumbles,      na.rm = TRUE),
       rushing_fumbles_lost = sum(rushing_fumbles_lost, na.rm = TRUE),
-      rushing_first_downs = sum(rushing_first_downs, na.rm = TRUE),
+      rushing_first_downs  = sum(rushing_first_downs,  na.rm = TRUE),
       rushing_2pt_conversions = sum(rushing_2pt_conversions, na.rm = TRUE),
       
       # Receiving totals
-      targets = sum(targets, na.rm = TRUE),
-      receptions = sum(receptions, na.rm = TRUE),
-      receiving_yards = sum(receiving_yards, na.rm = TRUE),
-      receiving_tds = sum(receiving_tds, na.rm = TRUE),
-      receiving_epa = sum(receiving_epa, na.rm = TRUE),
-      receiving_fumbles = sum(receiving_fumbles, na.rm = TRUE),
-      receiving_fumbles_lost = sum(receiving_fumbles_lost, na.rm = TRUE),
-      receiving_air_yards = sum(receiving_air_yards, na.rm = TRUE),
+      targets                     = sum(targets,                     na.rm = TRUE),
+      receptions                  = sum(receptions,                  na.rm = TRUE),
+      receiving_yards             = sum(receiving_yards,             na.rm = TRUE),
+      receiving_tds               = sum(receiving_tds,               na.rm = TRUE),
+      receiving_epa               = sum(receiving_epa,               na.rm = TRUE),
+      receiving_fumbles           = sum(receiving_fumbles,           na.rm = TRUE),
+      receiving_fumbles_lost      = sum(receiving_fumbles_lost,      na.rm = TRUE),
+      receiving_air_yards         = sum(receiving_air_yards,         na.rm = TRUE),
       receiving_yards_after_catch = sum(receiving_yards_after_catch, na.rm = TRUE),
-      receiving_first_downs = sum(receiving_first_downs, na.rm = TRUE),
-      receiving_2pt_conversions = sum(receiving_2pt_conversions, na.rm = TRUE),
+      receiving_first_downs       = sum(receiving_first_downs,       na.rm = TRUE),
+      receiving_2pt_conversions   = sum(receiving_2pt_conversions,   na.rm = TRUE),
       
       # Fantasy
-      fantasy_points = sum(fantasy_points, na.rm = TRUE),
+      fantasy_points     = sum(fantasy_points,     na.rm = TRUE),
       fantasy_points_ppr = sum(fantasy_points_ppr, na.rm = TRUE),
       
       # Efficiency / rate stats (averaged)
-      racr = mean(racr, na.rm = TRUE),
-      target_share = mean(target_share, na.rm = TRUE),
+      racr          = mean(racr,          na.rm = TRUE),
+      target_share  = mean(target_share,  na.rm = TRUE),
       air_yards_share = mean(air_yards_share, na.rm = TRUE),
-      wopr = mean(wopr, na.rm = TRUE),
+      wopr          = mean(wopr,          na.rm = TRUE),
       
       .groups = "drop"
     )
@@ -559,45 +520,47 @@ aggregate_receiver_career_stats <- function(receiver_stats) {
     dplyr::select(-dplyr::starts_with("cumulative_")) %>%
     dplyr::group_by(player_id) %>%
     dplyr::summarize(
-      full_name = dplyr::first(full_name),
-      position = dplyr::first(position),
+      full_name   = dplyr::first(full_name),
+      position    = dplyr::first(position),
       recent_team = dplyr::last(recent_team),
       
       seasons_played = dplyr::n_distinct(season),
-      games_played = dplyr::n_distinct(paste(season, week)),
+      # Count distinct triplets so REG+POST same week number are separate games in real data,
+      # but in toy data POST week=1 won't double-count.
+      games_played   = dplyr::n_distinct(season, season_type, week),
       
       # Rushing totals
-      carries = sum(carries, na.rm = TRUE),
-      rushing_yards = sum(rushing_yards, na.rm = TRUE),
-      rushing_tds = sum(rushing_tds, na.rm = TRUE),
-      rushing_epa = sum(rushing_epa, na.rm = TRUE),
-      rushing_fumbles = sum(rushing_fumbles, na.rm = TRUE),
+      carries              = sum(carries,              na.rm = TRUE),
+      rushing_yards        = sum(rushing_yards,        na.rm = TRUE),
+      rushing_tds          = sum(rushing_tds,          na.rm = TRUE),
+      rushing_epa          = sum(rushing_epa,          na.rm = TRUE),
+      rushing_fumbles      = sum(rushing_fumbles,      na.rm = TRUE),
       rushing_fumbles_lost = sum(rushing_fumbles_lost, na.rm = TRUE),
-      rushing_first_downs = sum(rushing_first_downs, na.rm = TRUE),
+      rushing_first_downs  = sum(rushing_first_downs,  na.rm = TRUE),
       rushing_2pt_conversions = sum(rushing_2pt_conversions, na.rm = TRUE),
       
       # Receiving totals
-      targets = sum(targets, na.rm = TRUE),
-      receptions = sum(receptions, na.rm = TRUE),
-      receiving_yards = sum(receiving_yards, na.rm = TRUE),
-      receiving_tds = sum(receiving_tds, na.rm = TRUE),
-      receiving_epa = sum(receiving_epa, na.rm = TRUE),
-      receiving_fumbles = sum(receiving_fumbles, na.rm = TRUE),
-      receiving_fumbles_lost = sum(receiving_fumbles_lost, na.rm = TRUE),
-      receiving_air_yards = sum(receiving_air_yards, na.rm = TRUE),
+      targets                     = sum(targets,                     na.rm = TRUE),
+      receptions                  = sum(receptions,                  na.rm = TRUE),
+      receiving_yards             = sum(receiving_yards,             na.rm = TRUE),
+      receiving_tds               = sum(receiving_tds,               na.rm = TRUE),
+      receiving_epa               = sum(receiving_epa,               na.rm = TRUE),
+      receiving_fumbles           = sum(receiving_fumbles,           na.rm = TRUE),
+      receiving_fumbles_lost      = sum(receiving_fumbles_lost,      na.rm = TRUE),
+      receiving_air_yards         = sum(receiving_air_yards,         na.rm = TRUE),
       receiving_yards_after_catch = sum(receiving_yards_after_catch, na.rm = TRUE),
-      receiving_first_downs = sum(receiving_first_downs, na.rm = TRUE),
-      receiving_2pt_conversions = sum(receiving_2pt_conversions, na.rm = TRUE),
+      receiving_first_downs       = sum(receiving_first_downs,       na.rm = TRUE),
+      receiving_2pt_conversions   = sum(receiving_2pt_conversions,   na.rm = TRUE),
       
       # Fantasy
-      fantasy_points = sum(fantasy_points, na.rm = TRUE),
+      fantasy_points     = sum(fantasy_points,     na.rm = TRUE),
       fantasy_points_ppr = sum(fantasy_points_ppr, na.rm = TRUE),
       
-      # Efficiency / rate stats (averaged)
-      racr = mean(racr, na.rm = TRUE),
-      target_share = mean(target_share, na.rm = TRUE),
+      # Rate stats (averaged across games)
+      racr           = mean(racr,           na.rm = TRUE),
+      target_share   = mean(target_share,   na.rm = TRUE),
       air_yards_share = mean(air_yards_share, na.rm = TRUE),
-      wopr = mean(wopr, na.rm = TRUE),
+      wopr           = mean(wopr,           na.rm = TRUE),
       
       .groups = "drop"
     )
@@ -626,7 +589,7 @@ aggregate_offense_team_season_stats <- function(off_stats) {
     dplyr::summarize(
       games_played = dplyr::n_distinct(week),
       
-      # ---- Passing (volume) ----
+      # Passing (volume)
       completions = sum(completions, na.rm = TRUE),
       attempts = sum(attempts, na.rm = TRUE),
       passing_yards = sum(passing_yards, na.rm = TRUE),
@@ -640,7 +603,7 @@ aggregate_offense_team_season_stats <- function(off_stats) {
       passing_epa = sum(passing_epa, na.rm = TRUE),
       passing_2pt_conversions = sum(passing_2pt_conversions, na.rm = TRUE),
       
-      # ---- Rushing (volume) ----
+      # Rushing (volume)
       carries = sum(carries, na.rm = TRUE),
       rushing_yards = sum(rushing_yards, na.rm = TRUE),
       rushing_tds = sum(rushing_tds, na.rm = TRUE),
@@ -650,7 +613,7 @@ aggregate_offense_team_season_stats <- function(off_stats) {
       rushing_epa = sum(rushing_epa, na.rm = TRUE),
       rushing_2pt_conversions = sum(rushing_2pt_conversions, na.rm = TRUE),
       
-      # ---- Receiving (volume) ----
+      # Receiving (volume)
       receptions = sum(receptions, na.rm = TRUE),
       targets = sum(targets, na.rm = TRUE),
       receiving_yards = sum(receiving_yards, na.rm = TRUE),
@@ -663,7 +626,7 @@ aggregate_offense_team_season_stats <- function(off_stats) {
       receiving_epa = sum(receiving_epa, na.rm = TRUE),
       receiving_2pt_conversions = sum(receiving_2pt_conversions, na.rm = TRUE),
       
-      # ---- Common rate stats (averaged) ----
+      # Common rate stats (averaged)
       pacr = mean(pacr, na.rm = TRUE),
       dakota = mean(dakota, na.rm = TRUE),
       racr = mean(racr, na.rm = TRUE),
@@ -696,10 +659,9 @@ aggregate_offense_team_week_stats <- function(off_stats) {
   off_stats %>%
     dplyr::group_by(season, week, recent_team) %>%
     dplyr::summarize(
-      # One game per team-week; we keep the same field name for parity
       games_played = dplyr::n_distinct(week),
       
-      # ---- Passing (volume) ----
+      # Passing (volume)
       completions = sum(completions, na.rm = TRUE),
       attempts = sum(attempts, na.rm = TRUE),
       passing_yards = sum(passing_yards, na.rm = TRUE),
@@ -713,7 +675,7 @@ aggregate_offense_team_week_stats <- function(off_stats) {
       passing_epa = sum(passing_epa, na.rm = TRUE),
       passing_2pt_conversions = sum(passing_2pt_conversions, na.rm = TRUE),
       
-      # ---- Rushing (volume) ----
+      # Rushing (volume)
       carries = sum(carries, na.rm = TRUE),
       rushing_yards = sum(rushing_yards, na.rm = TRUE),
       rushing_tds = sum(rushing_tds, na.rm = TRUE),
@@ -723,7 +685,7 @@ aggregate_offense_team_week_stats <- function(off_stats) {
       rushing_epa = sum(rushing_epa, na.rm = TRUE),
       rushing_2pt_conversions = sum(rushing_2pt_conversions, na.rm = TRUE),
       
-      # ---- Receiving (volume) ----
+      # Receiving (volume)
       receptions = sum(receptions, na.rm = TRUE),
       targets = sum(targets, na.rm = TRUE),
       receiving_yards = sum(receiving_yards, na.rm = TRUE),
@@ -736,7 +698,7 @@ aggregate_offense_team_week_stats <- function(off_stats) {
       receiving_epa = sum(receiving_epa, na.rm = TRUE),
       receiving_2pt_conversions = sum(receiving_2pt_conversions, na.rm = TRUE),
       
-      # ---- Common rate stats (averaged) ----
+      # Common rate stats (averaged)
       pacr = mean(pacr, na.rm = TRUE),
       dakota = mean(dakota, na.rm = TRUE),
       racr = mean(racr, na.rm = TRUE),

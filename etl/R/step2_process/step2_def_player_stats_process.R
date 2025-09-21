@@ -12,7 +12,16 @@ source(here("etl", "R", "step2_process", "step2_def_player_stats_process_functio
 ################################################################################
 # Load raw data
 ################################################################################
-def_player_stats_raw <- arrow::read_parquet(here("data", "raw", "def_player_stats.parquet"))
+def_player_stats_raw <- arrow::read_parquet(here("data", "raw", "def_player_stats.parquet")) %>% 
+  distinct() %>% 
+  mutate(def_tackles = def_tackles_solo,
+         def_fumble_recovery_own = fumble_recovery_own,
+         def_fumble_recovery_yards_own = fumble_recovery_yards_own,
+         def_fumble_recovery_opp = fumble_recovery_opp,
+         def_fumble_recovery_yards_opp = fumble_recovery_yards_opp,
+         def_safety = def_safeties,
+         def_penalty = penalties,
+         def_penalty_yards = penalty_yards)
 
 ################################################################################
 # Clean and normalize

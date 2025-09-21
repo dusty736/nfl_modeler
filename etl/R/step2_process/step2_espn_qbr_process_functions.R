@@ -63,7 +63,10 @@ prepare_espn_qbr_season_totals <- function(df) {
 #' # qbr_career_by_st <- summarize_espn_qbr_career_by_season_type(season_totals)
 #'
 #' @export
+#' Career-level ESPN QBR aggregated by season type (fix: safe weighted means + zero-row guard)
 summarize_espn_qbr_career_by_season_type <- function(season_totals) {
+  if (nrow(season_totals) == 0) return(tibble::tibble())
+  
   season_totals %>%
     dplyr::group_by(.data$player_id, .data$name_display, .data$season_type) %>%
     dplyr::summarise(
@@ -72,30 +75,35 @@ summarize_espn_qbr_career_by_season_type <- function(season_totals) {
       seasons_played   = dplyr::n_distinct(.data$season),
       teams_played_for = dplyr::n_distinct(.data$team_abb),
       
-      qb_plays   = sum(.data$qb_plays, na.rm = TRUE),
-      # Weighted QBRs (guard against zero plays)
+      # don't shadow the input column name; use total_plays
+      total_plays      = sum(.data$qb_plays, na.rm = TRUE),
+      
+      # proper play-weighted means using the original columns + total_plays
       qbr_total_w = dplyr::if_else(
-        qb_plays > 0,
-        sum(.data$qbr_total * .data$qb_plays, na.rm = TRUE) / qb_plays,
+        total_plays > 0,
+        sum(.data$qbr_total * .data$qb_plays, na.rm = TRUE) / total_plays,
         NA_real_
       ),
       qbr_raw_w = dplyr::if_else(
-        qb_plays > 0,
-        sum(.data$qbr_raw * .data$qb_plays, na.rm = TRUE) / qb_plays,
+        total_plays > 0,
+        sum(.data$qbr_raw * .data$qb_plays, na.rm = TRUE) / total_plays,
         NA_real_
       ),
       
+      # additive stats
       pts_added = sum(.data$pts_added, na.rm = TRUE),
-      epa = sum(.data$epa_total, na.rm = TRUE),
+      epa       = sum(.data$epa_total, na.rm = TRUE),
       pass      = sum(.data$pass, na.rm = TRUE),
       run       = sum(.data$run, na.rm = TRUE),
       sack      = sum(.data$sack, na.rm = TRUE),
       exp_sack  = sum(.data$exp_sack, na.rm = TRUE),
       penalty   = sum(.data$penalty, na.rm = TRUE),
       
+      # count TRUE, treat NA as FALSE
       qualified_seasons = sum(dplyr::coalesce(.data$qualified, FALSE)),
       .groups = "drop"
     ) %>%
+    dplyr::rename(qb_plays = total_plays) %>%
     dplyr::arrange(.data$name_display, .data$season_type)
 }
 
@@ -110,6 +118,7 @@ summarize_espn_qbr_career_by_season_type <- function(season_totals) {
 espn_qbr_career_by_season_type <- function(df) {
   df %>%
     prepare_espn_qbr_season_totals() %>%
-    summarize_espn_qbr_career_by_season_type() %>% 
-    mutate_if(is.numeric, round, 3)
+    summarize_espn_qbr_career_by_season_type() %>%
+    dplyr::mutate(dplyr::across(where(is.numeric), ~ round(.x, 3)))
 }
+

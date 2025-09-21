@@ -11,7 +11,13 @@ source(here("etl", "R", "step2_process", "step2_off_player_stats_process_functio
 ################################################################################
 # Load raw data
 ################################################################################
-off_player_stats_raw <- arrow::read_parquet(here("data", "raw", "off_player_stats.parquet"))
+off_player_stats_raw <- arrow::read_parquet(here("data", "raw", "off_player_stats.parquet")) %>% 
+  distinct() %>% 
+  mutate(recent_team = team,
+         interceptions = passing_interceptions,
+         sacks = sacks_suffered,
+         sack_yards = sack_yards_lost,
+         dakota = 0)
 
 ################################################################################
 # Clean and normalize

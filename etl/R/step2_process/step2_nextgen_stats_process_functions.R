@@ -94,8 +94,10 @@ calculate_passer_rating <- function(completions, attempts, yards, touchdowns, in
 #'
 #' @import dplyr
 #' @export
+# Aggregate Next Gen Stats to Player-Season (REG only)
 aggregate_nextgen_by_season <- function(nextgen_stats) {
   nextgen_stats %>%
+    dplyr::filter(season_type %in% c("REG", "Regular")) %>%
     dplyr::group_by(season, player_gsis_id) %>%
     dplyr::summarize(
       full_name = dplyr::first(full_name),
@@ -103,7 +105,7 @@ aggregate_nextgen_by_season <- function(nextgen_stats) {
       player_position = dplyr::first(player_position),
       games_played = dplyr::n_distinct(week),
       
-      # Sum counting stats
+      # Totals
       attempts = sum(attempts, na.rm = TRUE),
       completions = sum(completions, na.rm = TRUE),
       pass_yards = sum(pass_yards, na.rm = TRUE),
@@ -117,19 +119,25 @@ aggregate_nextgen_by_season <- function(nextgen_stats) {
       avg_pass_touchdowns = round(pass_touchdowns / games_played, 2),
       avg_interceptions = round(interceptions / games_played, 2),
       
-      # Average rate stats
+      # Rate stats
       avg_time_to_throw = mean(avg_time_to_throw, na.rm = TRUE),
       avg_completed_air_yards = mean(avg_completed_air_yards, na.rm = TRUE),
       avg_intended_air_yards = mean(avg_intended_air_yards, na.rm = TRUE),
       avg_air_yards_differential = mean(avg_air_yards_differential, na.rm = TRUE),
       aggressiveness = mean(aggressiveness, na.rm = TRUE),
-      max_completed_air_distance = max(max_completed_air_distance, na.rm = TRUE),
+      max_completed_air_distance = {
+        vals <- max_completed_air_distance
+        if (all(is.na(vals))) NA_real_ else max(vals, na.rm = TRUE)
+      },
       avg_air_yards_to_sticks = mean(avg_air_yards_to_sticks, na.rm = TRUE),
       completion_percentage = mean(completion_percentage, na.rm = TRUE),
       expected_completion_percentage = mean(expected_completion_percentage, na.rm = TRUE),
       completion_percentage_above_expectation = mean(completion_percentage_above_expectation, na.rm = TRUE),
       avg_air_distance = mean(avg_air_distance, na.rm = TRUE),
-      max_air_distance = max(max_air_distance, na.rm = TRUE),
+      max_air_distance = {
+        vals <- max_air_distance
+        if (all(is.na(vals))) NA_real_ else max(vals, na.rm = TRUE)
+      },
       
       # Derived stat
       passer_rating = calculate_passer_rating(
@@ -168,9 +176,9 @@ aggregate_nextgen_by_career <- function(nextgen_stats) {
     dplyr::group_by(player_gsis_id) %>%
     dplyr::summarize(
       full_name = dplyr::first(full_name),
-      team_abbr = dplyr::last(team_abbr),  # last known team
+      team_abbr = dplyr::last(team_abbr),
       player_position = dplyr::first(player_position),
-      games_played = dplyr::n_distinct(season, week),
+      games_played = dplyr::n_distinct(season, season_type, week),
       
       # Career totals
       attempts = sum(attempts, na.rm = TRUE),
@@ -186,19 +194,25 @@ aggregate_nextgen_by_career <- function(nextgen_stats) {
       avg_pass_touchdowns = round(pass_touchdowns / games_played, 2),
       avg_interceptions = round(interceptions / games_played, 2),
       
-      # Averaged rate stats
+      # Rate stats
       avg_time_to_throw = mean(avg_time_to_throw, na.rm = TRUE),
       avg_completed_air_yards = mean(avg_completed_air_yards, na.rm = TRUE),
       avg_intended_air_yards = mean(avg_intended_air_yards, na.rm = TRUE),
       avg_air_yards_differential = mean(avg_air_yards_differential, na.rm = TRUE),
       aggressiveness = mean(aggressiveness, na.rm = TRUE),
-      max_completed_air_distance = max(max_completed_air_distance, na.rm = TRUE),
+      max_completed_air_distance = {
+        vals <- max_completed_air_distance
+        if (all(is.na(vals))) NA_real_ else max(vals, na.rm = TRUE)
+      },
       avg_air_yards_to_sticks = mean(avg_air_yards_to_sticks, na.rm = TRUE),
       completion_percentage = mean(completion_percentage, na.rm = TRUE),
       expected_completion_percentage = mean(expected_completion_percentage, na.rm = TRUE),
       completion_percentage_above_expectation = mean(completion_percentage_above_expectation, na.rm = TRUE),
       avg_air_distance = mean(avg_air_distance, na.rm = TRUE),
-      max_air_distance = max(max_air_distance, na.rm = TRUE),
+      max_air_distance = {
+        vals <- max_air_distance
+        if (all(is.na(vals))) NA_real_ else max(vals, na.rm = TRUE)
+      },
       
       # Derived stat
       passer_rating = calculate_passer_rating(
@@ -234,13 +248,13 @@ aggregate_nextgen_by_career <- function(nextgen_stats) {
 #' @export
 aggregate_nextgen_postseason <- function(nextgen_stats) {
   nextgen_stats %>%
-    dplyr::filter(season_type == "POST") %>%
-    dplyr::group_by(player_gsis_id) %>%
+    dplyr::filter(season_type %in% c("POST", "Playoffs")) %>%
+    dplyr::group_by(season, player_gsis_id) %>%
     dplyr::summarize(
       full_name = dplyr::first(full_name),
       team_abbr = dplyr::last(team_abbr),
       player_position = dplyr::first(player_position),
-      games_played = dplyr::n(),
+      games_played = dplyr::n_distinct(week),
       
       # Totals
       attempts = sum(attempts, na.rm = TRUE),
@@ -262,13 +276,19 @@ aggregate_nextgen_postseason <- function(nextgen_stats) {
       avg_intended_air_yards = mean(avg_intended_air_yards, na.rm = TRUE),
       avg_air_yards_differential = mean(avg_air_yards_differential, na.rm = TRUE),
       aggressiveness = mean(aggressiveness, na.rm = TRUE),
-      max_completed_air_distance = max(max_completed_air_distance, na.rm = TRUE),
+      max_completed_air_distance = {
+        vals <- max_completed_air_distance
+        if (all(is.na(vals))) NA_real_ else max(vals, na.rm = TRUE)
+      },
       avg_air_yards_to_sticks = mean(avg_air_yards_to_sticks, na.rm = TRUE),
       completion_percentage = mean(completion_percentage, na.rm = TRUE),
       expected_completion_percentage = mean(expected_completion_percentage, na.rm = TRUE),
       completion_percentage_above_expectation = mean(completion_percentage_above_expectation, na.rm = TRUE),
       avg_air_distance = mean(avg_air_distance, na.rm = TRUE),
-      max_air_distance = max(max_air_distance, na.rm = TRUE),
+      max_air_distance = {
+        vals <- max_air_distance
+        if (all(is.na(vals))) NA_real_ else max(vals, na.rm = TRUE)
+      },
       
       # Derived stat
       passer_rating = calculate_passer_rating(
@@ -285,22 +305,24 @@ aggregate_nextgen_postseason <- function(nextgen_stats) {
 #' Compute Cumulative Sums and Means for Next Gen Stats
 #'
 #' Computes cumulative sum and cumulative mean for selected passing stats
-#' at the player-week level, grouped by season and player.
+#' at the player-week level, grouped by season and player. Cumulative *means*
+#' are computed with NA-omission (i.e., average over observed weeks so far).
 #'
 #' @param nextgen_stats A cleaned weekly-level data frame from `process_nextgen_stats()`.
 #'
-#' @return A tibble with new cumulative variables added. Cumulative sums are prefixed
-#'   with `cumulative_`, and cumulative means with `cumulative_`.
-#'
-#' @examples
-#' \dontrun{
-#' clean_ngs <- process_nextgen_stats(nextgen_stats_raw)
-#' running_ngs <- compute_cumulative_nextgen_stats(clean_ngs)
-#' }
-#'
-#' @import dplyr
+#' @return A tibble with new cumulative variables added.
 #' @export
 compute_cumulative_nextgen_stats <- function(nextgen_stats) {
+  # helper: cumulative mean with NA-omit
+  cummean_na_rm <- function(x) {
+    x <- as.numeric(x)
+    cs <- cumsum(ifelse(is.na(x), 0, x))
+    cn <- cumsum(!is.na(x))
+    out <- cs / cn
+    out[cn == 0] <- NA_real_
+    out
+  }
+  
   nextgen_stats %>%
     dplyr::group_by(season, player_gsis_id) %>%
     dplyr::arrange(week, .by_group = TRUE) %>%
@@ -312,19 +334,19 @@ compute_cumulative_nextgen_stats <- function(nextgen_stats) {
       cumulative_pass_touchdowns = cumsum(pass_touchdowns),
       cumulative_interceptions = cumsum(interceptions),
       
-      # Cumulative means (rate stats)
-      cumulative_avg_time_to_throw = cummean(avg_time_to_throw),
-      cumulative_avg_completed_air_yards = cummean(avg_completed_air_yards),
-      cumulative_avg_intended_air_yards = cummean(avg_intended_air_yards),
-      cumulative_avg_air_yards_differential = cummean(avg_air_yards_differential),
-      cumulative_aggressiveness = cummean(aggressiveness),
-      cumulative_avg_air_yards_to_sticks = cummean(avg_air_yards_to_sticks),
-      cumulative_completion_percentage = cummean(completion_percentage),
-      cumulative_expected_completion_percentage = cummean(expected_completion_percentage),
-      cumulative_completion_percentage_above_expectation = cummean(completion_percentage_above_expectation),
-      cumulative_avg_air_distance = cummean(avg_air_distance)
+      # Cumulative means (rate stats) — NA-robust
+      cumulative_avg_time_to_throw = cummean_na_rm(avg_time_to_throw),
+      cumulative_avg_completed_air_yards = cummean_na_rm(avg_completed_air_yards),
+      cumulative_avg_intended_air_yards = cummean_na_rm(avg_intended_air_yards),
+      cumulative_avg_air_yards_differential = cummean_na_rm(avg_air_yards_differential),
+      cumulative_aggressiveness = cummean_na_rm(aggressiveness),
+      cumulative_avg_air_yards_to_sticks = cummean_na_rm(avg_air_yards_to_sticks),
+      cumulative_completion_percentage = cummean_na_rm(completion_percentage),
+      cumulative_expected_completion_percentage = cummean_na_rm(expected_completion_percentage),
+      cumulative_completion_percentage_above_expectation = cummean_na_rm(completion_percentage_above_expectation),
+      cumulative_avg_air_distance = cummean_na_rm(avg_air_distance)
     ) %>%
-    dplyr::ungroup() %>% 
-    arrange(player_gsis_id, season, week)
+    dplyr::ungroup() %>%
+    dplyr::arrange(player_gsis_id, season, week)
 }
 

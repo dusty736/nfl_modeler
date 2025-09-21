@@ -6,8 +6,6 @@ library(arrow)
 library(here)
 library(dplyr)
 
-source(here("etl", "R", "step2_process", "step2_team_metadata_process_functions.R"))
-
 ################################################################################
 # Load raw data
 ################################################################################

@@ -1249,7 +1249,7 @@ format_depth_chart_position_stability_for_sql <- function(input_path, output_pat
       season = as.integer(season),
       week = as.integer(week),
       team = as.character(team),
-      position = as.character(position),
+      position = as.character(position_group),
       position_group_score = as.numeric(position_group_score)
     )
   
@@ -1951,11 +1951,8 @@ format_espn_qbr_season_for_sql <- function(input_path, output_path = "espn_qbr_s
     dplyr::transmute(
       season = as.integer(season),
       season_type = as.character(season_type),
-      game_week = as.character(game_week),
       team_abb = as.character(team_abb),
       player_id = as.character(player_id),
-      name_short = as.character(name_short),
-      rank = as.numeric(rank),
       qbr_total = as.numeric(qbr_total),
       pts_added = as.numeric(pts_added),
       qb_plays = as.numeric(qb_plays),
@@ -1966,10 +1963,6 @@ format_espn_qbr_season_for_sql <- function(input_path, output_path = "espn_qbr_s
       penalty = as.numeric(penalty),
       qbr_raw = as.numeric(qbr_raw),
       sack = as.numeric(sack),
-      name_first = as.character(name_first),
-      name_last = as.character(name_last),
-      name_display = as.character(name_display),
-      headshot_href = as.character(headshot_href),
       team = as.character(team),
       qualified = as.logical(qualified)
     )

@@ -78,8 +78,8 @@ create_index(con = con, schema = 'prod', table = 'injuries_weekly_tbl', id_cols 
 load_parquet_to_postgres(file.path(base_path, "nextgen_stats_player_career_tbl.parquet"), schema = 'prod', "nextgen_stats_player_career_tbl")
 create_index(con = con, schema = 'prod', table = 'nextgen_stats_player_career_tbl', id_cols = c("player_gsis_id") , unique = TRUE)
 
-load_parquet_to_postgres(file.path(base_path, "nextgen_stats_player_postseason_tbl.parquet"), schema = 'prod', "nextgen_stats_player_postseason_tbl")
-create_index(con = con, schema = 'prod', table = 'nextgen_stats_player_postseason_tbl', id_cols = c("player_gsis_id","team_abbr")  , unique = TRUE)
+#load_parquet_to_postgres(file.path(base_path, "nextgen_stats_player_postseason_tbl.parquet"), schema = 'prod', "nextgen_stats_player_postseason_tbl")
+#create_index(con = con, schema = 'prod', table = 'nextgen_stats_player_postseason_tbl', id_cols = c("player_gsis_id","team_abbr")  , unique = TRUE)
 
 load_parquet_to_postgres(file.path(base_path, "nextgen_stats_player_season_tbl.parquet"), schema = 'prod', "nextgen_stats_player_season_tbl")
 create_index(con = con, schema = 'prod', table = 'nextgen_stats_player_season_tbl', id_cols = c("season","player_gsis_id","team_abbr")    , unique = TRUE)
@@ -194,6 +194,9 @@ create_index(con = con, schema = 'prod', table = 'player_season_tbl', id_cols = 
 
 load_parquet_to_postgres(file.path(base_path, "player_career_tbl.parquet"), schema = 'prod', "player_career_tbl")
 create_index(con = con, schema = 'prod', table = 'player_career_tbl', id_cols = c("player_id","season_type","position","name","stat_name", "agg_type"), unique = TRUE)
+
+load_parquet_to_postgres(file.path(base_path, "team_weekly_rankings_tbl.parquet"), schema = 'prod', "team_weekly_rankings_tbl")
+create_index(con = con, schema = 'prod', table = 'team_weekly_rankings_tbl', id_cols = c("season", "week", "team", "stat_name"), unique = TRUE)
 
 load_parquet_to_postgres(file.path(base_path, "team_weekly_tbl.parquet"), schema = 'prod', "team_weekly_tbl")
 create_index(con = con, schema = 'prod', table = 'team_weekly_tbl', id_cols = c("season","season_type","week","team","stat_name", "stat_type"), unique = TRUE)
