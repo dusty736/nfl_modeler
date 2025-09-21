@@ -9,6 +9,13 @@ library(here)
 seasons <- lubridate::year(Sys.Date())
 weeks <- max(nflreadr::get_current_week() - 2, 1):nflreadr::get_current_week()
 
+con <- dbConnect(Postgres(), 
+                 dbname = "nfl", 
+                 host = "localhost", 
+                 port = 5432, 
+                 user = "nfl_user", 
+                 password = "nfl_pass")
+
 ################################################################################
 # Create root folder
 ################################################################################
@@ -34,6 +41,7 @@ source(here("etl", "R", "step2_process", "step2_schedule_process_functions.R"))
 source(here("etl", "R", "step3_sql", "step3_long_player_format_functions.R"))
 source(here("etl", "R", "step3_sql", "step3_long_team_format_functions.R"))
 source(here("etl", "R", "step2_process", "step2_team_strength_process_functions.R"))
+source(here("etl", "R", "step3_sql", "step3_team_rankings_long_functions.R"))
 
 ################################################################################
 # Play-by-play data (nflfastR)
@@ -113,23 +121,37 @@ arrow::write_parquet(roster_position_summary, "data/staging/roster_position_summ
 ################################################################################
 # Depth charts (nflreadr)
 ################################################################################
-depth_charts <- with_progress(nflreadr::load_depth_charts(seasons)) %>% 
-  mutate(depth_team = pos_rank,
-         season = seasons,
-         week = weeks[2],
+depth_charts <- with_progress(nflreadr::load_depth_charts(seasons=2025)) %>%
+  mutate(
+    d    = as.Date(substr(dt, 1, 10)),          # date only; ignore time/tz
+    is_wed = format(d, "%u") == "3"             # ISO weekday: Mon=1 ... Sun=7
+  ) %>%
+  filter(is_wed, d >= as.Date("2025-09-03")) %>%
+  mutate(
+    week = 1L + ((as.integer(d - as.Date("2025-09-03"))) %/% 7L),
+    season = seasons
+  ) %>%
+  select(-is_wed) %>% 
+  filter(season %in% seasons) %>% 
+  filter(week %in% weeks) %>% 
+  mutate(depth_position = clean_position_update(pos_abb),
+         game_type = ifelse(max(weeks) %in% 1:18, 'REG', 'POST'),
+         depth_team = pos_rank,
          club_code = team,
-         full_name = player_name,
-         depth_position = pos_abb,
-         game_type = ifelse(weeks[2] %in% 1:18, 'REG', 'POST'))
+         full_name = player_name)
 
 # 1. Extract starters and add cleaned position columns
 starters <- filter_depth_chart_starters(depth_charts) %>% 
   mutate(
     position = clean_position(position),
     position_group = dplyr::case_when(
-      position %in% c("OL", "WR", "TE", "QB", "RB") ~ "OFF",
-      position %in% c("DL", "LB", "CB", "S") ~ "DEF",
-      position %in% c("K", "LS") ~ "ST",
+      position %in% c("C", "LG", "LT", "OL", "RG", "RT") ~ "OL",
+      position %in% c("QB") ~ "QB",
+      position %in% c("WR", "TE") ~ "REC",
+      position %in% c("RB") ~ "RB",
+      position %in% c("CB", "DL", "DT", "EDGE", "FS", "MLB", "OLB", "SS") ~ "DEF",
+      position %in% c('K') ~ 'K',
+      position %in% c('ST', 'P') ~ 'ST',
       TRUE ~ "OTHER"
     )
   ) %>% 
@@ -426,8 +448,6 @@ arrow::write_parquet(
   here("data", "staging", "season_results.parquet")
 )
 
-
-
 ################################################################################
 # Long Player Table
 ################################################################################
@@ -459,7 +479,7 @@ weekly_def <- pivot_def_player_stats_long(file_path = here("data", "staging",
                                                            "def_player_stats_weekly.parquet"), 
                                           opponent_df = opponent_df)
 
-historic_player_long <- arrow::read_parquet("data/for_database/player_weekly_tbl.parquet") %>% 
+historic_player_long <- DBI::dbGetQuery(con, "select * from prod.player_weekly_tbl") %>% 
   filter(player_id %in% id_map$gsis_id) %>% 
   filter(!(season %in% seasons & week %in% weeks))
 
@@ -492,7 +512,7 @@ arrow::write_parquet(career_players %>%
                        distinct(), "data/staging/player_career_tbl.parquet")
 
 ################################################################################
-# Long Player Table
+# Long Team Table
 ################################################################################
 
 team_schedule <- weekly_results %>% 
@@ -541,7 +561,7 @@ weekly_game_stats <- pivot_game_results_long(here("data", "staging", "weekly_res
 weekly_st_stats <- pivot_special_teams_long(here("data", "staging", "st_player_stats_weekly.parquet")) %>% 
   left_join(., team_schedule, by=c('team', 'season', 'week', 'season_type'))
 
-historic_team_long <- arrow::read_parquet("data/for_database/team_weekly_tbl.parquet") %>% 
+historic_team_long <- DBI::dbGetQuery(con, "select * from prod.team_weekly_tbl") %>% 
   filter(!(season %in% seasons & week %in% weeks))
 
 weekly_total <- rbind(weekly_off %>% left_join(., game_id_map, by=c('team', 'season', 'week')),
@@ -567,6 +587,42 @@ arrow::write_parquet(season_total %>%
                        mutate_if(is.numeric, round, 3) %>% filter(season %in% seasons), "data/staging/team_season_tbl.parquet")
 arrow::write_parquet(alltime_total %>% 
                        mutate_if(is.numeric, round, 3), "data/staging/team_career_tbl.parquet")
+
+################################################################################
+# Weekly Team Rankings
+################################################################################
+
+team_ranking_columns <- c(
+  # Offense (totals/rates)
+  'passing_yards', 'passing_tds', 'interceptions', 'sacks',
+  'passing_first_downs', 'passing_epa', 'drives',
+  'carries', 'rushing_yards', 'rushing_tds', 'rushing_fumbles',
+  'rushing_first_downs', 'rushing_epa', 'points_scored',
+  
+  # Special teams
+  'fg_pct',
+  
+  # Defensive
+  'def_tackles', 'def_tackles_for_loss', 'def_fumbles_forced',
+  'def_sacks', 'def_qb_hits', 'def_interceptions', 'def_fumbles',
+  'def_penalty', 'points_allowed',
+  'def_passing_yards_allowed',
+  'def_passing_tds_allowed',
+  'def_passing_first_downs_allowed',
+  'def_pass_epa_allowed',
+  'def_drives_allowed',
+  'def_carries_allowed',
+  'def_rushing_yards_allowed',
+  'def_rushing_tds_allowed',
+  'def_rushing_first_downs_allowed',
+  'def_rushing_epa_allowed'
+)
+
+team_rankings_long <- rank_team_stats_weekly(weekly_total, team_ranking_columns)
+
+arrow::write_parquet(team_rankings_long %>% 
+                       filter(season %in% seasons) %>% 
+                       filter(week %in% weeks), "data/staging/team_weekly_rankings_tbl.parquet")
 
 message("All staging data saved to /data/staging")
 

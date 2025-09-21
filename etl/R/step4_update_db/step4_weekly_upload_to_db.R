@@ -406,6 +406,10 @@ form_off_team_season_for_sql(
 load_parquet_to_postgres(file.path(base_path, "off_team_stats_season.parquet"), schema = 'stage', "off_team_stats_season_tbl")
 create_index(con = con, schema = 'stage', table = 'off_team_stats_season_tbl', id_cols = c("season","team"), unique = TRUE)
 
+# Team weekly rankings long
+load_parquet_to_postgres(file.path(base_path, "team_weekly_rankings_tbl.parquet"), schema = 'stage', "team_weekly_rankings_tbl")
+create_index(con = con, schema = 'stage', table = 'team_weekly_rankings_tbl', id_cols = c("season", "week", "team", "stat_name"), unique = TRUE)
+
 # Team weekly long
 load_parquet_to_postgres(file.path(base_path, "team_weekly_tbl.parquet"), schema = 'stage', "team_weekly_tbl")
 create_index(con = con, schema = 'stage', table = 'team_weekly_tbl', id_cols = c("season","season_type","week","team","stat_name", "stat_type"), unique = TRUE)
