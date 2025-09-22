@@ -72,7 +72,7 @@ train-pregame-margin: up
 	python3 modeling/Python/pregame_margin_modelfit.py	
 	
 predict-margin:
-	python3 modeling/Python/pregame_margin_predgen.py --run-id latest --all --with-pi --to-db
+	python3 modeling/Python/pregame_margin_predgen.py --run-id latest --all --to-db
 
 predict-margin-week:
 	python3 modeling/Python/pregame_margin_predgen.py --run-id latest --season $(SEASON) --week $(WEEK) --with-pi --to-db

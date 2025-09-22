@@ -7,7 +7,7 @@ import shap
 import matplotlib.pyplot as plt
 import numpy as np
 import re
-
+matplotlib.use("Agg")
 pd.options.display.max_columns = 200
 
 from sklearn.model_selection import train_test_split
@@ -1191,11 +1191,11 @@ try:
     shap.summary_plot(shap_values, X_shap, feature_names=feat_names, show=False)
     plt.title("XGBoost SHAP Summary (test sample)")
     #plt.tight_layout()
-    #plt.show()
+    #plt.close()
     
     plt.tight_layout()
     plt.savefig(RUN_DIR / "plots" / "xgb_shap_summary.png", dpi=200)
-    plt.show()
+    plt.close()
 except ImportError:
     print("\n[Info] `shap` is not installed. Install with `pip install shap` to render SHAP summaries.")
 except Exception as e:
@@ -1605,11 +1605,11 @@ ax.set_title("Calibration — 2024 Test")
 ax.set_xlabel("Predicted probability")
 ax.set_ylabel("Observed frequency")
 #plt.tight_layout()
-#plt.show()
+#plt.close()
 
 plt.tight_layout()
 plt.savefig(RUN_DIR / "plots" / "calibration_diagram.png", dpi=200)
-plt.show()
+plt.close()
 
 rows = []
 for name, proba in models_2024.items():
@@ -1651,7 +1651,7 @@ ax.set_ylabel("True Positive Rate")
 ax.legend(loc="lower right")
 plt.tight_layout()
 plt.savefig(RUN_DIR / "plots" / "roc.png", dpi=200)
-plt.show()
+plt.close()
 
 # --- 2025 ACTION (labeled only) ---
 if 'X_action' in locals() and X_action.shape[0] > 0:
@@ -1686,7 +1686,7 @@ if 'X_action' in locals() and X_action.shape[0] > 0:
         ax2.set_ylabel("True Positive Rate")
         ax2.legend(loc="lower right")
         plt.tight_layout()
-        plt.show()
+        plt.close()
     else:
         print("No labeled 2025 rows yet — skipping 2025 ROC.")
         
@@ -1717,10 +1717,10 @@ ax.set_xlabel("Recall")
 ax.set_ylabel("Precision")
 ax.legend(loc="lower left")
 #plt.tight_layout()
-#plt.show()
+#plt.close()
 plt.tight_layout()
 plt.savefig(RUN_DIR / "plots" / "precision_recall.png", dpi=200)
-plt.show()
+plt.close()
 
 # 2025 (labeled only)
 if 'X_action' in locals() and X_action.shape[0] > 0:
@@ -1744,7 +1744,7 @@ if 'X_action' in locals() and X_action.shape[0] > 0:
         ax2.set_ylabel("Precision")
         ax2.legend(loc="lower left")
         plt.tight_layout()
-        plt.show()
+        plt.close()
         
 def cumulative_gains(y_true, proba, bins=10):
     df_ = pd.DataFrame({"y": y_true.values, "p": proba}).sort_values("p", ascending=False)
@@ -1774,9 +1774,9 @@ ax.set_xlabel("Cumulative fraction of samples")
 ax.set_ylabel("Cumulative fraction of positives captured")
 ax.legend(loc="lower right")
 #plt.tight_layout()
-#plt.show()
+#plt.close()
 plt.savefig(RUN_DIR / "plots" / "cumulative_fraction.png", dpi=200)
-plt.show()
+plt.close()
 
 print("\nTop-decile positive capture (2024):")
 rows = []
@@ -1830,7 +1830,7 @@ ax.set_xlabel("Week")
 ax.set_ylabel("Accuracy")
 ax.legend()
 plt.savefig(RUN_DIR / "plots" / "weekly_accuracy.png", dpi=200)
-plt.show()
+plt.close()
 
 pos = proba_test_vote[y_test.values==1]
 neg = proba_test_vote[y_test.values==0]
@@ -1843,7 +1843,7 @@ ax.set_xlabel("Predicted P(Home Win)")
 ax.set_ylabel("Count")
 ax.legend()
 plt.savefig(RUN_DIR / "plots" / "outcome_probability_distributions.png", dpi=200)
-plt.show()
+plt.close()
 
 # (Optional) Repeat for 2025 labeled if present
 if 'X_action' in locals() and X_action.shape[0] > 0:
@@ -1864,7 +1864,7 @@ if 'X_action' in locals() and X_action.shape[0] > 0:
         ax2.set_ylabel("Count")
         ax2.legend()
         plt.tight_layout()
-        plt.show()
+        plt.close()
         
 try:
     sys.stdout = sys.__stdout__
