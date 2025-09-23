@@ -1,26 +1,4 @@
-name: coverage
-on:
-  push:
-    branches: [ main, master ]
-  pull_request:
-
-jobs:
-  coverage:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - run: npm ci
-      - run: npx jest --coverage
-
-      - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v5
-        with:
-          token: ${{ secrets.NFLMODELER_CODECOV }}
-          files: coverage/lcov.info
-          flags: unittests
-          fail_ci_if_error: true
+- name: Upload coverage reports to Codecov
+    uses: codecov/codecov-action@v5
+    with:
+      token: ${{ secrets.NFLMODELER_CODECOV }}
