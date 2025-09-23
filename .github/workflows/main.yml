@@ -1,4 +1,8 @@
 - name: Upload coverage reports to Codecov
-    uses: codecov/codecov-action@v5
-    with:
-      token: ${{ secrets.NFLMODELER_CODECOV }}
+  uses: codecov/codecov-action@v5
+  with:
+    token: ${{ secrets.CODECOV_TOKEN }}   # make sure this secret exists
+    files: coverage.xml
+    flags: r-testthat
+    fail_ci_if_error: true
+
