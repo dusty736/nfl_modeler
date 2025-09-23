@@ -2,6 +2,10 @@
 # db_refresh.R
 ################################################################################
 
+library(DBI)
+library(here)
+library(RPostgres)
+
 source(here::here("etl", "R", "step4_update_db", "step4_weekly_update_data_download.R"))
 source(here::here("etl", "R", "step4_update_db", "step4_weekly_upload_to_db.R"))
 source(here::here("etl", "R", "step4_update_db", "step4_update_prod.R"))

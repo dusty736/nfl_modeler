@@ -50,6 +50,9 @@ start-dashboard:
 	docker-compose up -d dashboard
 
 update-dashboard:
+	docker-compose down
+	docker-compose up --build
+	docker-compose build --no-cache api
 	docker-compose build dashboard
 	docker-compose up -d dashboard
 	
@@ -77,3 +80,20 @@ predict-margin:
 predict-margin-week:
 	python3 modeling/Python/pregame_margin_predgen.py --run-id latest --season $(SEASON) --week $(WEEK) --with-pi --to-db
 
+fit-models:
+	python3 modeling/Python/pregame_modelfit.py
+	python3 modeling/Python/pregame_total_modelfit.py
+	python3 modeling/Python/pregame_margin_modelfit.py	
+	
+run-preds:
+	python3 modeling/Python/pregame_predgen.py --run-id latest --all --to-db
+	python3 modeling/Python/pregame_total_predgen.py --run-id latest --all --with-pi --to-db
+	python3 modeling/Python/pregame_margin_predgen.py --run-id latest --all --to-db
+	
+run-data-full:
+	Rscript etl/R/process_scripts/full_db_upload.R
+
+run-data-refresh:
+	Rscript etl/R/process_scripts/db_refresh.R
+	
+	
