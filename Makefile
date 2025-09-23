@@ -95,5 +95,3 @@ run-data-full:
 
 run-data-refresh:
 	Rscript etl/R/process_scripts/db_refresh.R
-	
-	
