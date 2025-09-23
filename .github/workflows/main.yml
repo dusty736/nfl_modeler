@@ -33,4 +33,3 @@ jobs:
           files: coverage.xml
           flags: r-testthat
           fail_ci_if_error: true
-true
