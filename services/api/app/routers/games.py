@@ -80,7 +80,7 @@ SELECT
 
   /* Predictions */
   ROUND(t.pred_vote::numeric, 1) AS pred_total,
-  ROUND(m.pred_vote::numeric, 1) AS pred_margin,
+  m.predicted_bin AS pred_margin,
 
   CASE
     WHEN p.pred_home_win::int = 1 THEN g.home_team
@@ -103,7 +103,7 @@ FROM prod.games_tbl g
 LEFT JOIN rec rh ON rh.season = g.season AND rh.week = g.week AND rh.team = g.home_team
 LEFT JOIN rec ra ON ra.season = g.season AND ra.week = g.week AND ra.team = g.away_team
 LEFT JOIN prod.pregame_total_predictions_tbl      t ON t.game_id = g.game_id
-LEFT JOIN prod.pregame_margin_abs_predictions_tbl  m ON m.game_id = g.game_id
+LEFT JOIN prod.pregame_margin_bins_preds_tbl  m ON m.game_id = g.game_id
 LEFT JOIN prod.pregame_predictions_tbl            p ON p.game_id = g.game_id
 WHERE g.season = :season
   AND g.week   = :week
@@ -158,7 +158,7 @@ SELECT
   g.total_line AS vegas_total,
 
   ROUND(t.pred_vote::numeric, 1) AS pred_total,
-  ROUND(m.pred_vote::numeric, 1) AS pred_margin,
+  m.predicted_bin as pred_margin,
 
   CASE
     WHEN p.pred_home_win::int = 1 THEN g.home_team
@@ -180,7 +180,7 @@ FROM prod.games_tbl g
 LEFT JOIN rec rh ON rh.season = g.season AND rh.week = g.week AND rh.team = g.home_team
 LEFT JOIN rec ra ON ra.season = g.season AND ra.week = g.week AND ra.team = g.away_team
 LEFT JOIN prod.pregame_total_predictions_tbl      t ON t.game_id = g.game_id
-LEFT JOIN prod.pregame_margin_abs_predictions_tbl  m ON m.game_id = g.game_id
+LEFT JOIN prod.pregame_margin_bins_preds_tbl  m ON m.game_id = g.game_id
 LEFT JOIN prod.pregame_predictions_tbl            p ON p.game_id = g.game_id
 WHERE g.season = :season
   AND g.week   = :week

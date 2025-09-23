@@ -159,42 +159,57 @@ def _to_bin_label(abs_margin: float | None) -> str | None:
 
 def _ensure_bins_predictions_table(engine):
     """
-    Ensure table exists AND ensure the unique index required by ON CONFLICT exists.
-    This prevents the 'no unique or exclusion constraint' error.
+    Ensure table exists, ensure unique index, and backfill the new game_id column
+    for legacy tables created before game_id was added.
     """
     ddl = text("""
-    CREATE TABLE IF NOT EXISTS prod.pregame_margin_bins_preds_tbl (
-        predicted_at_utc          timestamptz NOT NULL,
-        run_id                    text        NOT NULL,
-        model_name                text        NOT NULL,
-        season                    int         NOT NULL,
-        week                      int         NOT NULL,
-        home_team                 text        NOT NULL,
-        away_team                 text        NOT NULL,
-        season_type               text        NULL,
-        game_type                 text        NULL,
-        p_coin_flip               double precision NOT NULL,
-        p_one_score               double precision NOT NULL,
-        p_two_scores              double precision NOT NULL,
-        p_blowout                 double precision NOT NULL,
-        predicted_bin             text        NOT NULL,
-        predicted_bin_confidence  double precision NOT NULL,
-        closeness_index           double precision NOT NULL,
-        actual_abs_margin         double precision NULL,
-        true_bin                  text NULL,
-        is_final                  boolean NULL,
-        predicted_correct         boolean NULL
-    );
-    CREATE INDEX IF NOT EXISTS pregame_margin_bins_preds_szn_wk_idx
-      ON prod.pregame_margin_bins_preds_tbl (season, week);
+      CREATE TABLE IF NOT EXISTS prod.pregame_margin_bins_preds_tbl (
+          predicted_at_utc          timestamptz NOT NULL,
+          run_id                    text        NOT NULL,
+          model_name                text        NOT NULL,
+          season                    int         NOT NULL,
+          week                      int         NOT NULL,
+          home_team                 text        NOT NULL,
+          away_team                 text        NOT NULL,
+          game_id                   text        NOT NULL,
+          season_type               text        NULL,
+          game_type                 text        NULL,
+          p_coin_flip               double precision NOT NULL,
+          p_one_score               double precision NOT NULL,
+          p_two_scores              double precision NOT NULL,
+          p_blowout                 double precision NOT NULL,
+          predicted_bin             text        NOT NULL,
+          predicted_bin_confidence  double precision NOT NULL,
+          closeness_index           double precision NOT NULL,
+          actual_abs_margin         double precision NULL,
+          true_bin                  text NULL,
+          is_final                  boolean NULL,
+          predicted_correct         boolean NULL
+      );
     """)
+
     create_unique = text("""
-    CREATE UNIQUE INDEX IF NOT EXISTS pregame_margin_bins_preds_uniq
-      ON prod.pregame_margin_bins_preds_tbl (season, week, home_team, away_team, model_name);
+      CREATE UNIQUE INDEX IF NOT EXISTS pregame_margin_bins_preds_uniq
+        ON prod.pregame_margin_bins_preds_tbl (season, week, home_team, away_team, model_name);
     """)
+
+    # NEW: backfill column for legacy tables
+    alter_add_game_id = text("""
+      ALTER TABLE prod.pregame_margin_bins_preds_tbl
+      ADD COLUMN IF NOT EXISTS game_id text;
+    """)
+
+    # Optional helper index that already existed in your version
+    idx_szn_wk = text("""
+      CREATE INDEX IF NOT EXISTS pregame_margin_bins_preds_szn_wk_idx
+        ON prod.pregame_margin_bins_preds_tbl (season, week);
+    """)
+
     with engine.begin() as conn:
         conn.execute(ddl)
+        conn.execute(alter_add_game_id)   # <-- ensure column exists if table predated this change
         conn.execute(create_unique)
+        conn.execute(idx_szn_wk)
 
 def _upsert_bins_predictions(engine, df_out: pd.DataFrame):
     """
@@ -208,14 +223,14 @@ def _upsert_bins_predictions(engine, df_out: pd.DataFrame):
     sql_upsert = text("""
         INSERT INTO prod.pregame_margin_bins_preds_tbl (
           predicted_at_utc, run_id, model_name,
-          season, week, home_team, away_team, season_type, game_type,
+          season, week, home_team, away_team, game_id, season_type, game_type,     -- <<< add game_id here
           p_coin_flip, p_one_score, p_two_scores, p_blowout,
           predicted_bin, predicted_bin_confidence, closeness_index,
           actual_abs_margin, true_bin, is_final, predicted_correct
         )
         VALUES (
           :predicted_at_utc, :run_id, :model_name,
-          :season, :week, :home_team, :away_team, :season_type, :game_type,
+          :season, :week, :home_team, :away_team, :game_id, :season_type, :game_type,  -- <<< and here
           :p_coin_flip, :p_one_score, :p_two_scores, :p_blowout,
           :predicted_bin, :predicted_bin_confidence, :closeness_index,
           :actual_abs_margin, :true_bin, :is_final, :predicted_correct
@@ -223,6 +238,7 @@ def _upsert_bins_predictions(engine, df_out: pd.DataFrame):
         ON CONFLICT (season, week, home_team, away_team, model_name) DO UPDATE SET
           predicted_at_utc          = EXCLUDED.predicted_at_utc,
           run_id                    = EXCLUDED.run_id,
+          game_id                   = EXCLUDED.game_id,        -- <<< keep it fresh, harmless
           p_coin_flip               = EXCLUDED.p_coin_flip,
           p_one_score               = EXCLUDED.p_one_score,
           p_two_scores              = EXCLUDED.p_two_scores,
@@ -245,14 +261,14 @@ def _upsert_bins_predictions(engine, df_out: pd.DataFrame):
     sql_insert = text("""
         INSERT INTO prod.pregame_margin_bins_preds_tbl (
           predicted_at_utc, run_id, model_name,
-          season, week, home_team, away_team, season_type, game_type,
+          season, week, home_team, away_team, game_id, season_type, game_type,   -- <<< add game_id here
           p_coin_flip, p_one_score, p_two_scores, p_blowout,
           predicted_bin, predicted_bin_confidence, closeness_index,
           actual_abs_margin, true_bin, is_final, predicted_correct
         )
         VALUES (
           :predicted_at_utc, :run_id, :model_name,
-          :season, :week, :home_team, :away_team, :season_type, :game_type,
+          :season, :week, :home_team, :away_team, :game_id, :season_type, :game_type,  -- <<< and here
           :p_coin_flip, :p_one_score, :p_two_scores, :p_blowout,
           :predicted_bin, :predicted_bin_confidence, :closeness_index,
           :actual_abs_margin, :true_bin, :is_final, :predicted_correct
@@ -429,7 +445,7 @@ def main():
         _ensure_bins_predictions_table(engine)
         cols_for_db = [
             "predicted_at_utc","run_id","model_name",
-            "season","week","home_team","away_team","season_type","game_type",
+            "season","week","home_team","away_team","game_id","season_type","game_type",  # <<< add game_id here
             "p_coin_flip","p_one_score","p_two_scores","p_blowout",
             "predicted_bin","predicted_bin_confidence","closeness_index",
             "actual_abs_margin","true_bin","is_final","predicted_correct"

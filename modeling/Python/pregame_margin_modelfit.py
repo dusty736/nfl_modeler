@@ -466,7 +466,7 @@ TABLES_DIR.mkdir(parents=True, exist_ok=True)
 MODELS_DIR.mkdir(parents=True, exist_ok=True)
 PRED_DIR.mkdir(parents=True, exist_ok=True)
 
-sched_cols = [c for c in ["season","week","home_team","away_team","season_type","game_type"] if c in df.columns]
+sched_cols = [c for c in ["game_id", "season","week","home_team","away_team","season_type","game_type"] if c in df.columns]
 VAL_META  = df.loc[X_val.index,  sched_cols].copy()
 TEST_META = df.loc[X_test.index, sched_cols + ["abs_margin"]].copy().rename(columns={"abs_margin":"actual_abs_margin"})
 
@@ -708,7 +708,7 @@ else:
 if not sel.any():
     raise RuntimeError("No rows match the requested slice. Check season/week or ensure action rows exist.")
 
-sched_cols = [c for c in ["season","week","home_team","away_team","season_type","game_type"] if c in df.columns]
+sched_cols = [c for c in ["game_id","season","week","home_team","away_team","season_type","game_type"] if c in df.columns]
 META = df.loc[sel, sched_cols].copy().sort_values(["season","week","home_team","away_team"])
 
 # Feature frame matches training columns (use X_val columns as canonical)
@@ -823,6 +823,7 @@ if args.write_db:
         predicted_at_utc     timestamptz NOT NULL,
         run_id               text        NOT NULL,
         model_name           text        NOT NULL,
+        game_id              text        NOT NULL,
         season               int         NOT NULL,
         week                 int         NOT NULL,
         home_team            text        NOT NULL,
@@ -844,35 +845,36 @@ if args.write_db:
     );
     """
     upsert_sql = f"""
-    INSERT INTO {schema}.{table} (
-        predicted_at_utc, run_id, model_name,
-        season, week, home_team, away_team, season_type, game_type,
-        p_coin_flip, p_one_score, p_two_scores, p_blowout,
-        predicted_bin, predicted_bin_confidence, closeness_index,
-        actual_abs_margin, true_bin, is_final, predicted_correct
-    )
-    VALUES (
-        %(predicted_at_utc)s, %(run_id)s, %(model_name)s,
-        %(season)s, %(week)s, %(home_team)s, %(away_team)s, %(season_type)s, %(game_type)s,
-        %(p_coin_flip)s, %(p_one_score)s, %(p_two_scores)s, %(p_blowout)s,
-        %(predicted_bin)s, %(predicted_bin_confidence)s, %(closeness_index)s,
-        %(actual_abs_margin)s, %(true_bin)s, %(is_final)s, %(predicted_correct)s
-    )
-    ON CONFLICT (season, week, home_team, away_team, model_name) DO UPDATE SET
-        predicted_at_utc         = EXCLUDED.predicted_at_utc,
-        run_id                   = EXCLUDED.run_id,
-        p_coin_flip              = EXCLUDED.p_coin_flip,
-        p_one_score              = EXCLUDED.p_one_score,
-        p_two_scores             = EXCLUDED.p_two_scores,
-        p_blowout                = EXCLUDED.p_blowout,
-        predicted_bin            = EXCLUDED.predicted_bin,
-        predicted_bin_confidence = EXCLUDED.predicted_bin_confidence,
-        closeness_index          = EXCLUDED.closeness_index,
-        actual_abs_margin        = EXCLUDED.actual_abs_margin,
-        true_bin                 = EXCLUDED.true_bin,
-        is_final                 = EXCLUDED.is_final,
-        predicted_correct        = EXCLUDED.predicted_correct;
-    """
+      INSERT INTO {schema}.{table} (
+          predicted_at_utc, run_id, model_name,
+          season, week, home_team, away_team, game_id, season_type, game_type,
+          p_coin_flip, p_one_score, p_two_scores, p_blowout,
+          predicted_bin, predicted_bin_confidence, closeness_index,
+          actual_abs_margin, true_bin, is_final, predicted_correct
+      )
+      VALUES (
+          %(predicted_at_utc)s, %(run_id)s, %(model_name)s,
+          %(season)s, %(week)s, %(home_team)s, %(away_team)s, %(game_id)s, %(season_type)s, %(game_type)s,
+          %(p_coin_flip)s, %(p_one_score)s, %(p_two_scores)s, %(p_blowout)s,
+          %(predicted_bin)s, %(predicted_bin_confidence)s, %(closeness_index)s,
+          %(actual_abs_margin)s, %(true_bin)s, %(is_final)s, %(predicted_correct)s
+      )
+      ON CONFLICT (season, week, home_team, away_team, model_name) DO UPDATE SET
+          predicted_at_utc         = EXCLUDED.predicted_at_utc,
+          run_id                   = EXCLUDED.run_id,
+          game_id                  = EXCLUDED.game_id,
+          p_coin_flip              = EXCLUDED.p_coin_flip,
+          p_one_score              = EXCLUDED.p_one_score,
+          p_two_scores             = EXCLUDED.p_two_scores,
+          p_blowout                = EXCLUDED.p_blowout,
+          predicted_bin            = EXCLUDED.predicted_bin,
+          predicted_bin_confidence = EXCLUDED.predicted_bin_confidence,
+          closeness_index          = EXCLUDED.closeness_index,
+          actual_abs_margin        = EXCLUDED.actual_abs_margin,
+          true_bin                 = EXCLUDED.true_bin,
+          is_final                 = EXCLUDED.is_final,
+          predicted_correct        = EXCLUDED.predicted_correct;
+      """
     with engine.begin() as conn:
         conn.execute(text(ddl))
         conn.execute(text(upsert_sql), out_df.to_dict(orient="records"))
