@@ -1,5 +1,12 @@
 # NFL Modeler
 
+[![codecov](https://codecov.io/github/dusty736/nfl_modeler/branch/main/graph/badge.svg)](https://app.codecov.io/github/dusty736/nfl_modeler)
+
+Dustin Burnham
+burnhamdustin@gmail.com
+BS University of Washington
+MDS University of British Columbia
+
 A portfolio project for NFL game prediction using real-time and historical data.
 
 ## Features
@@ -47,30 +54,21 @@ This checklist outlines the key components and tools needed to build a complete,
   - [x] In-game state features (score diff, time left, etc.)
 - [ ] **Load**:
   - [x] Write `.parquet` files with `{arrow}` or `pyarrow`
-  - [ ] Set up SQL tables in **PostgreSQL** (Cloud SQL)
-  - [ ] Upload to database using `DBI::dbWriteTable()` or `SQLAlchemy`
+  - [x] Set up SQL tables in **PostgreSQL** (Cloud SQL)
+  - [x] Upload to database using `DBI::dbWriteTable()` or `SQLAlchemy`
 
 ---
 
 ### 3. Modeling Pipelines
 #### 3.1 Pre-Game Prediction Model
-- [ ] Create dataset of team features before kickoff
-- [ ] Choose model framework:
+- [x] Create dataset of team features before kickoff
+- [x] Choose model framework:
   - R: `{parsnip}`, `{xgboost}`, `{tidymodels}`
   - Python: `scikit-learn`, `xgboost`, `lightgbm`
-- [ ] Train/test split and cross-validation
-- [ ] Evaluate with accuracy, log loss, calibration plots
-- [ ] Save model artifacts with `qs`, `joblib`, or `mlflow`
-
-#### 3.2 In-Game Win Probability Model
-- [ ] Build dataset from play-by-play
-- [ ] Engineer live-game features:
-  - `down`, `distance`, `score differential`, `yardline_100`, `seconds_remaining`
-- [ ] Train model:
-  - Logistic regression or GAM for interpretability
-  - XGBoost or GBM for performance
-- [ ] Save probability predictions per play for dashboard
-
+- [x] Train/test split and cross-validation
+- [x] Evaluate with accuracy, log loss, calibration plots
+- [x] Save model artifacts with `qs`, `joblib`, or `mlflow`
+- [ ] 
 ---
 
 ### 4. Database Hosting (Google Cloud SQL)
@@ -84,14 +82,13 @@ This checklist outlines the key components and tools needed to build a complete,
 ---
 
 ### 5. Dashboard Development
-- [ ] Choose framework:
-  - R: `Shiny`, `golem`
-  - Python: `Streamlit`, `Dash`
-- [ ] Build interactive UI:
+- [x] Choose framework:
+  - Python: `Dash`
+- [x] Build interactive UI:
   - Pre-game outcome explorer
   - In-game win probability tracker
   - Model insights & explanations
-- [ ] Connect to SQL or `.parquet` files as data source
+- [x] Connect to SQL or `.parquet` files as data source
 
 ---
 
