@@ -19,6 +19,7 @@ jobs:
       - name: Install deps (incl. covr)
         uses: r-lib/actions/setup-r-dependencies@v2
         with:
+          dependencies: '"hard"'
           extra-packages: any::covr
           needs: coverage
 
@@ -29,7 +30,7 @@ jobs:
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}
+          token: ${{ secrets.NFLMODELER_CODECOV }}
           files: coverage.xml
           flags: r-testthat
           fail_ci_if_error: true
