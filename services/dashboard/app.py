@@ -9,58 +9,57 @@ Conventions
 - Pages: uses Dash Pages (`use_pages=True`) and a dynamic `pages_folder` that works
   both locally and inside the container (see `_find_pages_dir`).
 - Assets: standard Dash behaviour auto-loads `/assets` (CSS, images, etc.).
-- Exports: `server = app.server` is what Gunicorn/uvicorn workers import.
+- Exports: `server = app.server` is what Gunicorn (or uvicorn) imports.
 
 Notes
 -----
-- No functional changes in this file; only documentation and comments.
+- Cloud Run sets the PORT env var. We default to 8080 for local dev.
 """
 
 # services/dashboard/app.py
 
 from pathlib import Path
+import os
 import dash
 from dash import html
 
 # --- App bootstrap --------------------------------------------------------------
 
-def _find_pages_dir() -> str:
+def _find_pages_dir() -> str | None:
     """
     Resolve the pages directory inside the container or local dev tree.
-    
+
     Search order:
       1) /app/pages
       2) /app/services/dashboard/pages
-    
-    Returns:
-        str: Absolute path to the pages directory if found; otherwise "" (Dash
-             will still start with `use_pages=True` and no pages registered).
-    
-    Side effects:
-        Prints a one-line selection, or a WARN block listing checked candidates.
-    
-    Why:
-        Keeps docker-compose and local layouts both working without env flags.
-    """
 
+    Returns:
+        str | None: Absolute path to the pages directory if found; otherwise None.
+    """
     here = Path(__file__).parent  # expected: /app
     candidates = [
         here / "pages",
         here / "services" / "dashboard" / "pages",
     ]
     for p in candidates:
-      if p.exists():
-        print(f"[dash] Using pages_folder: {p}")
-        return str(p)
-    print("[dash][WARN] No pages folder found among:", *map(str, candidates), sep="\n  ")
-    return ""
+        if p.exists():
+            print(f"[dash] Using pages_folder: {p}")
+            return str(p)
+    print(
+        "[dash][WARN] No pages folder found among:",
+        *map(str, candidates),
+        sep="\n  ",
+    )
+    return None
+
+pages_dir = _find_pages_dir()
 
 app = dash.Dash(
     __name__,
     title="NFL Analytics • 2025",
     use_pages=True,
-    pages_folder=_find_pages_dir(),
-    suppress_callback_exceptions=True  # ← allow page-specific IDs
+    pages_folder=pages_dir,                 # Dash will ignore None and use default
+    suppress_callback_exceptions=True       # allow page-specific IDs
 )
 server = app.server
 
@@ -68,5 +67,9 @@ server = app.server
 app.layout = html.Div([dash.page_container])
 
 if __name__ == "__main__":
-    app.run_server(host="0.0.0.0", port=8050, debug=True)
+    # Cloud Run injects PORT. Default to 8080 for local dev (`python app.py`)
+    port = int(os.getenv("PORT", "8080"))
+    debug = os.getenv("DEBUG", "0") in ("1", "true", "True", "YES", "yes")
+    app.run_server(host="0.0.0.0", port=port, debug=debug)
+
 

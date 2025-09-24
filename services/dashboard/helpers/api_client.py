@@ -1,17 +1,19 @@
 """
 API Client Helpers
 ------------------
-Thin convenience wrappers around the internal FastAPI service.
+Thin convenience wrappers around the FastAPI service with resilient base URL
+resolution (Cloud Run or local).
 
 Principles
 - No retries/backoff here (the UI stays snappy and predictable).
 - Fail closed with empty shapes or sensible defaults ([], {}, (None, None)).
-- Do NOT change behaviour: this file only adds documentation/comments.
+- Keep local-dev fallbacks working: try env → docker hostnames → localhost.
+- Handle both bare paths and '/api/*' prefixed paths automatically.
 
-Caution
-- `API_BASE` is defined twice on purpose in the current code: first via env
-  (default "http://api:8000"), later hard-set to "http://nfl_api_py:8000".
-  The latter *wins* at runtime. We are not changing that precedence here.
+Notes
+- Historically `API_BASE` was defined twice (env then hard-coded). We now
+  centralize base resolution in `_get_json_resilient`, which preserves the
+  same fallbacks while letting Cloud Run override via env.
 """
 
 import os
@@ -19,279 +21,254 @@ import requests
 from urllib.parse import quote
 from typing import Iterable, List, Union, Optional, Dict, Any
 
-# --- Core schedule/state lookups ------------------------------------------------
-def fetch_current_season_week():
-    """Return the current (season, week) from /api/season-week.
-    
-    Returns:
-        tuple[int|None, int|None]: (season, week) or (None, None) on error.
+# --- Base URL resolution (Cloud Run friendly) -----------------------------------
+API_BASE_URL = (
+    os.getenv("API_BASE_URL")
+    or os.getenv("API_URL")
+    or os.getenv("API_BASE")
+    or ""                     # will force fallback to localhost below
+).rstrip("/")
+
+_BASES = [b for b in [API_BASE_URL, "http://localhost:8000"] if b]
+
+def _api_get(path: str, *, timeout: int = 3):
+    """Try env-provided base(s) with and without /api prefix. Return parsed JSON or {} / [] on error."""
+    paths = [path if path.startswith("/") else f"/{path}", f"/api{path if path.startswith('/') else '/'+path}"]
+    last_err = None
+    for base in _BASES:
+        for p in paths:
+            url = f"{base}{p}"
+            try:
+                r = requests.get(url, timeout=timeout)
+                r.raise_for_status()
+                return r.json()
+            except Exception as e:
+                last_err = e
+                continue
+    print(f"[api_client] GET {path} failed: {last_err}")
+    # pick a stable empty shape
+    return {} if path.endswith("/stats") else []
+
+
+# ============================
+# Base URL resolution + HTTP
+# ============================
+
+def _base_candidates() -> List[str]:
+    """Prefer Cloud Run env, then docker-compose hosts, then localhost."""
+    env = os.getenv("API_BASE_URL") or os.getenv("API_BASE") or os.getenv("API_URL")
+    bases: List[str] = []
+    if env:
+        bases.append(env.rstrip("/"))
+    # Local/dev fallbacks
+    bases += [
+        "http://api:8000",
+        "http://nfl_api_py:8000",
+        "http://localhost:8000",
+    ]
+    # De-dupe while preserving order
+    seen = set()
+    out: List[str] = []
+    for b in bases:
+        if b not in seen:
+            out.append(b)
+            seen.add(b)
+    return out
+
+def _normalize_path(path: str) -> str:
+    return path if path.startswith("/") else f"/{path}"
+
+def _get_json_resilient(path: str, *, params: Optional[Dict[str, Any]] = None, timeout: int = 8):
     """
+    Try multiple base URLs and with/without '/api' prefix.
+    Returns parsed JSON on success; empty structure on failure.
+    """
+    path = _normalize_path(path)
+    params = params or {}
+    prefixes = ("", "/api")
+
+    last_err = None
+    for base in _base_candidates():
+        for pref in prefixes:
+            url = f"{base}{pref}{path}"
+            try:
+                r = requests.get(url, params=params, timeout=timeout)
+                if r.status_code == 404:
+                    # Try next prefix/base if this path style isn't mounted
+                    last_err = f"404 at {url}"
+                    continue
+                r.raise_for_status()
+                return r.json()
+            except Exception as e:
+                last_err = f"{type(e).__name__}: {e}"
+                continue
+
+    # Heuristic: dict endpoints vs list endpoints for safe fallbacks
+    fallback = {} if path.endswith("/stats") or path.count("/games/") >= 1 else []
+    print(f"[api_client] GET {path} failed across fallbacks: {last_err}")
+    return fallback
+
+# ============================
+# Core schedule/state lookups
+# ============================
+
+def fetch_current_season_week():
     try:
-        r = requests.get("http://api:8000/api/season-week", timeout=2)
-        r.raise_for_status()
-        data = r.json()
-        return data.get("season"), data.get("week")
+        data = _api_get("/season-week", timeout=2)
+        return (data or {}).get("season"), (data or {}).get("week")
     except Exception:
         return None, None
 
 def fetch_primetime_games():
-    """Fetch primetime games for the current season/week.
-
-    Primetime: any non-Sunday, or Sunday 18:00+ (Europe/London), per backend logic.
-
-    Returns:
-        list[dict]: Zero or more game objects. Empty list on error.
-    """
     try:
-        response = requests.get("http://api:8000/api/primetime-games", timeout=2)
-        response.raise_for_status()
-        data = response.json()
-        return data.get("games", [])
+        data = _api_get("/primetime-games", timeout=2)
+        return (data or {}).get("games", []) if isinstance(data, dict) else (data or [])
     except Exception as e:
         print(f"[api_client] Failed to fetch primetime games: {e}")
         return []
 
-# --- Teams directory ------------------------------------------------------------
-def get_all_teams():
-    """List teams (excluding legacy OAK/STL/SD) from /teams/.
-    
-    Returns:
-        list[dict]: [{team_name, team_abbr, team_division}, ...] or [] on error.
-    """
+# ============================
+# Teams directory
+# ============================
 
+def get_all_teams():
     try:
-        r = requests.get("http://api:8000/teams/", timeout=2)
-        r.raise_for_status()
-        return r.json()
+        data = _api_get("/teams/", timeout=2)
+        return data or []
     except Exception as e:
         print(f"[api_client] Failed to fetch teams: {e}")
         return []
 
 def get_team_by_abbr(team_abbr: str):
-    """Fetch a single team by abbreviation from /teams/{abbr}.
-    
-    Args:
-        team_abbr (str): e.g., "KC".
-    
-    Returns:
-        dict|list: Team mapping on success; [] on error for UI stability.
-    """
-
     try:
-        r = requests.get(f"http://api:8000/teams/{team_abbr}", timeout=2)
-        r.raise_for_status()
-        return r.json()
+        data = _api_get(f"/teams/{team_abbr}", timeout=2)
+        return data or []
     except Exception as e:
         print(f"[api_client] Failed to fetch team abbr: {e}")
         return []
-      
-# --- Team stats (record/offense/defense/special) --------------------------------
-def get_team_record(team_abbr: str, season: int, week: int):
-    """Get season record snapshot for a team.
-    
-    Args:
-        team_abbr (str), season (int), week (int): week is forwarded unchanged.
-    
-    Returns:
-        dict: {wins, losses, ties, points_scored, points_allowed, point_differential}
-              or {} on error.
-    """
 
+# ============================
+# Team stats (record/off/def/special)
+# ============================
+
+def get_team_record(team_abbr: str, season: int, week: int):
     try:
-        r = requests.get(
-            f"http://api:8000/team_stats/{team_abbr}/record/{season}/{week}",
-            timeout=2
-        )
-        r.raise_for_status()
-        return r.json()
+        return _get_json_resilient(f"/team_stats/{team_abbr}/record/{int(season)}/{int(week)}", timeout=3) or {}
     except Exception as e:
         print(f"[api_client] Failed to fetch team record: {e}")
         return {}
 
 def get_team_offense(team_abbr: str, season: int, week: int):
-    """Cumulative offensive yards by week (plus TOTAL row).
-    
-    Returns:
-        list[dict]|dict: [{'week','passing_yards','rushing_yards','receiving_yards'}, ...]
-                         or {} on error.
-    """
-
     try:
-        r = requests.get(
-            f"http://api:8000/team_stats/{team_abbr}/offense/{season}/{week}",
-            timeout=2
-        )
-        r.raise_for_status()
-        return r.json()
+        data = _get_json_resilient(f"/team_stats/{team_abbr}/offense/{int(season)}/{int(week)}", timeout=4)
+        return data if isinstance(data, (list, dict)) else {}
     except Exception as e:
         print(f"[api_client] Failed to fetch team offense: {e}")
         return {}
 
 def get_team_defense(team_abbr: str, season: int, week: int):
-    """Cumulative defensive counting stats by week (plus TOTAL row).
-    
-    Returns:
-        list[dict]|dict: [{'week','tackles','sacks','interceptions'}, ...] or {} on error.
-    """
-
     try:
-        r = requests.get(
-            f"http://api:8000/team_stats/{team_abbr}/defense/{season}/{week}",
-            timeout=2
-        )
-        r.raise_for_status()
-        return r.json()
+        data = _get_json_resilient(f"/team_stats/{team_abbr}/defense/{int(season)}/{int(week)}", timeout=4)
+        return data if isinstance(data, (list, dict)) else {}
     except Exception as e:
         print(f"[api_client] Failed to fetch team defense: {e}")
         return {}
 
 def get_team_special(team_abbr: str, season: int, week: int):
-    """Cumulative special teams FG counts by week (plus TOTAL row).
-    
-    Returns:
-        list[dict]|dict: [{'week','total_fg_made','total_fg_attempted'}, ...] or {} on error.
-    """
-
     try:
-        r = requests.get(
-            f"http://api:8000/team_stats/{team_abbr}/special/{season}/{week}",
-            timeout=2
-        )
-        r.raise_for_status()
-        return r.json()
+        data = _get_json_resilient(f"/team_stats/{team_abbr}/special/{int(season)}/{int(week)}", timeout=4)
+        return data if isinstance(data, (list, dict)) else {}
     except Exception as e:
         print(f"[api_client] Failed to fetch team special: {e}")
         return {}
-      
-# --- Rosters --------------------------------------------------------------------
-def get_team_roster(team_abbr: str, season: int):
-    """Full roster listing for a season/team.
-  
-    Returns:
-        list[dict]|dict: rows with name, position, status, bio fields; {} on error.
-    """
 
+# ============================
+# Rosters
+# ============================
+
+def get_team_roster(team_abbr: str, season: int):
     try:
-        r = requests.get(
-            f"http://api:8000/team_rosters/{team_abbr}/{season}",
-            timeout=2
-        )
-        r.raise_for_status()
-        return r.json()
+        data = _get_json_resilient(f"/team_rosters/{team_abbr}/{int(season)}", timeout=4)
+        return data if isinstance(data, (list, dict)) else {}
     except Exception as e:
         print(f"[api_client] Failed to fetch team roster: {e}")
         return {}
 
-# --- Roster: position summary ---
 def get_team_position_summary(team_abbr: str, season: int, position: str):
-    """Position-group summary (averages + stability score) or TEAM aggregate.
-  
-    Returns:
-        list[dict]|dict: one row for the requested position; {} on error.
-    """
-
     try:
-        r = requests.get(
-            f"http://api:8000/team_rosters/{team_abbr}/{season}/positions/{position}",
-            timeout=2
-        )
-        r.raise_for_status()
-        return r.json()
+        data = _get_json_resilient(f"/team_rosters/{team_abbr}/{int(season)}/positions/{position}", timeout=4)
+        return data if isinstance(data, (list, dict)) else {}
     except Exception as e:
         print(f"[api_client] Failed to fetch position summary: {e}")
         return {}
 
-# --- Roster: weekly depth chart starters ---
 def get_team_depth_chart_starters(team_abbr: str, season: int, week: int):
-    """Depth chart starters for a given week.
-    
-    Returns:
-        list[dict]|dict: [{position_group, player, starts, new_starter, ...}] or {} on error.
-    """
-
     try:
-        r = requests.get(
-            f"http://api:8000/team_rosters/{team_abbr}/{season}/weeks/{week}",
-            timeout=2
-        )
-        r.raise_for_status()
-        return r.json()
+        data = _get_json_resilient(f"/team_rosters/{team_abbr}/{int(season)}/weeks/{int(week)}", timeout=4)
+        return data if isinstance(data, (list, dict)) else {}
     except Exception as e:
         print(f"[api_client] Failed to fetch depth chart starters: {e}")
         return {}
 
-# --- Week bounds ----------------------------------------------------------------
-def fetch_max_week(season: int) -> int:
-    """Return max completed week for a season via /api/max-week/{season}.
-    
-    Returns:
-        int: Max week (default 18 on error).
-    """
+# ============================
+# Week bounds
+# ============================
 
-    r = requests.get(f"http://api:8000/api/max-week/{season}", timeout=2)
-    if r.ok:
-        return r.json().get("max_week", 18)
+def fetch_max_week(season: int) -> int:
+    data = _get_json_resilient(f"/max-week/{int(season)}", timeout=3) or {}
+    if isinstance(data, dict):
+        return int(data.get("max_week", 18))
     return 18
-  
+
 def get_max_week_team(season: int, team: str) -> int:
-    """Return max completed week for a season/team via /api/max-week-team.
-    
-    Returns:
-        int: Max week (default 18 on error).
-    """
     try:
-        r = requests.get(
-            f"http://api:8000/api/max-week-team/{season}/{team}",
-            timeout=2
-        )
-        r.raise_for_status()
-        return r.json().get("max_week", 18)
+        data = _get_json_resilient(f"/max-week-team/{int(season)}/{team}", timeout=3) or {}
+        return int(data.get("max_week", 18)) if isinstance(data, dict) else 18
     except Exception as e:
         print(f"[api_client] Failed to fetch max week for {team} {season}: {e}")
         return 18
 
-# --- Injuries -------------------------------------------------------------------
+# ============================
+# Injuries
+# ============================
+
 def get_team_injury_summary(team_abbr: str, season: int, week: int, position: str):
-    """Team injury counts (weekly and season-to-date) for a position group.
-    
-    Returns:
-        list[dict]|dict: [{'week','position','weekly_injuries','season_injuries'}] or {} on error.
-    """
     try:
-        r = requests.get(
-            f"http://api:8000/team_injuries/{team_abbr}/injuries/team/{season}/{week}/{position}",
-            timeout=2
+        data = _get_json_resilient(
+            f"/team_injuries/{team_abbr}/injuries/team/{int(season)}/{int(week)}/{position}",
+            timeout=5
         )
-        r.raise_for_status()
-        return r.json()
+        return data if isinstance(data, (list, dict)) else {}
     except Exception as e:
         print(f"[api_client] Failed to fetch team injury summary: {e}")
         return {}
 
-# --- Injuries: player-level raw data ---
 def get_player_injuries(team_abbr: str, season: int, week: int, position: str):
-    """Per-player injury details for a position group.
-    
-    Returns:
-        list[dict]|dict: [{'name','position','report_status','practice_status',...}] or {} on error.
-    """
     try:
-        r = requests.get(
-            f"http://api:8000/team_injuries/{team_abbr}/injuries/player/{season}/{week}/{position}",
-            timeout=2
+        data = _get_json_resilient(
+            f"/team_injuries/{team_abbr}/injuries/player/{int(season)}/{int(week)}/{position}",
+            timeout=5
         )
-        r.raise_for_status()
-        return r.json()
+        return data if isinstance(data, (list, dict)) else {}
     except Exception as e:
         print(f"[api_client] Failed to fetch player injuries: {e}")
         return {}
 
-# --- Analytics Nexus (Players) --------------------------------------------------
-API_BASE = os.getenv("API_BASE", "http://api:8000")
-API_PREFIXES = ["", "/api"]  # try bare path first, then /api
+# ============================
+# Analytics Nexus — shared bits
+# ============================
 
 ALLOWED_POSITIONS = {"QB", "RB", "WR", "TE"}
 ALLOWED_SEASON_TYPES = {"REG", "POST", "ALL"}
+ALLOWED_ORDER_BY = {"rCV", "IQR", "median"}
+ALLOWED_TOP_BY = {"combined", "x_gate", "y_gate", "x_value", "y_value"}
+
+# Keep legacy API_PREFIXES for code that builds its own paths
+API_PREFIXES = ["", "/api"]
+
+# ============================
+# Analytics Nexus (Players — Trajectories)
+# ============================
 
 def fetch_player_trajectories(
     season: int,
@@ -303,23 +280,10 @@ def fetch_player_trajectories(
     week_end: int = 18,
     rank_by: str = "sum",          # 'sum' or 'mean'
     stat_type: str = "base",       # 'base' or 'cumulative'
-    min_games: int = 0,            # floor on non-NULL weeks
-    timeout: int = 3,
+    min_games: int = 0,
+    timeout: int = 4,
     debug: bool = True,
 ):
-    """Analytics Nexus: Top-N player weekly trajectories.
-    
-    Args:
-        season (int), season_type (str), stat_name (str), position (str), top_n (int)
-        week_start/week_end (int): inclusive bounds
-        rank_by (str): "sum"|"mean" (avg)
-        stat_type (str): "base"|"cumulative"
-        min_games (int): minimum non-NULL weeks
-        timeout (int), debug (bool)
-    
-    Returns:
-        list[dict]: rows ordered by player_rank then week; [] on error/empty.
-    """
     try:
         pos = (position or "").upper().strip()
         if pos not in ALLOWED_POSITIONS:
@@ -337,10 +301,7 @@ def fetch_player_trajectories(
             raise ValueError("stat_type must be 'base' or 'cumulative'")
 
         mg = max(0, int(min_games))
-
-        # Safe for path segment
         stat_seg = quote(str(stat_name), safe="")
-
         params = {
             "week_start": int(week_start),
             "week_end": int(week_end),
@@ -348,43 +309,24 @@ def fetch_player_trajectories(
             "rank_by": rb,
             "min_games": mg,
         }
+        path = f"/analytics_nexus/player/trajectories/{int(season)}/{st}/{stat_seg}/{pos}/{int(top_n)}"
+        data = _get_json_resilient(path, params=params, timeout=timeout)
 
-        last_err = None
-        for prefix in API_PREFIXES:
-            url = f"{API_BASE}{prefix}/analytics_nexus/player/trajectories/{int(season)}/{st}/{stat_seg}/{pos}/{int(top_n)}"
-            try:
-                if debug:
-                    print(f"[api_client] GET {url} params={params}")
-                r = requests.get(url, params=params, timeout=timeout)
-                if r.status_code == 404:
-                    last_err = f"404 at {url}"
-                    continue
-                r.raise_for_status()
-                data = r.json()
-                if isinstance(data, dict) and data.get("error"):
-                    if debug:
-                        print(f"[api_client] Empty (error): {data.get('error')}")
-                    return []
-                if isinstance(data, list):
-                    if debug:
-                        print(f"[api_client] OK {url} -> {len(data)} rows")
-                    return data
-                if debug:
-                    print(f"[api_client] Unexpected payload at {url}: {type(data)}")
-                return []
-            except Exception as e:
-                last_err = str(e)
-                continue
-
-        if debug:
-            print(f"[api_client] Failed after trying {API_PREFIXES}: {last_err}")
+        if isinstance(data, list):
+            if debug:
+                print(f"[api_client] OK {path} -> {len(data)} rows")
+            return data
+        if isinstance(data, dict) and data.get("error"):
+            if debug:
+                print(f"[api_client] Empty (error): {data.get('error')}")
         return []
     except Exception as e:
         print(f"[api_client] Failed to fetch player trajectories: {e}")
         return []
-      
-# --- Analytics Nexus (Players — Scatter) ----------------------------------------
-ALLOWED_ORDER_BY = {"rCV", "IQR", "median"}
+
+# ============================
+# Analytics Nexus (Players — Violins)
+# ============================
 
 def fetch_player_violins(
     seasons,
@@ -394,19 +336,12 @@ def fetch_player_violins(
     top_n: int,
     week_start: int = 1,
     week_end: int = 18,
-    stat_type: str = "base",              # 'base' or 'cumulative'
-    order_by: str = "rCV",                # 'rCV' | 'IQR' | 'median'
-    min_games_for_badges: int = 6,        # small-n badge threshold; does NOT filter players
-    timeout: int = 4,
+    stat_type: str = "base",
+    order_by: str = "rCV",
+    min_games_for_badges: int = 6,
+    timeout: int = 5,
     debug: bool = True,
 ):
-    """Analytics Nexus: Player consistency/volatility violins.
-    
-    Returns:
-        dict: {"weekly": [...], "summary": [...], "badges": {...}, "meta": {...}}
-              Empty-shaped payload on error.
-    """
-
     def _empty_payload(_seasons_list):
         return {
             "weekly": [],
@@ -427,18 +362,15 @@ def fetch_player_violins(
         }
 
     try:
-        # --- Normalize inputs ---
-        # Seasons -> unique sorted list[int]
+        # seasons -> sorted unique list[int]
         if seasons is None:
             seasons_list = []
         elif isinstance(seasons, (list, tuple, set)):
             seasons_list = [int(s) for s in seasons]
-        elif isinstance(seasons, (int,)):
+        elif isinstance(seasons, int):
             seasons_list = [int(seasons)]
         else:
-            # assume comma-separated string
             seasons_list = [int(s.strip()) for s in str(seasons).split(",") if s.strip()]
-
         seasons_list = sorted(set(seasons_list))
         if not seasons_list:
             return _empty_payload([])
@@ -456,30 +388,18 @@ def fetch_player_violins(
             raise ValueError("stat_type must be 'base' or 'cumulative'")
 
         ob = (order_by or "rCV").strip()
-        ob_norm = ob.lower()
-        if ob_norm == "rcv":
-            ob_final = "rCV"
-        elif ob_norm == "iqr":
-            ob_final = "IQR"
-        elif ob_norm == "median":
-            ob_final = "median"
-        else:
+        ob_final = "rCV" if ob.lower() == "rcv" else "IQR" if ob.lower() == "iqr" else "median" if ob.lower() == "median" else None
+        if ob_final is None:
             raise ValueError(f"order_by must be one of {sorted(ALLOWED_ORDER_BY)}")
 
-        ws = int(week_start)
-        we = int(week_end)
-        if ws < 1: ws = 1
-        if we > 22: we = 22
+        ws = max(1, int(week_start))
+        we = min(22, int(week_end))
         if we < ws:
             return _empty_payload(seasons_list)
 
         mg = max(0, int(min_games_for_badges))
         tn = max(1, int(top_n))
-
-        # Safe path segment for stat_name
         stat_seg = quote(str(stat_name), safe="")
-
-        # Build query params (repeatable 'seasons' is supported by `requests` when value is a list)
         params = {
             "seasons": seasons_list,
             "season_type": st,
@@ -489,43 +409,28 @@ def fetch_player_violins(
             "order_by": ob_final,
             "min_games_for_badges": mg,
         }
+        path = f"/analytics_nexus/player/violins/{stat_seg}/{pos}/{tn}"
+        data = _get_json_resilient(path, params=params, timeout=timeout)
 
-        last_err = None
-        for prefix in API_PREFIXES:
-            url = f"{API_BASE}{prefix}/analytics_nexus/player/violins/{stat_seg}/{pos}/{tn}"
-            try:
-                if debug:
-                    print(f"[api_client] GET {url} params={params}")
-                r = requests.get(url, params=params, timeout=timeout)
-                if r.status_code == 404:
-                    last_err = f"404 at {url}"
-                    continue
-                r.raise_for_status()
-                data = r.json()
-                # Expect a dict with 'weekly'/'summary' keys
-                if isinstance(data, dict) and "weekly" in data and "summary" in data:
-                    if debug:
-                        w = len(data.get("weekly", []))
-                        s = len(data.get("summary", []))
-                        print(f"[api_client] OK {url} -> weekly={w}, summary={s}")
-                    return data
-                if debug:
-                    print(f"[api_client] Unexpected payload at {url}: type={type(data)} keys={list(data) if isinstance(data, dict) else 'n/a'}")
-                return _empty_payload(seasons_list)
-            except Exception as e:
-                last_err = str(e)
-                continue
-
+        if isinstance(data, dict) and "weekly" in data and "summary" in data:
+            if debug:
+                print(f"[api_client] OK {path} -> weekly={len(data.get('weekly', []))}, summary={len(data.get('summary', []))}")
+            return data
         if debug:
-            print(f"[api_client] Failed after trying {API_PREFIXES}: {last_err}")
+            print(f"[api_client] Unexpected payload at {path}")
         return _empty_payload(seasons_list)
-
     except Exception as e:
         print(f"[api_client] Failed to fetch player violins: {e}")
-        return _empty_payload(sorted(set([int(seasons)])) if isinstance(seasons, (int, str)) else (sorted(set(seasons)) if seasons else []))
+        if isinstance(seasons, (int, str)):
+            try:
+                seasons = [int(s) for s in str(seasons).split(",") if s.strip()]
+            except Exception:
+                seasons = []
+        return _empty_payload(sorted(set(seasons)) if seasons else [])
 
-# --- Analytics Nexus (Players — Scatter) ----------------------------------------
-ALLOWED_TOP_BY = {"combined", "x_gate", "y_gate", "x_value", "y_value"}
+# ============================
+# Analytics Nexus (Players — Scatter)
+# ============================
 
 def fetch_player_scatter(
     seasons,
@@ -536,27 +441,18 @@ def fetch_player_scatter(
     top_n: int = 20,
     week_start: int = 1,
     week_end: int = 18,
-    stat_type: str = "base",                # scatter uses 'base' only
-    top_by: str = "combined",               # combined | x_gate | y_gate | x_value | y_value
+    stat_type: str = "base",
+    top_by: str = "combined",
     log_x: bool = False,
     log_y: bool = False,
-    label_all_points: bool = True,          # UI may choose to show/hide labels
+    label_all_points: bool = True,
     timeout: int = 5,
     debug: bool = True,
 ):
-    """Analytics Nexus: Player quadrant scatter.
-    
-    Returns:
-        dict: {"points":[...], "meta":{...}} or {} on error.
-    Notes:
-        stat_type is forced to "base"; seasons can be list or comma string.
-    """
     try:
-        # --- Validate & normalize ---
         pos = (position or "").upper().strip()
         if pos not in ALLOWED_POSITIONS:
             raise ValueError(f"position must be one of {sorted(ALLOWED_POSITIONS)}")
-
         st = (season_type or "").upper().strip()
         if st not in ALLOWED_SEASON_TYPES:
             raise ValueError(f"season_type must be one of {sorted(ALLOWED_SEASON_TYPES)}")
@@ -565,24 +461,20 @@ def fetch_player_scatter(
         if tb not in ALLOWED_TOP_BY:
             raise ValueError(f"top_by must be one of {sorted(ALLOWED_TOP_BY)}")
 
-        # enforce base for scatter
         stype = (stat_type or "base").strip().lower()
-        if stype != "base":
+        if stype != "base":  # enforce 'base'
             stype = "base"
 
-        # seasons → list[int]
+        # seasons normalize -> sorted unique list[int]
         if seasons is None:
             raise ValueError("seasons is required")
         if isinstance(seasons, (int, str)):
             seasons = [seasons]
-        clean_seasons = []
+        clean_seasons: List[int] = []
         for s in seasons:
-            if s is None:
-                continue
             try:
                 clean_seasons.append(int(s))
             except Exception:
-                # tolerate comma strings like "2023,2024"
                 for tok in str(s).split(","):
                     tok = tok.strip()
                     if tok:
@@ -593,7 +485,6 @@ def fetch_player_scatter(
 
         mx = quote(str(metric_x), safe="")
         my = quote(str(metric_y), safe="")
-
         params = {
             "season_type": st,
             "week_start": int(week_start),
@@ -603,53 +494,23 @@ def fetch_player_scatter(
             "log_x": bool(log_x),
             "log_y": bool(log_y),
             "label_all_points": bool(label_all_points),
+            "seasons": seasons,  # requests encodes as repeatable
         }
-
-        last_err = None
-        for prefix in API_PREFIXES:
-            url = f"{API_BASE}{prefix}/analytics_nexus/player/scatter/{mx}/{my}/{pos}/{int(top_n)}"
-            try:
-                if debug:
-                    print(f"[api_client] GET {url} seasons={seasons} params={params}")
-                # requests will encode list -> repeated ?seasons=YYYY&seasons=YYYY
-                r = requests.get(url, params={**params, "seasons": seasons}, timeout=timeout)
-                if r.status_code == 404:
-                    last_err = f"404 at {url}"
-                    continue
-                r.raise_for_status()
-                data = r.json()
-                if isinstance(data, dict):
-                    if debug:
-                        pts = len(data.get("points", []) or [])
-                        print(f"[api_client] OK scatter -> {pts} points")
-                    return data
-                if debug:
-                    print(f"[api_client] Unexpected payload at {url}: {type(data)}")
-                return {}
-            except Exception as e:
-                last_err = str(e)
-                continue
-
-        if debug:
-            print(f"[api_client] Scatter failed after trying {API_PREFIXES}: {last_err}")
+        path = f"/analytics_nexus/player/scatter/{mx}/{my}/{pos}/{int(top_n)}"
+        data = _get_json_resilient(path, params=params, timeout=timeout)
+        if isinstance(data, dict):
+            if debug:
+                pts = len(data.get("points", []) or [])
+                print(f"[api_client] OK scatter -> {pts} points")
+            return data
         return {}
     except Exception as e:
         print(f"[api_client] Failed to fetch player scatter: {e}")
         return {}
 
 # ============================
-# API client — Player Rolling Percentiles
+# Analytics Nexus (Players — Rolling Percentiles)
 # ============================
-
-# ============================ Analytics Nexus (Players — Rolling) ===============
-# NOTE: This block redefines API_BASE to "http://nfl_api_py:8000" and declares
-#       a local _api_url() helper. This intentionally overrides the earlier
-#       env-based API_BASE. We leave this intact to preserve current behaviour.
-API_BASE = "http://nfl_api_py:8000"
-
-def _api_url(path: str) -> str:
-    """Build a full API URL using the local (overriding) API_BASE."""
-    return f"{API_BASE}{path}"
 
 def fetch_player_rolling_percentiles(
     seasons,
@@ -665,45 +526,33 @@ def fetch_player_rolling_percentiles(
     debug: bool = False,
 ):
     """
-    Call Analytics Nexus: Player Rolling Percentiles.
-
-    Path params:
-      /analytics_nexus/player/rolling_percentiles/{metric}/{position}/{top_n}
-
-    Query params:
-      seasons (repeatable), season_type, stat_type, week_start, week_end,
-      rolling_window, debug
+    /analytics_nexus/player/rolling_percentiles/{metric}/{position}/{top_n}
     """
     try:
-        # --- Normalize ---
         pos   = (position or "").upper().strip()
         stype = (stat_type or "base").lower().strip()
         st    = (season_type or "REG").upper().strip()
 
-        # --- Clean seasons ---
         if seasons is None:
             raise ValueError("seasons is required")
         if isinstance(seasons, (int, str)):
             seasons = [seasons]
-
-        clean_seasons = []
+        clean: List[int] = []
         for s in seasons:
             try:
-                clean_seasons.append(int(s))
+                clean.append(int(s))
             except Exception:
                 for tok in str(s).split(","):
                     tok = tok.strip()
                     if tok:
-                        clean_seasons.append(int(tok))
-        seasons = sorted(set(clean_seasons))
+                        clean.append(int(tok))
+        seasons = sorted(set(clean))
         if not seasons:
             raise ValueError("At least one season must be provided")
 
-        # --- URL ---
         path = f"/analytics_nexus/player/rolling_percentiles/{metric}/{pos}/{int(top_n)}"
-        url = _api_url(path)
         params = {
-            "seasons": seasons,   # list[int] → encoded as repeated ?seasons=2024&seasons=2025
+            "seasons": seasons,
             "season_type": st,
             "stat_type": stype,
             "week_start": int(week_start),
@@ -711,25 +560,23 @@ def fetch_player_rolling_percentiles(
             "rolling_window": int(rolling_window),
             "debug": str(bool(debug)).lower(),
         }
-
-        if debug:
-            print("[ROLLING DEBUG] URL:", url)
-            print("[ROLLING DEBUG] Params:", params)
-
-        r = requests.get(url, params=params, timeout=timeout)
-        r.raise_for_status()
-        data = r.json()
-
-        if debug:
-            print(f"[ROLLING DEBUG] OK -> {len(data.get('series', []))} series rows")
-
-        return data
-
+        data = _get_json_resilient(path, params=params, timeout=timeout)
+        if isinstance(data, dict):
+            data.setdefault("series", [])
+            data.setdefault("players", [])
+            data.setdefault("meta", {})
+            if debug:
+                print(f"[ROLLING DEBUG] OK -> {len(data.get('series', []))} series rows")
+            return data
+        return {"series": [], "players": [], "meta": {}}
     except Exception as e:
         print(f"[fetch_player_rolling_percentiles] error: {e}")
         return {"series": [], "players": [], "meta": {}}
-      
-# --- Analytics Nexus (Teams — Trajectories) -------------------------------------
+
+# ============================
+# Analytics Nexus (Teams — Trajectories)
+# ============================
+
 def fetch_team_trajectories(
     stat_name: str,
     top_n: int,
@@ -737,20 +584,12 @@ def fetch_team_trajectories(
     season_type: str = "REG",
     week_start: int = 1,
     week_end: int = 18,
-    rank_by: str = "sum",       # 'sum' or 'mean'
-    stat_type: str = "base",    # 'base' or 'cumulative' (view mode)
-    highlight: Optional[Union[str, List[str]]] = None,  # not used server-side yet
+    rank_by: str = "sum",
+    stat_type: str = "base",
+    highlight: Optional[Union[str, List[str]]] = None,
     timeout: int = 4,
     debug: bool = True,
 ):
-    """Analytics Nexus: Top-N team weekly trajectories.
-    
-    Args mirror server: seasons (list[int]), season_type, week window, rank_by, stat_type.
-    
-    Returns:
-        list[dict]: ordered by season, team_rank, week; [] on error/empty.
-    """
-
     try:
         st = (season_type or "REG").upper().strip()
         rb = (rank_by or "sum").lower().strip()
@@ -770,40 +609,23 @@ def fetch_team_trajectories(
             "rank_by": rb,
             "stat_type": stype,
         }
-
-        last_err = None
-        for prefix in API_PREFIXES:
-            url = f"{API_BASE}{prefix}/analytics_nexus/team/trajectories/{stat_seg}/{int(top_n)}"
-            try:
-                if debug:
-                    print(f"[api_client] GET {url} params={params}")
-                r = requests.get(url, params=params, timeout=timeout)
-                if r.status_code == 404:
-                    last_err = f"404 at {url}"
-                    continue
-                r.raise_for_status()
-                data = r.json()
-                if isinstance(data, dict) and data.get("error"):
-                    if debug: print(f"[api_client] Empty (error): {data.get('error')}")
-                    return []
-                if isinstance(data, list):
-                    if debug: print(f"[api_client] OK {url} -> {len(data)} rows")
-                    return data
-                if debug: print(f"[api_client] Unexpected payload at {url}: {type(data)}")
-                return []
-            except Exception as e:
-                last_err = str(e)
-                continue
-
-        if debug:
-            print(f"[api_client] Failed after trying {API_PREFIXES}: {last_err}")
+        path = f"/analytics_nexus/team/trajectories/{stat_seg}/{int(top_n)}"
+        data = _get_json_resilient(path, params=params, timeout=timeout)
+        if isinstance(data, list):
+            if debug:
+                print(f"[api_client] OK {path} -> {len(data)} rows")
+            return data
+        if isinstance(data, dict) and data.get("error"):
+            if debug:
+                print(f"[api_client] Empty (error): {data.get('error')}")
         return []
     except Exception as e:
         print(f"[api_client] Failed to fetch team trajectories: {e}")
         return []
-      
-# --- Analytics Nexus (Teams — Violins) ------------------------------------------
-ALLOWED_TEAM_ORDER_BY = {"rCV", "IQR", "median"}
+
+# ============================
+# Analytics Nexus (Teams — Violins)
+# ============================
 
 def fetch_team_violins(
     seasons,
@@ -812,19 +634,12 @@ def fetch_team_violins(
     top_n: int,
     week_start: int = 1,
     week_end: int = 18,
-    stat_type: str = "base",              # 'base' | 'cumulative'
-    order_by: str = "rCV",                # 'rCV' | 'IQR' | 'median'
-    min_games_for_badges: int = 6,        # only affects badges; does NOT filter teams
+    stat_type: str = "base",
+    order_by: str = "rCV",
+    min_games_for_badges: int = 6,
     timeout: int = 5,
     debug: bool = True,
 ):
-    """Analytics Nexus: Team consistency/volatility violins.
-    
-    Returns:
-        dict: {"weekly":[...], "summary":[...], "badges":{...}, "meta":{...}}
-              Empty-shaped payload on error.
-    """
-
     def _empty_payload(_seasons):
         return {
             "weekly": [],
@@ -844,7 +659,6 @@ def fetch_team_violins(
         }
 
     try:
-        # --- Normalize seasons → sorted unique list[int] ---
         if seasons is None:
             seasons_list = []
         elif isinstance(seasons, (list, tuple, set)):
@@ -852,14 +666,11 @@ def fetch_team_violins(
         elif isinstance(seasons, int):
             seasons_list = [seasons]
         else:
-            # tolerate "2023,2024"
             seasons_list = [int(s.strip()) for s in str(seasons).split(",") if s.strip()]
-
         seasons_list = sorted(set(seasons_list))
         if not seasons_list:
             return _empty_payload([])
 
-        # --- Validate enums ---
         st = (season_type or "REG").upper().strip()
         if st not in ALLOWED_SEASON_TYPES:
             raise ValueError(f"season_type must be one of {sorted(ALLOWED_SEASON_TYPES)}")
@@ -868,15 +679,15 @@ def fetch_team_violins(
         if stype not in {"base", "cumulative"}:
             raise ValueError("stat_type must be 'base' or 'cumulative'")
 
-        ob_norm = (order_by or "rCV").strip()
-        if ob_norm.lower() == "rcv":
+        ob_norm = (order_by or "rCV").strip().lower()
+        if ob_norm == "rcv":
             ob_final = "rCV"
-        elif ob_norm.lower() == "iqr":
+        elif ob_norm == "iqr":
             ob_final = "IQR"
-        elif ob_norm.lower() == "median":
+        elif ob_norm == "median":
             ob_final = "median"
         else:
-            raise ValueError(f"order_by must be one of {sorted(ALLOWED_TEAM_ORDER_BY)}")
+            raise ValueError(f"order_by must be one of {sorted(ALLOWED_ORDER_BY)}")
 
         ws = max(1, int(week_start))
         we = min(22, int(week_end))
@@ -886,10 +697,9 @@ def fetch_team_violins(
         tn = max(1, int(top_n))
         mg = max(0, int(min_games_for_badges))
 
-        # --- URL & params ---
         stat_seg = quote(str(stat_name), safe="")
         params = {
-            "seasons": seasons_list,    # requests encodes as repeated ?seasons=YYYY
+            "seasons": seasons_list,
             "season_type": st,
             "week_start": ws,
             "week_end": we,
@@ -897,42 +707,23 @@ def fetch_team_violins(
             "order_by": ob_final,
             "min_games_for_badges": mg,
         }
-
-        last_err = None
-        for prefix in API_PREFIXES:
-            url = f"{API_BASE}{prefix}/analytics_nexus/team/violins/{stat_seg}/{tn}"
-            try:
-                if debug:
-                    print(f"[api_client] GET {url} params={params}")
-                r = requests.get(url, params=params, timeout=timeout)
-                if r.status_code == 404:
-                    last_err = f"404 at {url}"
-                    continue
-                r.raise_for_status()
-                data = r.json()
-
-                if isinstance(data, dict) and "weekly" in data and "summary" in data:
-                    if debug:
-                        print(f"[api_client] OK team violins -> weekly={len(data.get('weekly', []))}, summary={len(data.get('summary', []))}")
-                    return data
-
-                if debug:
-                    print(f"[api_client] Unexpected payload (team violins): type={type(data)}; keys={list(data) if isinstance(data, dict) else 'n/a'}")
-                return _empty_payload(seasons_list)
-
-            except Exception as e:
-                last_err = str(e)
-                continue
-
+        path = f"/analytics_nexus/team/violins/{stat_seg}/{tn}"
+        data = _get_json_resilient(path, params=params, timeout=timeout)
+        if isinstance(data, dict) and "weekly" in data and "summary" in data:
+            if debug:
+                print(f"[api_client] OK team violins -> weekly={len(data.get('weekly', []))}, summary={len(data.get('summary', []))}")
+            return data
         if debug:
-            print(f"[api_client] Team violins failed after trying {API_PREFIXES}: {last_err}")
+            print(f"[api_client] Unexpected payload (team violins)")
         return _empty_payload(seasons_list)
-
     except Exception as e:
         print(f"[api_client] Failed to fetch team violins: {e}")
         return _empty_payload(seasons_list if 'seasons_list' in locals() else [])
 
-# --- Analytics Nexus (Teams — Scatter) ------------------------------------------
+# ============================
+# Analytics Nexus (Teams — Scatter)
+# ============================
+
 def fetch_team_scatter(
     seasons,
     season_type: str,
@@ -941,63 +732,46 @@ def fetch_team_scatter(
     top_n: int = 20,
     week_start: int = 1,
     week_end: int = 18,
-    stat_type: str = "base",                # scatter uses 'base' only
-    top_by: str = "combined",               # combined | x_gate | y_gate | x_value | y_value
+    stat_type: str = "base",
+    top_by: str = "combined",
     log_x: bool = False,
     log_y: bool = False,
-    label_all_points: bool = True,          # UI decides label density
+    label_all_points: bool = True,
     timeout: int = 5,
     debug: bool = True,
 ):
-    """Analytics Nexus: Team quadrant scatter.
-    
-    Returns:
-        dict: {"points":[...], "meta":{...}} or {} on error.
-    Notes:
-        Enforces 'base' stat_type; seasons can be list or comma string.
-    """
-
     try:
-        # --- Validate season_type ---
         st = (season_type or "").upper().strip()
         if st not in ALLOWED_SEASON_TYPES:
             raise ValueError(f"season_type must be one of {sorted(ALLOWED_SEASON_TYPES)}")
 
-        # --- Enforce 'base' for scatter ---
         stype = (stat_type or "base").lower().strip()
         if stype != "base":
             stype = "base"
 
-        # --- Validate top_by ---
         tb = (top_by or "combined").strip().lower()
         if tb not in ALLOWED_TOP_BY:
             raise ValueError(f"top_by must be one of {sorted(ALLOWED_TOP_BY)}")
 
-        # --- Normalize seasons → sorted unique list[int] ---
         if seasons is None:
             raise ValueError("seasons is required")
         if isinstance(seasons, (int, str)):
             seasons = [seasons]
-        clean_seasons: List[int] = []
+        clean: List[int] = []
         for s in seasons:
-            if s is None:
-                continue
             try:
-                clean_seasons.append(int(s))
+                clean.append(int(s))
             except Exception:
                 for tok in str(s).split(","):
                     tok = tok.strip()
                     if tok:
-                        clean_seasons.append(int(tok))
-        seasons = sorted(set(clean_seasons))
+                        clean.append(int(tok))
+        seasons = sorted(set(clean))
         if not seasons:
             raise ValueError("At least one season must be provided")
 
-        # --- Encode path segments safely ---
         mx = quote(str(metric_x), safe="")
         my = quote(str(metric_y), safe="")
-
-        # --- Query params ---
         params = {
             "season_type": st,
             "week_start": int(week_start),
@@ -1007,99 +781,40 @@ def fetch_team_scatter(
             "log_x": bool(log_x),
             "log_y": bool(log_y),
             "label_all_points": bool(label_all_points),
+            "seasons": seasons,
         }
-
-        last_err = None
-        for prefix in API_PREFIXES:
-            url = f"{API_BASE}{prefix}/analytics_nexus/team/scatter/{mx}/{my}/{int(top_n)}"
-            try:
-                if debug:
-                    print(f"[api_client] GET {url} seasons={seasons} params={params}")
-                # `requests` encodes list -> repeated ?seasons=YYYY&seasons=YYYY
-                r = requests.get(url, params={**params, "seasons": seasons}, timeout=timeout)
-                if r.status_code == 404:
-                    last_err = f"404 at {url}"
-                    continue
-                r.raise_for_status()
-                data = r.json()
-                if isinstance(data, dict) and "points" in data and "meta" in data:
-                    if debug:
-                        print(f"[api_client] OK team scatter -> {len(data.get('points', []) or [])} points")
-                    return data
-                if debug:
-                    print(f"[api_client] Unexpected payload (team scatter): type={type(data)}")
-                return {}
-            except Exception as e:
-                last_err = str(e)
-                continue
-
+        path = f"/analytics_nexus/team/scatter/{mx}/{my}/{int(top_n)}"
+        data = _get_json_resilient(path, params=params, timeout=timeout)
+        if isinstance(data, dict) and "points" in data and "meta" in data:
+            if debug:
+                print(f"[api_client] OK team scatter -> {len(data.get('points', []) or [])} points")
+            return data
         if debug:
-            print(f"[api_client] Team scatter failed after trying {API_PREFIXES}: {last_err}")
+            print(f"[api_client] Unexpected payload (team scatter)")
         return {}
     except Exception as e:
         print(f"[api_client] Failed to fetch team scatter: {e}")
         return {}
-      
-# --- Analytics Nexus (Teams — Rolling) ------------------------------------------
+
+# ============================
+# Team Rolling Percentiles
+# ============================
+
 def fetch_team_rolling_percentiles(
     seasons,
-    season_type="REG",            # "REG" | "POST" | "ALL"
-    metric="rushing_epa",         # stat_name in storage
+    season_type="REG",
+    metric="rushing_epa",
     top_n=16,
     week_start=1,
     week_end=18,
-    stat_type="base",             # "base" | "cumulative"
+    stat_type="base",
     rolling_window=4,
     timeout=8,
     debug=False,
 ):
     """
-    Call the Analytics Nexus router to get Team Rolling Form Percentiles.
-
-    Returns a payload shaped like:
-      {
-        "series": [
-          {
-            "team": "KC", "season": 2024, "season_type": "REG", "week": 7,
-            "t_idx": 13, "pct": 72.4, "pct_roll": 68.1,
-            "team_color": "#E31837", "team_color2": "#FFB81C",
-            "team_order": 3
-          }, ...
-        ],
-        "teams": [
-          {
-            "team": "KC",
-            "team_color": "#E31837",
-            "team_color2": "#FFB81C",
-            "last_pct": 74.2,
-            "team_order": 3
-          }, ...
-        ],
-        "meta": { ... }
-      }
+    /analytics_nexus/team/rolling_percentiles/{metric}/{top_n}
     """
-    if not API_BASE:
-        # keep the UI stable even if env is missing
-        return {
-            "series": [],
-            "teams": [],
-            "meta": {
-                "metric": metric,
-                "metric_label": metric.replace("_", " ").title(),
-                "stat_type": stat_type,
-                "season_type": season_type,
-                "seasons": seasons or [],
-                "week_start": week_start,
-                "week_end": week_end,
-                "top_n": int(top_n),
-                "rolling_window": int(rolling_window),
-                "error": "BACKEND_BASE_URL is not set",
-            },
-        }
-
-    url = f"{API_BASE}/analytics_nexus/team/rolling_percentiles/{metric}/{int(top_n)}"
-
-    # requests encodes list values as repeatable query params: ?seasons=2023&seasons=2024
     params = {
         "seasons": seasons or [],
         "season_type": season_type,
@@ -1111,50 +826,24 @@ def fetch_team_rolling_percentiles(
     if debug:
         params["debug"] = True
 
-    try:
-        resp = requests.get(url, params=params, timeout=timeout)
-        resp.raise_for_status()
-        payload = resp.json() or {}
-        # normalize minimal shape for safety
-        if not isinstance(payload, dict):
-            return {"series": [], "teams": [], "meta": {"error": "Unexpected response"}}
-        payload.setdefault("series", [])
-        payload.setdefault("teams", [])
-        payload.setdefault("meta", {})
-        return payload
-    except requests.RequestException as e:
-        # stable fallback on transport errors
-        return {
-            "series": [],
-            "teams": [],
-            "meta": {
-                "metric": metric,
-                "metric_label": metric.replace("_", " ").title(),
-                "stat_type": stat_type,
-                "season_type": season_type,
-                "seasons": seasons or [],
-                "week_start": week_start,
-                "week_end": week_end,
-                "top_n": int(top_n),
-                "rolling_window": int(rolling_window),
-                "error": str(e),
-            },
-        }
-        
+    path = f"/analytics_nexus/team/rolling_percentiles/{metric}/{int(top_n)}"
+    data = _get_json_resilient(path, params=params, timeout=timeout)
+    if isinstance(data, dict):
+        data.setdefault("series", [])
+        data.setdefault("teams", [])
+        data.setdefault("meta", {})
+        return data
+    return {"series": [], "teams": [], "meta": {}}
+
+# ============================
+# Games — week list + details
+# ============================
+
 def get_games_week(season: int, week: int, *, timeout: int = 20):
     """
-    Fetch all games for a given season/week.
-
-    Calls: GET /games/{season}/{week}
-    Returns: list[dict] with fields:
-        game_id, season, week, home_team, away_team,
-        home_record, away_record, kickoff, stadium,
-        line, vegas_total, pred_total, pred_margin,
-        pred_winner_binary, pred_winner_team,
-        home_score, away_score
-    On error: returns [] (and prints a brief log line).
+    GET /games/{season}/{week}
+    Returns list[dict] or [] on error.
     """
-    # Defensive casts (handles strings coming from Dash inputs)
     try:
         s = int(season)
         w = int(week)
@@ -1162,66 +851,22 @@ def get_games_week(season: int, week: int, *, timeout: int = 20):
         raise ValueError(f"Invalid season/week: {season}/{week}") from e
 
     path = f"/games/{s}/{w}"
-
     try:
-        # Prefer an existing shared JSON helper if your module has one.
-        if "_get_json" in globals():
-            return _get_json(path, timeout=timeout)
-
-        # Fallback: make a direct request using API_BASE_URL (same pattern as other helpers).
-        import os
-        import requests
-
-        base = os.environ.get("API_BASE_URL", "http://api:8000").rstrip("/")
-        url = f"{base}{path}"
-
-        resp = requests.get(url, timeout=timeout)
-        resp.raise_for_status()
-        return resp.json()
-
+        data = _get_json_resilient(path, timeout=timeout)
+        return data if isinstance(data, list) else []
     except Exception as e:
         print(f"[api_client.get_games_week] GET {path} failed: {e}")
         return []
 
-# helpers/api_client.py (ADD these helpers; keep your existing imports and api_get)
-
-# helpers/api_client.py — REPLACE these two functions
-
-def _get_json_resilient(path: str, *, timeout: int = 8):
-    """
-    Resolve the API base like get_games_week does, try bare and /api, and
-    fall back to localhost. Returns {} / [] on failure.
-    """
-    import os, requests
-    bases = [
-        os.environ.get("API_BASE_URL", "http://api:8000").rstrip("/"),
-        # final safety: your browser test host
-        "http://localhost:8000",
-    ]
-    paths = [path, f"/api{path}"]  # try bare, then /api
-    last_err = None
-    for base in bases:
-        for p in paths:
-            url = f"{base}{p}"
-            try:
-                r = requests.get(url, timeout=timeout)
-                r.raise_for_status()
-                return r.json()
-            except Exception as e:
-                last_err = f"{type(e).__name__}: {e}"
-                continue
-    print(f"[api_client] GET {path} failed across fallbacks: {last_err}")
-    # Keep UI stable
-    return {} if path.endswith("/stats") or "/games/" in path else []
-
 def get_game_detail(season: int, week: int, game_id: str):
-    """GET /games/{season}/{week}/{game_id} with resilient base resolution."""
+    """GET /games/{season}/{week}/{game_id}."""
     path = f"/games/{int(season)}/{int(week)}/{game_id}"
-    return _get_json_resilient(path, timeout=8) or {}
+    data = _get_json_resilient(path, timeout=8)
+    return data if isinstance(data, dict) else {}
 
 def get_game_stats(season: int, week: int, game_id: str):
-    """GET /games/{season}/{week}/{game_id}/stats with resilient base resolution."""
+    """GET /games/{season}/{week}/{game_id}/stats."""
     path = f"/games/{int(season)}/{int(week)}/{game_id}/stats"
-    return _get_json_resilient(path, timeout=10) or {}
-
+    data = _get_json_resilient(path, timeout=10)
+    return data if isinstance(data, dict) else {}
 

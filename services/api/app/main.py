@@ -2,17 +2,23 @@
 API Entrypoint
 --------------
 Creates the FastAPI app, exposes a minimal health check, redirects "/" -> "/docs",
-and mounts router modules explicitly (standings, current_week, primetime, etc).
+and mounts router modules explicitly (standings, current_week, primetime, etc.).
 
 Notes
 -----
-- No functional changes here: purely documentation and comments.
-- Routers are imported explicitly so startup fails fast if a module is missing.
+- Cloud Run sets PORT via env; local dev defaults to 8080.
+- We avoid creating a global `app` at import time. Use the factory instead.
 """
 
 from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
 import importlib
+import logging
+import os
+
+logger = logging.getLogger("api")
+logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
+
 
 # --- Application factory -------------------------------------------------------
 def create_app() -> FastAPI:
@@ -20,14 +26,10 @@ def create_app() -> FastAPI:
 
     Returns:
         FastAPI: Configured app with:
-            - GET /health  -> {"status": "ok"} (simple liveness)
-            - GET /        -> redirects to /docs
-            - Routers mounted from app.routers.[standings, current_week, primetime, teams,
-              team_stats, team_rosters, team_injuries, analytics_nexus].
-
-    Notes:
-        - Router modules are imported explicitly via importlib for clarity and to ensure
-          import errors surface at startup rather than on first request.
+            - GET /health -> {"status": "ok"} (simple liveness)
+            - GET /       -> redirects to /docs
+            - Routers mounted from app.routers.[standings, current_week, primetime,
+              teams, team_stats, team_rosters, team_injuries, analytics_nexus, games].
     """
     app = FastAPI(title="NFL Analytics API", version="0.1.0")
 
@@ -39,12 +41,10 @@ def create_app() -> FastAPI:
     @app.get("/")
     def index():
         """Redirect root to the interactive API docs (/docs)."""
-        # FastAPI's RedirectResponse defaults to 307 (temporary) which is fine for docs.
         return RedirectResponse(url="/docs")
 
-    # Explicit, educational mounting: keep this list in a stable order to reduce merge churn.
-    # If you add a new router module under app/routers/, list it here.
-    for mod in [
+    # Fail-fast, explicit router imports (keeps startup honest).
+    routers = [
         "standings",
         "current_week",
         "primetime",
@@ -53,19 +53,31 @@ def create_app() -> FastAPI:
         "team_rosters",
         "team_injuries",
         "analytics_nexus",
-        "games"
-    ]:
-        m = importlib.import_module(f"app.routers.{mod}")
+        "games",
+    ]
+    for mod in routers:
+        full = f"app.routers.{mod}"
+        logger.info("Mounting router: %s", full)
+        m = importlib.import_module(full)
         app.include_router(m.router)
+        
+    for r in app.router.routes:
+      try:
+          logger.info("ROUTE %s %s", getattr(r, "path", "?"), [m for m in getattr(r, "methods", [])])
+      except Exception:
+          pass
 
+    logger.info("API startup complete.")
     return app
 
 
-# Expose a module-level ASGI app for uvicorn/gunicorn targets like "app.main:app".
-# (This does not change behavior; it simply instantiates via the factory at import time.)
-app = create_app()
-
-# If ever run directly (not how containers usually do it), this gives a dev server.
+# --- Local dev entrypoint ------------------------------------------------------
+# For local runs: `python -m uvicorn app.main:create_app --factory --reload`
+# OR simply `python services/api/app/main.py`
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
+
+    port = int(os.getenv("PORT", "8080"))
+    # Use factory mode so imports happen after Uvicorn has initialized logging, etc.
+    uvicorn.run("app.main:create_app", host="0.0.0.0", port=port, factory=True, reload=True)
+
