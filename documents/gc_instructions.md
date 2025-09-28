@@ -206,3 +206,86 @@ gcloud run services list --region=europe-west2 --format='table(metadata.name, st
 # API health
 API_URL=$(gcloud run services describe nfl-modeler-api --format='value(status.url)')
 curl -sSf "$API_URL/health"
+
+NFL Modeling — Weekly Refresh Job (Successful Steps Only)
+================================================================
+Generated at: 2025-09-28 20:00:04 UTC
+Project: nfl-modeling
+Region:  europe-west2 (London)
+
+1) Configure Cloud Run region
+   Command:
+     gcloud config set run/region europe-west2
+   Verification:
+     gcloud config get-value run/region   -> europe-west2
+
+2) Confirm active project and account
+   Commands:
+     gcloud config get-value core/project  -> nfl-modeling
+     gcloud config get-value core/account  -> burnhamdustin@gmail.com
+
+3) Build the pipeline image
+   Context: services/pipeline
+   Command:
+     gcloud builds submit services/pipeline \
+       --tag europe-west2-docker.pkg.dev/nfl-modeling/nfl/pipeline:20250928203252
+   Result: SUCCESS
+
+4) Job service account + IAM (Cloud SQL client, Secret Manager accessor)
+   Service Account: cr-jobs-nfl@nfl-modeling.iam.gserviceaccount.com
+   Commands:
+     gcloud iam service-accounts create cr-jobs-nfl \
+       --display-name="Cloud Run Jobs – NFL pipeline"
+     gcloud projects add-iam-policy-binding nfl-modeling \
+       --member="serviceAccount:cr-jobs-nfl@nfl-modeling.iam.gserviceaccount.com" \
+       --role="roles/cloudsql.client"
+     gcloud projects add-iam-policy-binding nfl-modeling \
+       --member="serviceAccount:cr-jobs-nfl@nfl-modeling.iam.gserviceaccount.com" \
+       --role="roles/secretmanager.secretAccessor"
+   Result: Roles applied
+
+5) Create the Cloud Run Job
+   Job name: nfl-weekly-refresh
+   Image: europe-west2-docker.pkg.dev/nfl-modeling/nfl/pipeline:20250928203252
+   Cloud SQL instance: nfl-modeling:europe-west2:nfl-pg-01 (via Unix socket)
+   Command:
+     gcloud run jobs create nfl-weekly-refresh \
+       --image=europe-west2-docker.pkg.dev/nfl-modeling/nfl/pipeline:20250928203252 \
+       --region=europe-west2 \
+       --tasks=1 \
+       --max-retries=0 \
+       --service-account=cr-jobs-nfl@nfl-modeling.iam.gserviceaccount.com \
+       --set-cloudsql-instances=nfl-modeling:europe-west2:nfl-pg-01 \
+       --set-env-vars=DB_HOST=/cloudsql/nfl-modeling:europe-west2:nfl-pg-01,DB_NAME=nfl,DB_USER=nfl_app \
+       --set-secrets=DB_PASS=DB_PASS:latest \
+       --cpu=2 \
+       --memory=2Gi \
+       --task-timeout=3600s
+   Result: Job created successfully
+
+6) (Optional) Describe the job (verification)
+   Command:
+     gcloud run jobs describe nfl-weekly-refresh --region=europe-west2 --format='yaml'
+
+# Update Project
+
+2. Rebuild the Docker Image
+
+From your project's root directory, rebuild the Docker image using the gcloud builds submit command you now know so well. This process bundles all your updated code into a new container image.
+
+Bash
+
+gcloud builds submit . --config=cloudbuild.yaml
+
+Note: The cloudbuild.yaml file automatically handles the build process and tags your new image with europe-west2-docker.pkg.dev/nfl-modeling/nfl/pipeline:latest, which makes the next step easy.
+
+3. Update the Cloud Run Job
+
+Now, tell your Cloud Run job to use the new image you just built.
+Bash
+
+gcloud run jobs update nfl-weekly-refresh \
+  --region=europe-west2 \
+  --image=europe-west2-docker.pkg.dev/nfl-modeling/nfl/pipeline:latest
+
+Since the cloudbuild.yaml file always tags the latest successful build as :latest, this command will automatically pull in your most recent code changes.
