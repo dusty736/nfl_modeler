@@ -115,6 +115,14 @@ curl -sSf "$API_URL/health"
 # Expected output: {"status":"ok"}
 ```
 
+### 3.4 Connect to Database
+
+Running the following will allow for connection and updating of the database hosted on GC.
+
+```bash
+./cloud-sql-proxy --unix-socket /tmp nfl-modeling:europe-west2:nfl-pg-01
+```
+
 -----
 
 ## 4\. Deploy the Dashboard (Dash) 📊
