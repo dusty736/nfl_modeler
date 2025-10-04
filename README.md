@@ -68,16 +68,15 @@ This checklist outlines the key components and tools needed to build a complete,
 - [x] Train/test split and cross-validation
 - [x] Evaluate with accuracy, log loss, calibration plots
 - [x] Save model artifacts with `qs`, `joblib`, or `mlflow`
-- [ ] 
 ---
 
 ### 4. Database Hosting (Google Cloud SQL)
-- [ ] Create PostgreSQL instance in **Cloud SQL**
-- [ ] Set up secure connection with:
+- [x] Create PostgreSQL instance in **Cloud SQL**
+- [x] Set up secure connection with:
   - Cloud SQL Auth Proxy or
   - Static IP allowlist + strong credentials
-- [ ] Create schemas: `raw`, `features`, `predictions`
-- [ ] Create views or materialized tables for dashboard
+- [x] Create schemas: `raw`, `features`, `predictions`
+- [x] Create views or materialized tables for dashboard
 
 ---
 
@@ -93,24 +92,23 @@ This checklist outlines the key components and tools needed to build a complete,
 ---
 
 ### 6. Deployment (Google Cloud)
-- [ ] Write `Dockerfile` for:
+- [x] Write `Dockerfile` for:
   - ETL container
   - Dashboard container
-- [ ] Push containers to **Google Artifact Registry**
-- [ ] Deploy containers with **Cloud Run**
-- [ ] Schedule ETL job with **Cloud Scheduler** (calls Cloud Run job)
-- [ ] Optional: use **Cloud Build** or **GitHub Actions** for CI/CD
+- [x] Push containers to **Google Artifact Registry**
+- [x] Deploy containers with **Cloud Run**
+- [x] Schedule ETL job with **Cloud Scheduler** (calls Cloud Run job)
+- [x] Optional: use **Cloud Build** or **GitHub Actions** for CI/CD
 
 ---
 
 ### 7. Documentation & Polish
-- [ ] Update `README.md`:
+- [x] Update `README.md`:
   - Project summary
   - Architecture diagram
   - Instructions for running locally & on cloud
-- [ ] Add model evaluation reports or dashboards
-- [ ] Create public dashboard link and badge
-- [ ] (Optional) Record 2-min video walkthrough or demo GIF
+- [x] Add model evaluation reports or dashboards
+- [x] Create public dashboard link and badge
 
 ---
 
