@@ -2,10 +2,10 @@
 
 [![codecov](https://codecov.io/github/dusty736/nfl_modeler/branch/main/graph/badge.svg)](https://app.codecov.io/github/dusty736/nfl_modeler)
 
-Dustin Burnham
-burnhamdustin@gmail.com
-BS University of Washington
-MDS University of British Columbia
+- Dustin Burnham
+- burnhamdustin@gmail.com
+- BS University of Washington
+- MDS University of British Columbia
 
 A portfolio project for NFL game prediction using real-time and historical data.
 
