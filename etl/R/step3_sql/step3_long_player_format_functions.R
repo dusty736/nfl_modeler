@@ -30,9 +30,13 @@
 #' @importFrom dplyr mutate select rename all_of if_else
 #' @importFrom tidyr pivot_longer
 #' @export
-pivot_player_stats_long <- function(file_path) {
+pivot_player_stats_long <- function(file_path="", data=NULL) {
   # read parquet file
-  df <- arrow::read_parquet(file_path)
+  if(file_path != '') {
+    df <- arrow::read_parquet(file_path)
+  } else {
+    df <- data
+  }
   
   id_cols <- c(
     "player_id", "full_name", "position",
@@ -118,9 +122,14 @@ pivot_player_stats_long <- function(file_path) {
 #' @importFrom dplyr mutate select rename left_join all_of if_else
 #' @importFrom tidyr pivot_longer
 #' @export
-pivot_ngs_player_stats_long <- function(file_path, opponent_df) {
+pivot_ngs_player_stats_long <- function(file_path='', data = NULL, opponent_df) {
   # read parquet
-  df <- arrow::read_parquet(file_path)
+  # read parquet file
+  if(file_path != '') {
+    df <- arrow::read_parquet(file_path)
+  } else {
+    df <- data
+  }
   
   # normalize identifier names
   df <- df %>%
@@ -207,9 +216,14 @@ pivot_ngs_player_stats_long <- function(file_path, opponent_df) {
 #' @importFrom dplyr mutate select left_join all_of if_else
 #' @importFrom tidyr pivot_longer
 #' @export
-pivot_def_player_stats_long <- function(file_path, opponent_df) {
+pivot_def_player_stats_long <- function(file_path='', data=NULL, opponent_df) {
   # read parquet file
-  df <- arrow::read_parquet(file_path)
+  # read parquet file
+  if(file_path != '') {
+    df <- arrow::read_parquet(file_path)
+  } else {
+    df <- data
+  }
   
   id_cols <- c(
     "player_id", "player_name", "position", "position_group",
@@ -490,8 +504,13 @@ create_career_stats <- function(weekly_df) {
 #' @return Long tibble with columns:
 #'   season, season_type, week, team, opponent, stat_type="base", stat_name, value
 #' @export
-pivot_pbp_game_stats_long <- function(input_path) {
-  df <- arrow::read_parquet(input_path)
+pivot_pbp_game_stats_long <- function(input_path='', data=NULL) {
+  # read parquet file
+  if(input_path != '') {
+    df <- arrow::read_parquet(input_path)
+  } else {
+    df <- data
+  }
   
   # Ensure expected id cols exist
   if (!all(c("game_id", "posteam") %in% names(df))) {

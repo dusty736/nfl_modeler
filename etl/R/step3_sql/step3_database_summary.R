@@ -14,14 +14,38 @@
 if (!requireNamespace("DBI", quietly = TRUE)) stop("Install DBI")
 if (!requireNamespace("RPostgres", quietly = TRUE)) stop("Install RPostgres")
 
-con <- dbConnect(
-  Postgres(),
-  dbname = "nfl",
-  host = "localhost",
-  port = 5432,
-  user = "nfl_user",
-  password = "nfl_pass"
-)
+# con <- dbConnect(
+#   Postgres(),
+#   dbname = "nfl",
+#   host = "localhost",
+#   port = 5432,
+#   user = "nfl_user",
+#   password = "nfl_pass"
+# )
+
+# etl/R/lib/db.R
+get_pg_con <- function() {
+  # Env-driven, with sensible local defaults
+  host <- Sys.getenv("DB_HOST", "127.0.0.1")  # Cloud SQL socket: /cloudsql/PROJECT:REGION:INSTANCE
+  port <- as.integer(Sys.getenv("DB_PORT", "5432"))
+  db   <- Sys.getenv("DB_NAME", "nfl")
+  user <- Sys.getenv("DB_USER", "nfl_app")
+  pass <- Sys.getenv("DB_PASS", "")
+  
+  DBI::dbConnect(
+    RPostgres::Postgres(),
+    host     = host,
+    port     = port,
+    dbname   = db,
+    user     = user,
+    password = pass,
+    # For Unix socket connections SSL is not used
+    sslmode  = "disable"
+  )
+}
+
+con <- get_pg_con()
+on.exit(DBI::dbDisconnect(con), add = TRUE)
 
 sql_in_vec <- function(x) paste0("(", paste(sprintf("'%s'", gsub("'", "''", x)), collapse = ","), ")")
 

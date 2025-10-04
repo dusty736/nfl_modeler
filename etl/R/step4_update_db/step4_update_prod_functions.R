@@ -56,11 +56,22 @@ upsert_table <- function(con,
                          key_cols,
                          src_schema  = "stage",
                          dest_schema = "prod",
-                         stage_filter = NULL,      # e.g., "season >= 2024"
+                         stage_filter = NULL,    # e.g., "season >= 2024"
                          analyze = TRUE) {
   stopifnot(length(key_cols) >= 1)
   
-  # Discover column list from DEST (prod) to enforce exact cdbQuoteIdentifierolumn ordering
+  # --- FIX: Define type coercion map for known problematic columns ---
+  # Add any column here that is TEXT/VARCHAR in stage but needs to be a different type in prod.
+  # Use PostgreSQL types (DATE, NUMERIC, TIMESTAMPTZ, etc.)
+  CAST_COLS_MAP <- list(
+    # The column causing the error:
+    "date" = "DATE" 
+    # Example for a numeric column stored as text:
+    # "total_points" = "NUMERIC"
+  )
+  # ------------------------------------------------------------------
+  
+  # Discover column list from DEST (prod) to enforce exact column ordering
   all_cols <- get_cols(con, dest_schema, table)
   if (length(all_cols) == 0) stop(glue("No columns found for {dest_schema}.{table}"))
   
@@ -79,8 +90,25 @@ upsert_table <- function(con,
   
   where_src <- if (!is.null(stage_filter)) paste0(" WHERE ", stage_filter) else ""
   
-  # Insert-select body
-  insert_select <- glue("INSERT INTO {q_dest} ({q_cols}) SELECT {q_cols} FROM {q_src}{where_src}")
+  # --- FIX: Build the SELECT list with casting where necessary ---
+  select_cols_src <- vapply(all_cols, function(col) {
+    q_col <- DBI::dbQuoteIdentifier(con, col)
+    target_type <- CAST_COLS_MAP[[col]]
+    
+    if (!is.null(target_type)) {
+      # Use CAST(column AS type) AS column_name syntax
+      return(glue("CAST({q_col} AS {target_type}) AS {q_col}"))
+    } else {
+      # Use raw column name
+      return(q_col)
+    }
+  }, character(1))
+  
+  q_select_cols <- paste(select_cols_src, collapse = ", ")
+  # ------------------------------------------------------------------
+  
+  # Insert-select body now uses the specialized SELECT list
+  insert_select <- glue("INSERT INTO {q_dest} ({q_cols}) SELECT {q_select_cols} FROM {q_src}{where_src}")
   
   # If there's at least one non-key col, we can do UPDATE on change
   set_clause <- if (length(non_keys) > 0) {
@@ -160,12 +188,12 @@ refresh_mv <- function(con, schema, mv_name, concurrent = TRUE) {
   if (concurrent) {
     # Note: cannot run inside an explicit transaction
     tryCatch({
-      dbExecute(con, glue("REFRESH MATERIALIZED VIEW CONCURRENTLY {q_schema}.{q_mv};"))
+      dbExecute(con, glue::glue("REFRESH MATERIALIZED VIEW CONCURRENTLY {q_schema}.{q_mv};"))
     }, error = function(e) {
       message("Concurrent refresh failed for ", schema, ".", mv_name, " — falling back: ", e$message)
-      dbExecute(con, glue("REFRESH MATERIALIZED VIEW {q_schema}.{q_mv};"))
+      dbExecute(con, glue::glue("REFRESH MATERIALIZED VIEW {q_schema}.{q_mv};"))
     })
   } else {
-    dbExecute(con, glue("REFRESH MATERIALIZED VIEW {q_schema}.{q_mv};"))
+    dbExecute(con, glue::glue("REFRESH MATERIALIZED VIEW {q_schema}.{q_mv};"))
   }
 }

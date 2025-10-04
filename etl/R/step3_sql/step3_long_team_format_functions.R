@@ -32,8 +32,12 @@
 #' )
 #' }
 #' @export
-pivot_team_stats_long <- function(file_path, opponent_df, team_col = "team") {
-  df <- arrow::read_parquet(file_path)
+pivot_team_stats_long <- function(file_path='', data=NULL, opponent_df, team_col = "team") {
+  if(file_path != '') {
+    df <- arrow::read_parquet(file_path)
+  } else {
+    df <- data
+  }
   
   # Standardize the team column
   df <- df %>%
@@ -86,8 +90,12 @@ pivot_team_stats_long <- function(file_path, opponent_df, team_col = "team") {
 #' pivot_game_results_long("data/processed/game_results.parquet")
 #' }
 #' @export
-pivot_game_results_long <- function(file_path) {
-  df <- arrow::read_parquet(file_path)
+pivot_game_results_long <- function(file_path='', data=NULL) {
+  if(file_path != '') {
+    df <- arrow::read_parquet(file_path)
+  } else {
+    df <- data
+  }
   
   # Identifier columns we must NOT pivot
   id_cols <- c(
@@ -143,8 +151,12 @@ pivot_game_results_long <- function(file_path) {
 #' pivot_special_teams_long("data/processed/special_teams.parquet")
 #' }
 #' @export
-pivot_special_teams_long <- function(file_path) {
-  df <- arrow::read_parquet(file_path)
+pivot_special_teams_long <- function(file_path='', data=NULL) {
+  if(file_path != '') {
+    df <- arrow::read_parquet(file_path)
+  } else {
+    df <- data
+  }
   
   # Columns to group by for team-level aggregation
   id_cols <- c("team", "season", "season_type", "week")

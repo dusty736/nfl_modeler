@@ -1,0 +1,20 @@
+REATE INDEX idx_player_weekly_core
+  ON public.player_weekly_tbl (season, season_type, week, stat_name, position, player_id);
+
+CREATE INDEX idx_team_weekly_core
+  ON public.team_weekly_tbl (season, season_type, week, stat_name, team);
+  
+find . -not -path '*/\.*' | python -c "import sys as s;s.a=[];[setattr(s,'a',list(filter(lambda p: c.startswith(p+'/'),s.a)))or (s.stdout.write('  '*len(s.a)+c[len(s.a[-1])+1 if s.a else 0:])or True) and s.a.append(c[:-1]) for c in s.stdin]"
+
+
+
+make update-dashboard
+docker compose build --no-cache api
+docker-compose down
+docker-compose logs -f
+docker ps
+make load-db
+docker-compose up -d nfl_pg
+docker compose up -d db
+
+make predict-margin

@@ -3,14 +3,14 @@ library(RPostgres)
 library(glue)
 
 # Connect to Postgres
-con <- dbConnect(
-  Postgres(),
-  dbname = "nfl",
-  host = "localhost",
-  port = 5432,
-  user = "nfl_user",
-  password = "nfl_pass"
-)
+# con <- dbConnect(
+#   Postgres(),
+#   dbname = "nfl",
+#   host = "localhost",
+#   port = 5432,
+#   user = "nfl_user",
+#   password = "nfl_pass"
+# )
 
 # Define positions
 positions <- c("QB", "RB", "WR", "TE")

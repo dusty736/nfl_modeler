@@ -28,6 +28,7 @@ process_rosters <- function(roster_raw) {
     ) %>%
     transmute(
       season = season,
+      week = week,
       player_id = player_id,
       full_name = full_name,
       first_name = first_name,

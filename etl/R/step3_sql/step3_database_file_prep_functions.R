@@ -8,7 +8,7 @@
 #' @export
 format_pbp_for_sql <- function(input_path, output_path = "pbp_sql.parquet") {
   pbp_sql <- arrow::read_parquet(input_path) %>%
-    transmute(
+    mutate(
       game_id = as.character(game_id),
       play_id = as.integer(play_id),
       qtr = as.integer(qtr),
@@ -52,7 +52,7 @@ format_pbp_for_sql <- function(input_path, output_path = "pbp_sql.parquet") {
 #' @export
 format_game_for_sql <- function(input_path, output_path = "game_sql.parquet") {
   game_sql <- arrow::read_parquet(input_path) %>%
-    dplyr::transmute(
+    dplyr::mutate(
       game_id = as.character(game_id),
       season = as.integer(season),
       week = as.integer(week),
@@ -111,7 +111,7 @@ format_game_for_sql <- function(input_path, output_path = "game_sql.parquet") {
 #' @export
 format_season_for_sql <- function(input_path, output_path = "season_sql.parquet") {
   season_sql <- arrow::read_parquet(input_path) %>%
-    dplyr::transmute(
+    dplyr::mutate(
       season = as.integer(season),
       team_id = as.character(team_id),
       wins = as.integer(wins),
@@ -138,7 +138,7 @@ format_season_for_sql <- function(input_path, output_path = "season_sql.parquet"
 #' @export
 format_weeks_for_sql <- function(input_path, output_path = "weekly_results_tbl.parquet") {
   weekly_sql <- arrow::read_parquet(input_path) %>%
-    dplyr::transmute(
+    dplyr::mutate(
       season = as.integer(season),
       week = as.integer(week),
       season_type = as.character(season_type),
@@ -172,7 +172,7 @@ format_weeks_for_sql <- function(input_path, output_path = "weekly_results_tbl.p
 #' @export
 format_roster_for_sql <- function(input_path, output_path = "rosters_tbl.parquet") {
   roster_sql <- arrow::read_parquet(input_path) %>%
-    dplyr::transmute(
+    dplyr::mutate(
       player_id = as.character(player_id),
       team_id = as.character(team),  # Rename to match schema
       season = as.integer(season),
@@ -207,7 +207,7 @@ format_roster_for_sql <- function(input_path, output_path = "rosters_tbl.parquet
 #' @export
 format_roster_summary_for_sql <- function(input_path, output_path = "roster_summary_tbl.parquet") {
   roster_summary_sql <- arrow::read_parquet(input_path) %>%
-    dplyr::transmute(
+    dplyr::mutate(
       season = as.integer(season),
       team = as.character(team),
       n_players = as.integer(n_players),
@@ -231,7 +231,7 @@ format_roster_summary_for_sql <- function(input_path, output_path = "roster_summ
 #' @export
 format_roster_position_summary_for_sql <- function(input_path, output_path = "roster_position_summary_tbl.parquet") {
   roster_position_sql <- arrow::read_parquet(input_path) %>%
-    dplyr::transmute(
+    dplyr::mutate(
       season = as.integer(season),
       team = as.character(team),
       position = as.character(position),
@@ -256,7 +256,7 @@ format_roster_position_summary_for_sql <- function(input_path, output_path = "ro
 #' @export
 format_weekly_qb_stats_for_sql <- function(input_path, output_path = "weekly_stats_qb_tbl.parquet") {
   qb_weekly_sql <- arrow::read_parquet(input_path) %>%
-    dplyr::transmute(
+    dplyr::mutate(
       season = as.integer(season),
       week = as.integer(week),
       season_type = as.character(season_type),
@@ -320,7 +320,7 @@ format_weekly_qb_stats_for_sql <- function(input_path, output_path = "weekly_sta
 #' @export
 format_weekly_rb_stats_for_sql <- function(input_path, output_path = "weekly_stats_rb_tbl.parquet") {
   rb_weekly_sql <- arrow::read_parquet(input_path) %>%
-    dplyr::transmute(
+    dplyr::mutate(
       season = as.integer(season),
       week = as.integer(week),
       season_type = as.character(season_type),
@@ -387,7 +387,7 @@ format_weekly_wrte_stats_for_sql <- function(input_path, output_path = NULL) {
   }
   
   wrte_sql <- arrow::read_parquet(input_path) %>%
-    dplyr::transmute(
+    dplyr::mutate(
       season = as.integer(season),
       week = as.integer(week),
       season_type = as.character(season_type),
@@ -448,7 +448,7 @@ format_weekly_wrte_stats_for_sql <- function(input_path, output_path = NULL) {
 #' @export
 format_season_qb_stats_for_sql <- function(input_path, output_path = "season_stats_qb_tbl.parquet") {
   qb_season_sql <- arrow::read_parquet(input_path) %>%
-    dplyr::transmute(
+    dplyr::mutate(
       season = as.integer(season),
       player_id = as.character(player_id),
       full_name = as.character(full_name),
@@ -497,7 +497,7 @@ format_season_qb_stats_for_sql <- function(input_path, output_path = "season_sta
 #' @export
 format_season_rb_stats_for_sql <- function(input_path, output_path = "season_stats_rb_tbl.parquet") {
   rb_season_sql <- arrow::read_parquet(input_path) %>%
-    dplyr::transmute(
+    dplyr::mutate(
       season = as.integer(season),
       player_id = as.character(player_id),
       full_name = as.character(full_name),
@@ -551,7 +551,7 @@ format_season_wrte_stats_for_sql <- function(input_path, output_path = NULL) {
   }
   
   wrte_season_sql <- arrow::read_parquet(input_path) %>%
-    dplyr::transmute(
+    dplyr::mutate(
       season = as.integer(season),
       player_id = as.character(player_id),
       full_name = as.character(full_name),
@@ -591,7 +591,7 @@ format_season_wrte_stats_for_sql <- function(input_path, output_path = NULL) {
 #' @export
 format_career_qb_stats_for_sql <- function(input_path, output_path = "career_stats_qb_tbl.parquet") {
   qb_career_sql <- arrow::read_parquet(input_path) %>%
-    dplyr::transmute(
+    dplyr::mutate(
       player_id = as.character(player_id),
       full_name = as.character(full_name),
       position = as.character(position),
@@ -640,7 +640,7 @@ format_career_qb_stats_for_sql <- function(input_path, output_path = "career_sta
 #' @export
 format_career_rb_stats_for_sql <- function(input_path, output_path = "career_stats_rb_tbl.parquet") {
   rb_career_sql <- arrow::read_parquet(input_path) %>%
-    dplyr::transmute(
+    dplyr::mutate(
       player_id = as.character(player_id),
       full_name = as.character(full_name),
       position = as.character(position),
@@ -694,7 +694,7 @@ format_career_wrte_stats_for_sql <- function(input_path, output_path = NULL) {
   }
   
   wrte_career_sql <- arrow::read_parquet(input_path) %>%
-    dplyr::transmute(
+    dplyr::mutate(
       player_id = as.character(player_id),
       full_name = as.character(full_name),
       position = as.character(position),
@@ -740,7 +740,7 @@ format_career_wrte_stats_for_sql <- function(input_path, output_path = NULL) {
   }
   
   wrte_career_sql <- arrow::read_parquet(input_path) %>%
-    dplyr::transmute(
+    dplyr::mutate(
       player_id = as.character(player_id),
       full_name = as.character(full_name),
       position = as.character(position),
@@ -780,7 +780,7 @@ format_career_wrte_stats_for_sql <- function(input_path, output_path = NULL) {
 #' @export
 format_injuries_weekly_for_sql <- function(input_path, output_path = "injuries_weekly_tbl.parquet") {
   injuries_sql <- arrow::read_parquet(input_path) %>%
-    dplyr::transmute(
+    dplyr::mutate(
       season = as.integer(season),
       week = as.integer(week),
       team = as.character(team),
@@ -810,7 +810,7 @@ format_injuries_weekly_for_sql <- function(input_path, output_path = "injuries_w
 #' @export
 format_injuries_team_weekly_for_sql <- function(input_path, output_path = "injuries_team_weekly_tbl.parquet") {
   injuries_team_sql <- arrow::read_parquet(input_path) %>%
-    dplyr::transmute(
+    dplyr::mutate(
       season = as.integer(season),
       week = as.integer(week),
       team = as.character(team),
@@ -832,7 +832,7 @@ format_injuries_team_weekly_for_sql <- function(input_path, output_path = "injur
 #' @export
 format_injuries_team_season_for_sql <- function(input_path, output_path = "injuries_team_season_tbl.parquet") {
   injuries_team_season_sql <- arrow::read_parquet(input_path) %>%
-    dplyr::transmute(
+    dplyr::mutate(
       season = as.integer(season),
       team = as.character(team),
       season_injuries = as.integer(season_injuries)
@@ -852,7 +852,7 @@ format_injuries_team_season_for_sql <- function(input_path, output_path = "injur
 #' @export
 format_injuries_team_position_weekly_for_sql <- function(input_path, output_path = "injuries_position_weekly_tbl.parquet") {
   injuries_pos_sql <- arrow::read_parquet(input_path) %>%
-    dplyr::transmute(
+    dplyr::mutate(
       season = as.integer(season),
       week = as.integer(week),
       team = as.character(team),
@@ -875,7 +875,7 @@ format_injuries_team_position_weekly_for_sql <- function(input_path, output_path
 #' @export
 format_contracts_qb_for_sql <- function(input_path, output_path = "contracts_qb_tbl.parquet") {
   contracts_sql <- arrow::read_parquet(input_path) %>%
-    dplyr::transmute(
+    dplyr::mutate(
       player = as.character(player),
       position = as.character(position),
       team = as.character(team),
@@ -920,7 +920,7 @@ format_contracts_qb_for_sql <- function(input_path, output_path = "contracts_qb_
 #' @export
 format_contracts_cap_pct_for_sql <- function(input_path, output_path = "contracts_position_cap_pct_tbl.parquet") {
   contracts_pct_sql <- arrow::read_parquet(input_path) %>%
-    dplyr::transmute(
+    dplyr::mutate(
       position = as.character(position),
       year_signed = as.integer(year_signed),
       team = as.character(team),
@@ -943,7 +943,7 @@ format_contracts_cap_pct_for_sql <- function(input_path, output_path = "contract
 #' @export
 format_weekly_special_teams_for_sql <- function(input_path, output_path = "st_player_stats_weekly_tbl.parquet") {
   st_sql <- arrow::read_parquet(input_path) %>%
-    dplyr::transmute(
+    dplyr::mutate(
       season = as.integer(season),
       week = as.integer(week),
       season_type = as.character(season_type),
@@ -995,7 +995,7 @@ format_weekly_special_teams_for_sql <- function(input_path, output_path = "st_pl
 #' @export
 format_season_special_teams_for_sql <- function(input_path, output_path = "st_player_stats_season_tbl.parquet") {
   st_season_sql <- arrow::read_parquet(input_path) %>%
-    dplyr::transmute(
+    dplyr::mutate(
       season = as.integer(season),
       player_id = as.character(player_id),
       player_name = as.character(player_name),
@@ -1049,7 +1049,7 @@ format_season_special_teams_for_sql <- function(input_path, output_path = "st_pl
 #' @export
 format_weekly_defense_player_stats_for_sql <- function(input_path, output_path = "def_player_stats_weekly_tbl.parquet") {
   weekly_def_sql <- arrow::read_parquet(input_path) %>%
-    dplyr::transmute(
+    dplyr::mutate(
       season = as.integer(season),
       week = as.integer(week),
       season_type = as.character(season_type),
@@ -1094,7 +1094,7 @@ format_weekly_defense_player_stats_for_sql <- function(input_path, output_path =
 #' @export
 format_season_defense_player_stats_for_sql <- function(input_path, output_path = "def_player_stats_season_tbl.parquet") {
   season_def_sql <- arrow::read_parquet(input_path) %>%
-    dplyr::transmute(
+    dplyr::mutate(
       season = as.integer(season),
       player_id = as.character(player_id),
       team = as.character(team),
@@ -1138,7 +1138,7 @@ format_season_defense_player_stats_for_sql <- function(input_path, output_path =
 #' @export
 format_career_defense_player_stats_for_sql <- function(input_path, output_path = "def_player_stats_career_tbl.parquet") {
   career_def_sql <- arrow::read_parquet(input_path) %>%
-    dplyr::transmute(
+    dplyr::mutate(
       player_id = as.character(player_id),
       position = as.character(position),
       position_group = as.character(position_group),
@@ -1182,7 +1182,7 @@ format_career_defense_player_stats_for_sql <- function(input_path, output_path =
 #' @export
 format_season_defense_team_stats_for_sql <- function(input_path, output_path = "def_team_stats_season_tbl.parquet") {
   season_def_team_sql <- arrow::read_parquet(input_path) %>%
-    dplyr::transmute(
+    dplyr::mutate(
       season = as.integer(season),
       team = as.character(team),
       n_players = as.integer(n_players),
@@ -1223,7 +1223,7 @@ format_season_defense_team_stats_for_sql <- function(input_path, output_path = "
 #' @export
 format_depth_chart_player_starts_for_sql <- function(input_path, output_path = "depth_charts_player_starts_tbl.parquet") {
   player_starts_sql <- arrow::read_parquet(input_path) %>%
-    dplyr::transmute(
+    dplyr::mutate(
       season = as.integer(season),
       team = as.character(team),
       position = as.character(position),
@@ -1245,7 +1245,7 @@ format_depth_chart_player_starts_for_sql <- function(input_path, output_path = "
 #' @export
 format_depth_chart_position_stability_for_sql <- function(input_path, output_path = "depth_charts_position_stability_tbl.parquet") {
   stability_sql <- arrow::read_parquet(input_path) %>%
-    dplyr::transmute(
+    dplyr::mutate(
       season = as.integer(season),
       week = as.integer(week),
       team = as.character(team),
@@ -1267,7 +1267,7 @@ format_depth_chart_position_stability_for_sql <- function(input_path, output_pat
 #' @export
 format_depth_chart_qb_for_sql <- function(input_path, output_path = "depth_charts_qb_team_tbl.parquet") {
   qb_starts_sql <- arrow::read_parquet(input_path) %>%
-    dplyr::transmute(
+    dplyr::mutate(
       season = as.integer(season),
       week = as.integer(week),
       team = as.character(team),
@@ -1288,7 +1288,7 @@ format_depth_chart_qb_for_sql <- function(input_path, output_path = "depth_chart
 #' @export
 format_depth_chart_starters_for_sql <- function(input_path, output_path = "depth_charts_starters_tbl.parquet") {
   starters_sql <- arrow::read_parquet(input_path) %>%
-    dplyr::transmute(
+    dplyr::mutate(
       season = as.integer(season),
       week = as.integer(week),
       team = as.character(team),
@@ -1314,7 +1314,7 @@ format_depth_chart_starters_for_sql <- function(input_path, output_path = "depth
 #' @export
 format_weekly_nextgen_stats_for_sql <- function(input_path, output_path = "nextgen_stats_player_weekly_tbl.parquet") {
   ngs_weekly_sql <- arrow::read_parquet(input_path) %>%
-    dplyr::transmute(
+    dplyr::mutate(
       season = as.integer(season),
       season_type = as.character(season_type),
       week = as.integer(week),
@@ -1355,7 +1355,7 @@ format_weekly_nextgen_stats_for_sql <- function(input_path, output_path = "nextg
 #' @export
 format_season_nextgen_stats_for_sql <- function(input_path, output_path = "nextgen_stats_player_season_tbl.parquet") {
   ngs_season_sql <- arrow::read_parquet(input_path) %>%
-    dplyr::transmute(
+    dplyr::mutate(
       season = as.integer(season),
       player_gsis_id = as.character(player_gsis_id),
       team_abbr = as.character(team_abbr),
@@ -1400,7 +1400,7 @@ format_season_nextgen_stats_for_sql <- function(input_path, output_path = "nextg
 #' @export
 format_postseason_nextgen_stats_for_sql <- function(input_path, output_path = "nextgen_stats_player_postseason_tbl.parquet") {
   ngs_post_sql <- arrow::read_parquet(input_path) %>%
-    dplyr::transmute(
+    dplyr::mutate(
       player_gsis_id = as.character(player_gsis_id),
       team_abbr = as.character(team_abbr),
       player_position = as.character(player_position),
@@ -1444,7 +1444,7 @@ format_postseason_nextgen_stats_for_sql <- function(input_path, output_path = "n
 #' @export
 format_career_nextgen_stats_for_sql <- function(input_path, output_path = "nextgen_stats_player_career_tbl.parquet") {
   ngs_career_sql <- arrow::read_parquet(input_path) %>%
-    dplyr::transmute(
+    dplyr::mutate(
       player_gsis_id = as.character(player_gsis_id),
       team_abbr = as.character(team_abbr),
       player_position = as.character(player_position),
@@ -1488,7 +1488,7 @@ format_career_nextgen_stats_for_sql <- function(input_path, output_path = "nextg
 #' @export
 format_participation_offense_pbp_for_sql <- function(input_path, output_path = "participation_offense_pbp_tbl.parquet") {
   offense_pbp_sql <- arrow::read_parquet(input_path) %>%
-    dplyr::transmute(
+    dplyr::mutate(
       game_id = as.character(game_id),
       play_id = as.integer(play_id),
       season = as.integer(season),
@@ -1519,7 +1519,7 @@ format_participation_offense_pbp_for_sql <- function(input_path, output_path = "
 #' @export
 format_participation_offense_game_for_sql <- function(input_path, output_path = "participation_offense_game_tbl.parquet") {
   offense_game_sql <- arrow::read_parquet(input_path) %>%
-    dplyr::transmute(
+    dplyr::mutate(
       game_id = as.character(game_id),
       team = as.character(team),
       season = as.integer(season),
@@ -1574,7 +1574,7 @@ format_participation_offense_game_for_sql <- function(input_path, output_path = 
 #' @export
 format_participation_offense_season_for_sql <- function(input_path, output_path = "participation_offense_season_tbl.parquet") {
   offense_season_sql <- arrow::read_parquet(input_path) %>%
-    dplyr::transmute(
+    dplyr::mutate(
       season = as.integer(season),
       team = as.character(team),
       n_plays = as.integer(n_plays),
@@ -1619,7 +1619,7 @@ format_participation_offense_season_for_sql <- function(input_path, output_path 
 #' @export
 format_participation_defense_pbp_for_sql <- function(input_path, output_path = "participation_defense_pbp_tbl.parquet") {
   defense_pbp_sql <- arrow::read_parquet(input_path) %>%
-    dplyr::transmute(
+    dplyr::mutate(
       game_id = as.character(game_id),
       play_id = as.integer(play_id),
       season = as.integer(season),
@@ -1673,7 +1673,7 @@ format_participation_defense_pbp_for_sql <- function(input_path, output_path = "
 #' @export
 format_participation_defense_game_for_sql <- function(input_path, output_path = "participation_defense_game_tbl.parquet") {
   defense_game_sql <- arrow::read_parquet(input_path) %>%
-    dplyr::transmute(
+    dplyr::mutate(
       game_id = as.character(game_id),
       defense_team = as.character(defense_team),
       season = as.integer(season),
@@ -1738,7 +1738,7 @@ format_participation_defense_game_for_sql <- function(input_path, output_path = 
 #' @export
 format_participation_defense_season_for_sql <- function(input_path, output_path = "participation_defense_season_tbl.parquet") {
   defense_season_sql <- arrow::read_parquet(input_path) %>%
-    dplyr::transmute(
+    dplyr::mutate(
       season = as.integer(season),
       defense_team = as.character(defense_team),
       n_plays = as.integer(n_plays),
@@ -1780,7 +1780,7 @@ format_participation_defense_season_for_sql <- function(input_path, output_path 
 #' @export
 format_team_metadata_for_sql <- function(input_path, output_path = "team_metadata_tbl.parquet") {
   team_metadata_sql <- arrow::read_parquet(input_path) %>%
-    dplyr::transmute(
+    dplyr::mutate(
       team_id = as.character(team_id),
       team_abbr = as.character(team_abbr),
       team_name = as.character(team_name),
@@ -1814,7 +1814,7 @@ format_team_metadata_for_sql <- function(input_path, output_path = "team_metadat
 #' @export
 format_id_map_for_sql <- function(input_path, output_path = "id_map_tbl.parquet") {
   id_map_sql <- arrow::read_parquet(input_path) %>%
-    dplyr::transmute(
+    dplyr::mutate(
       full_name = as.character(full_name),
       first_name = as.character(first_name),
       last_name = as.character(last_name),
@@ -1847,7 +1847,7 @@ format_id_map_for_sql <- function(input_path, output_path = "id_map_tbl.parquet"
 #' @export
 format_snapcount_weekly_for_sql <- function(input_path, output_path = "snapcount_weekly_tbl.parquet") {
   snapcount_weekly_sql <- arrow::read_parquet(input_path) %>%
-    dplyr::transmute(
+    dplyr::mutate(
       game_id = as.character(game_id),
       pfr_game_id = as.character(pfr_game_id),
       season = as.integer(season),
@@ -1881,7 +1881,7 @@ format_snapcount_weekly_for_sql <- function(input_path, output_path = "snapcount
 #' @export
 format_snapcount_season_for_sql <- function(input_path, output_path = "snapcount_season_tbl.parquet") {
   snapcount_season_sql <- arrow::read_parquet(input_path) %>%
-    dplyr::transmute(
+    dplyr::mutate(
       season = as.integer(season),
       team = as.character(team),
       player = as.character(player),
@@ -1914,7 +1914,7 @@ format_snapcount_season_for_sql <- function(input_path, output_path = "snapcount
 #' @export
 format_snapcount_career_for_sql <- function(input_path, output_path = "snapcount_career_tbl.parquet") {
   snapcount_career_sql <- arrow::read_parquet(input_path) %>%
-    dplyr::transmute(
+    dplyr::mutate(
       player = as.character(player),
       pfr_player_id = as.character(pfr_player_id),
       first_season = as.integer(first_season),
@@ -1948,7 +1948,7 @@ format_snapcount_career_for_sql <- function(input_path, output_path = "snapcount
 #' @export
 format_espn_qbr_season_for_sql <- function(input_path, output_path = "espn_qbr_season_tbl.parquet") {
   espn_qbr_season_sql <- arrow::read_parquet(input_path) %>%
-    dplyr::transmute(
+    dplyr::mutate(
       season = as.integer(season),
       season_type = as.character(season_type),
       team_abb = as.character(team_abb),
@@ -1982,7 +1982,7 @@ format_espn_qbr_season_for_sql <- function(input_path, output_path = "espn_qbr_s
 #' @export
 format_espn_qbr_career_for_sql <- function(input_path, output_path = "espn_qbr_career_tbl.parquet") {
   espn_qbr_career_sql <- arrow::read_parquet(input_path) %>%
-    dplyr::transmute(
+    dplyr::mutate(
       player_id = as.character(player_id),
       name_display = as.character(name_display),
       season_type = as.character(season_type),
@@ -2020,7 +2020,7 @@ format_espn_qbr_career_for_sql <- function(input_path, output_path = "espn_qbr_c
 form_def_team_weekly_for_sql <- function(input_path,
                                          output_path = "def_team_stats_week_tbl.parquet") {
   def_week_sql <- arrow::read_parquet(input_path) %>%
-    dplyr::transmute(
+    dplyr::mutate(
       season                         = as.integer(season),
       week                           = as.integer(week),
       team                           = as.character(team),
@@ -2064,9 +2064,9 @@ form_def_team_weekly_for_sql <- function(input_path,
 form_off_team_weekly_for_sql <- function(input_path,
                                          output_path = "off_team_stats_week_tbl.parquet") {
   off_week_sql <- arrow::read_parquet(input_path) %>%
-    # If your source uses `recent_team`, rename before transmute:
+    # If your source uses `recent_team`, rename before mutate:
     dplyr::rename(dplyr::any_of(c(team = "recent_team"))) %>%
-    dplyr::transmute(
+    dplyr::mutate(
       # Identifiers
       season                        = as.integer(season),
       week                          = as.integer(week),
@@ -2126,9 +2126,9 @@ form_off_team_weekly_for_sql <- function(input_path,
 form_off_team_season_for_sql <- function(input_path,
                                          output_path = "off_team_stats_season_tbl.parquet") {
   off_season_sql <- arrow::read_parquet(input_path) %>%
-    # If your source uses `recent_team`, rename before transmute:
+    # If your source uses `recent_team`, rename before mutate:
     dplyr::rename(dplyr::any_of(c(team = "recent_team"))) %>%
-    dplyr::transmute(
+    dplyr::mutate(
       # Identifiers
       season                        = as.integer(season),
       team                          = as.character(team),
@@ -2187,8 +2187,8 @@ form_off_team_season_for_sql <- function(input_path,
 form_player_weekly_for_sql <- function(input_path,
                                       output_path) {
   player_weekly_sql <- arrow::read_parquet(input_path) %>%
-    # If your source uses `recent_team`, rename before transmute:
-    dplyr::transmute(
+    # If your source uses `recent_team`, rename before mutate:
+    dplyr::mutate(
       # Identifiers
       player_id                        = as.character(player_id),
       name                        = as.character(name),
@@ -2219,8 +2219,8 @@ form_player_weekly_for_sql <- function(input_path,
 form_player_season_for_sql <- function(input_path,
                                        output_path) {
   player_season_sql <- arrow::read_parquet(input_path) %>%
-    # If your source uses `recent_team`, rename before transmute:
-    dplyr::transmute(
+    # If your source uses `recent_team`, rename before mutate:
+    dplyr::mutate(
       # Identifiers
       player_id                        = as.character(player_id),
       name                        = as.character(name),
@@ -2248,8 +2248,8 @@ form_player_season_for_sql <- function(input_path,
 form_player_career_for_sql <- function(input_path,
                                        output_path) {
   player_career_sql <- arrow::read_parquet(input_path) %>%
-    # If your source uses `recent_team`, rename before transmute:
-    dplyr::transmute(
+    # If your source uses `recent_team`, rename before mutate:
+    dplyr::mutate(
       # Identifiers
       player_id                        = as.character(player_id),
       name                        = as.character(name),
@@ -2276,8 +2276,8 @@ form_player_career_for_sql <- function(input_path,
 form_team_weekly_for_sql <- function(input_path,
                                        output_path) {
   team_weekly_sql <- arrow::read_parquet(input_path) %>%
-    # If your source uses `recent_team`, rename before transmute:
-    dplyr::transmute(
+    # If your source uses `recent_team`, rename before mutate:
+    dplyr::mutate(
       # Identifiers
       game_id = as.character(game_id),
       team                          = as.character(team),
@@ -2307,8 +2307,8 @@ form_team_weekly_for_sql <- function(input_path,
 form_team_season_for_sql <- function(input_path,
                                      output_path) {
   team_season_sql <- arrow::read_parquet(input_path) %>%
-    # If your source uses `recent_team`, rename before transmute:
-    dplyr::transmute(
+    # If your source uses `recent_team`, rename before mutate:
+    dplyr::mutate(
       # Identifiers
       team                          = as.character(team),
       season                        = as.integer(season),
@@ -2334,8 +2334,8 @@ form_team_season_for_sql <- function(input_path,
 form_team_alltime_for_sql <- function(input_path,
                                      output_path) {
   team_alltime_sql <- arrow::read_parquet(input_path) %>%
-    # If your source uses `recent_team`, rename before transmute:
-    dplyr::transmute(
+    # If your source uses `recent_team`, rename before mutate:
+    dplyr::mutate(
       # Identifiers
       team                          = as.character(team),
       season_type                        = as.character(season_type),
@@ -2363,7 +2363,7 @@ form_pbp_play_for_sql <- function(input_path, output_path) {
   df <- arrow::read_parquet(input_path)
   
   # Keep to stable names from your clean_pbp_data(); booleans map cleanly to SQL BOOLEAN.
-  pbp_play_sql <- dplyr::transmute(
+  pbp_play_sql <- dplyr::mutate(
     df,
     # --- identifiers ---
     game_id                     = as.character(game_id),
@@ -2476,7 +2476,7 @@ form_team_game_for_sql <- function(input_path, output_path) {
     dplyr::slice_head(n = 1) |>
     dplyr::ungroup()
   
-  team_game_sql <- dplyr::transmute(
+  team_game_sql <- dplyr::mutate(
     g2,
     # --- identifiers ---
     game_id                        = as.character(game_id),

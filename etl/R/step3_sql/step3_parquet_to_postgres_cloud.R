@@ -8,27 +8,26 @@ library(here)
 
 source(here("etl", "R", "step3_sql", "step3_parquet_to_postgres_functions.R"))
 
-# Sys.setenv(
-#  DB_HOST = "localhost",
-#  DB_USER = "nfl_user", # Replace with your local user
-#  DB_PASS = "nfl_pass" # Replace with your local password
-# )
-# 
-# con <- dbConnect(
-#   RPostgres::Postgres(),
-#   dbname = "nfl",
-#   host = Sys.getenv("DB_HOST"),
-#   user = Sys.getenv("DB_USER"),
-#   password = Sys.getenv("DB_PASS")
-# )
+Sys.setenv(
+ DB_HOST = "localhost",
+ DB_USER = "nfl_user", # Replace with your local user
+ DB_PASS = "nfl_pass" # Replace with your local password
+)
 
 con <- dbConnect(
-  Postgres(),
+  RPostgres::Postgres(),
   dbname = "nfl",
-  host = "localhost",
-  port = 5432,
-  user = "nfl_user",
-  password = "nfl_pass"
+  host = Sys.getenv("DB_HOST"),
+  user = Sys.getenv("DB_USER"),
+  password = Sys.getenv("DB_PASS")
+)
+
+con <- dbConnect(
+  RPostgres::Postgres(),
+  dbname = "nfl",
+  host = "/tmp/nfl-modeling:europe-west2:nfl-pg-01", 
+  user = "nfl_app",
+  password = "CHOOSE_A_STRONG_PASS"
 )
 
 # Clear Schema ----
@@ -235,3 +234,4 @@ create_index(con = con, schema = 'prod', table = 'team_strength_tbl', id_cols = 
 
 #source(file.path("etl", "R", "step3_sql", "step3_createIDx.R"))
 source(file.path("etl", "R", "step3_sql", "step3_create_mv.R"))
+

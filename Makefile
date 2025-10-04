@@ -90,8 +90,17 @@ run-preds:
 	python3 modeling/Python/pregame_total_predgen.py --run-id latest --all --with-pi --to-db
 	python3 modeling/Python/pregame_margin_predgen.py --run-id latest --all --to-db
 	
+run-preds-cloud:
+	python3 modeling/Python/pregame_predgen_cloud.py --run-id latest --all --to-db
+	python3 modeling/Python/pregame_total_predgen_cloud.py --run-id latest --all --with-pi --to-db
+	python3 modeling/Python/pregame_margin_predgen_cloud.py --run-id latest --all --to-db
+	
 run-data-full:
 	Rscript etl/R/process_scripts/full_db_upload.R
 
 run-data-refresh:
 	Rscript etl/R/process_scripts/db_refresh.R
+	
+run-data-refresh-cloud:
+	et/cloud_scripts/update_cloud_db.sh
+	#Rscript etl/R/process_scripts/db_refresh_cloud.R
