@@ -51,7 +51,7 @@ if not DATABASE_URL:
         # - omit host in the URL
         # - provide the socket path via connect_args["host"]
         DATABASE_URL = f"postgresql+asyncpg://{DB_USER}:{DB_PASS}@/{DB_NAME}"
-        CONNECT_ARGS = {"host": DB_HOST, "ssl": False}
+        CONNECT_ARGS = {"host": f"{DB_HOST}/.s.PGSQL.5432", "ssl": False} # This is the crucial change
     else:
         # Standard TCP
         DATABASE_URL = f"postgresql+asyncpg://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
