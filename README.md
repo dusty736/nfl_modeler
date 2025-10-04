@@ -2,6 +2,8 @@
 
 [![codecov](https://codecov.io/github/dusty736/nfl_modeler/branch/main/graph/badge.svg)](https://app.codecov.io/github/dusty736/nfl_modeler)
 
+[Dashboard](https://nfl-modeler-dashboard-550218142616.europe-west2.run.app/)
+
 - Dustin Burnham
 - burnhamdustin@gmail.com
 - BS University of Washington
