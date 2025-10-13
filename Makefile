@@ -102,5 +102,5 @@ run-data-refresh:
 	Rscript etl/R/process_scripts/db_refresh.R
 	
 run-data-refresh-cloud:
-	et/cloud_scripts/update_cloud_db.sh
+	etl/cloud_scripts/update_cloud_db.sh
 	#Rscript etl/R/process_scripts/db_refresh_cloud.R

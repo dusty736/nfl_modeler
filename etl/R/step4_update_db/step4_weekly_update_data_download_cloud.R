@@ -285,6 +285,7 @@ snapcount_season <- summarize_snapcounts_season(snapcount) %>% distinct()
 snapcount_career <- summarize_snapcounts_career(snapcount) %>% distinct()
 
 tmp_names <- names(DBI::dbGetQuery(con, "select * from prod.snapcount_weekly_tbl limit 5"))
+tmp_names <- tmp_names[tmp_names != '.progress']
 DBI::dbWriteTable(con, DBI::Id("stage", "snapcount_weekly_tbl"), 
                   snapcount_weekly %>% 
                     filter(week %in% weeks) %>% 
@@ -678,10 +679,10 @@ create_index(con = con, schema = 'stage', table = 'player_weekly_tbl', id_cols =
 tmp_names <- names(DBI::dbGetQuery(con, "select * from prod.player_season_tbl limit 5"))
 DBI::dbWriteTable(con, DBI::Id("stage", "player_season_tbl"), 
                   seasonal_players %>% 
-                    distinct() %>% 
+                    dplyr::distinct(season,season_type,player_id,name,stat_name,agg_type, .keep_all = TRUE) %>% 
                     filter(season %in% seasons) %>% 
                     dplyr::select(all_of(tmp_names)), overwrite = TRUE)
-create_index(con = con, schema = 'stage', table = 'player_season_tbl', id_cols = c("season","season_type","player_id","name", "stat_name","agg_type"), unique = TRUE)
+create_index(con = con, schema = 'stage', table = 'player_season_tbl', id_cols = c("season","season_type","player_id", "name", "position", "stat_name","agg_type"), unique = TRUE)
 
 tmp_names <- names(DBI::dbGetQuery(con, "select * from prod.player_career_tbl limit 5"))
 DBI::dbWriteTable(con, DBI::Id("stage", "player_career_tbl"), 

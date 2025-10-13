@@ -46,7 +46,7 @@ key_map <- list(
   team_career_tbl                     = c("team","season_type","stat_name","stat_type"),
   team_weekly_rankings_tbl            = c("season", "week", "team", "stat_name"),
   player_weekly_tbl                   = c("season","season_type","week","player_id","stat_name","stat_type"),
-  player_season_tbl                   = c("season","season_type","player_id","name","stat_name","agg_type"),
+  player_season_tbl                   = c("season","season_type","player_id","name", "stat_name","agg_type"),
   player_career_tbl                   = c("player_id","season_type","position","name","stat_name","agg_type"),
   id_map_tbl                          = c("gsis_id","espn_id","full_name"),
   game_level_modeling_tbl             = c("game_id", "season", "week")
