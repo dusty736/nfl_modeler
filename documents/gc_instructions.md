@@ -68,6 +68,8 @@ When deploying services, pass the following arguments:
 --add-cloudsql-instances=nfl-modeling:europe-west2:nfl-pg-01 \
 --set-env-vars=DB_HOST=/cloudsql/nfl-modeling:europe-west2:nfl-pg-01,DB_NAME=nfl,DB_USER=nfl_app \
 --set-secrets=DB_PASS=DB_PASS:latest
+
+./cloud-sql-proxy --unix-socket /tmp nfl-modeling:europe-west2:nfl-pg-01
 ```
 
 The API's database connection code (`db.py`) must be configured to use this host path.
